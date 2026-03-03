@@ -65,6 +65,45 @@ public final class CategoryRepository {
         }
     }
 
+    public Category getRootByNameOrNull(String userUid, String name) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(name, "name");
+
+        String n = name.trim();
+        if (n.isBlank()) {
+            return null;
+        }
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM categories WHERE user_uid = ? AND parent_id IS NULL AND name = ? LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, n);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return new Category(
+                    rs.getString("id"),
+                    rs.getString("user_uid"),
+                    rs.getString("name"),
+                    rs.getString("parent_id"),
+                    rs.getLong("created_at_epoch_sec"),
+                    rs.getLong("updated_at_epoch_sec")
+                );
+            }
+        }
+    }
+
+    public Category ensureRootCategory(String userUid, String name) throws SQLException {
+        Category c = getRootByNameOrNull(userUid, name);
+        if (c != null) {
+            return c;
+        }
+        return create(userUid, name, null);
+    }
+
     public List<Category> listChildren(String userUid, String parentId) throws SQLException {
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
             "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +

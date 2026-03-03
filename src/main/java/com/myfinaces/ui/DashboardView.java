@@ -3,6 +3,7 @@ package com.myfinaces.ui;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
+import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.config.AppConfig;
@@ -25,6 +26,7 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.DatePicker;
@@ -59,6 +61,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.Region;
 import javafx.stage.Screen;
 import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import javafx.scene.control.TextFormatter;
 import javafx.util.Duration;
 
@@ -96,7 +99,7 @@ public final class DashboardView {
         void onLogout();
     }
 
-    public static Parent create(AuthSession session, Listener listener, AccountRepository accountRepo, CategoryRepository categoryRepo, TransactionRepository txRepo, TransferRepository transferRepo, BooleanProperty darkTheme) {
+    public static Parent create(AuthSession session, Listener listener, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, BooleanProperty darkTheme) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         AtomicReference<ScheduledFuture<?>> autoSyncRef = new AtomicReference<>();
         AtomicBoolean syncInProgress = new AtomicBoolean(false);
@@ -124,7 +127,7 @@ public final class DashboardView {
         accountsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         accountsScroll.getStyleClass().addAll("card", "content-card");
 
-        Runnable refreshBalances = () -> refreshBalances(session, accountRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+        Runnable refreshBalances = () -> refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
         refreshBalances.run();
 
         Runnable pullCategories = () -> {
@@ -337,6 +340,48 @@ public final class DashboardView {
             }
         };
 
+        Runnable pullGoals = () -> {
+            System.out.println("[Sync] pullGoals start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                List<GoalRepository.Goal> remote = sync.pullGoals(session);
+                System.out.println("[Sync] pulled goals=" + remote.size());
+
+                Set<String> remoteIds = new HashSet<>();
+                for (GoalRepository.Goal g : remote) {
+                    remoteIds.add(g.id());
+                    if (accountRepo.getById(session.uid(), g.accountId()) == null) {
+                        continue;
+                    }
+                    try {
+                        goalRepo.upsertFromRemote(session.uid(), g);
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                List<GoalRepository.Goal> localAll = goalRepo.listByUser(session.uid());
+                for (GoalRepository.Goal g : localAll) {
+                    if (remoteIds.contains(g.id())) {
+                        continue;
+                    }
+                    try {
+                        goalRepo.delete(session.uid(), g.id());
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullGoals failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullGoals end");
+            }
+        };
+
         Runnable runSyncNow = () -> {
             long nowMs = System.currentTimeMillis();
             long blockedUntil = syncBlockedUntilMs.get();
@@ -360,6 +405,7 @@ public final class DashboardView {
                     try {
                         pullCategories.run();
                         pullAccounts.run();
+                        pullGoals.run();
                         pullTransactions.run();
                         pullTransfers.run();
                     } catch (RuntimeException quotaAbort) {
@@ -424,6 +470,13 @@ public final class DashboardView {
         summary.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(summary, new FontIcon("fas-clipboard-list"));
         summary.setOnAction(e -> showSummaryDialog(session.uid(), txRepo, accountRepo, categoryRepo, darkTheme.get()));
+
+        Button goals = new Button("Metas");
+        goals.getStyleClass().add("btn-primary");
+        goals.getStyleClass().add("nav-button");
+        goals.setMaxWidth(Double.MAX_VALUE);
+        setButtonIcon(goals, new FontIcon("fas-bullseye"));
+        goals.setOnAction(e -> showGoalsDialog(session, goalRepo, accountRepo, transferRepo, darkTheme.get(), refreshBalances));
 
         Button charts = new Button("Gráficos");
         charts.getStyleClass().add("btn-primary");
@@ -538,7 +591,7 @@ public final class DashboardView {
         brand.setMinHeight(Region.USE_PREF_SIZE);
 
         VBox menuTop = new VBox(10, brand, userBox);
-        VBox menuMainActions = new VBox(10, transactions, transfers, summary, charts);
+        VBox menuMainActions = new VBox(10, transactions, transfers, summary, goals, charts);
         menuMainActions.getStyleClass().add("sidebar-actions");
         VBox.setVgrow(menuMainActions, Priority.NEVER);
 
@@ -4383,10 +4436,22 @@ public final class DashboardView {
         name.setPrefWidth(360);
 
         ChoiceBox<String> type = new ChoiceBox<>();
-        type.getItems().addAll("BANK", "CASH");
+        type.getItems().addAll("BANK", "CASH", "SAVINGS", "CREDIT", "INVESTMENT", "OTHER");
         type.getSelectionModel().selectFirst();
 
-        TextField currency = new TextField("COP");
+        ComboBox<String> currency = new ComboBox<>();
+        currency.getItems().addAll(
+            "COP",
+            "USD",
+            "EUR",
+            "GBP",
+            "MXN",
+            "ARS",
+            "CLP",
+            "PEN",
+            "VES"
+        );
+        currency.getSelectionModel().select("COP");
         currency.setPrefWidth(200);
 
         GridPane grid = new GridPane();
@@ -4420,12 +4485,595 @@ public final class DashboardView {
         }
 
         String t = type.getValue() == null ? "BANK" : type.getValue();
-        String cur = currency.getText() == null ? "" : currency.getText().trim();
+        String cur = currency.getValue() == null ? "" : currency.getValue().trim();
         if (cur.isBlank()) {
             cur = "COP";
         }
 
         return Optional.of(new NewAccount(n, t, cur));
+    }
+
+    private record NewGoal(
+        String name,
+        String currency,
+        long targetCents,
+        long targetDateEpochSec
+    ) {
+    }
+
+    private record GoalTransfer(
+        String otherAccountId,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) {
+    }
+
+    private static void showGoalsDialog(
+        AuthSession session,
+        GoalRepository goalRepo,
+        AccountRepository accountRepo,
+        TransferRepository transferRepo,
+        boolean darkTheme,
+        Runnable refreshBalances
+    ) {
+        String userUid = session.uid();
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Metas");
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+
+        ButtonType closeBtn = new ButtonType("Volver", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(closeBtn);
+        dialog.setResizable(true);
+        dialog.getDialogPane().setMinWidth(980);
+        dialog.getDialogPane().setMinHeight(720);
+
+        javafx.event.EventHandler<javafx.scene.control.DialogEvent> existingOnShown = dialog.getOnShown();
+        dialog.setOnShown(ev -> {
+            if (existingOnShown != null) {
+                existingOnShown.handle(ev);
+            }
+            Platform.runLater(() -> {
+                try {
+                    javafx.stage.Window w = dialog.getDialogPane().getScene().getWindow();
+                    if (w instanceof javafx.stage.Stage s) {
+                        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+                        s.setX(bounds.getMinX());
+                        s.setY(bounds.getMinY());
+                        s.setWidth(bounds.getWidth());
+                        s.setHeight(bounds.getHeight());
+                        s.setMaximized(true);
+
+                        final double normalW = Math.min(1100, bounds.getWidth() * 0.92);
+                        final double normalH = Math.min(760, bounds.getHeight() * 0.90);
+                        s.maximizedProperty().addListener((o, oldV, newV) -> {
+                            if (Boolean.TRUE.equals(newV)) {
+                                return;
+                            }
+                            try {
+                                s.setWidth(normalW);
+                                s.setHeight(normalH);
+                                s.centerOnScreen();
+                            } catch (Exception ignored) {
+                            }
+                        });
+                    }
+                } catch (Exception ignored) {
+                }
+            });
+        });
+
+        Label headerTitle = new Label("Metas");
+        headerTitle.getStyleClass().add("app-title");
+        Label headerDesc = new Label("Crea metas con dinero real: cada meta se vincula a una cuenta de ahorro.");
+        headerDesc.getStyleClass().add("text-secondary");
+        VBox header = new VBox(2, headerTitle, headerDesc);
+
+        Label error = new Label();
+        error.getStyleClass().add("error");
+        error.setWrapText(true);
+        error.setVisible(false);
+        error.setManaged(false);
+
+        VBox list = new VBox(10);
+        list.getStyleClass().add("accounts-list");
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().addAll("card", "content-card");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        AtomicReference<Runnable> refreshListRef = new AtomicReference<>();
+        Runnable refreshList = () -> {
+            error.setText("");
+            error.setVisible(false);
+            error.setManaged(false);
+            list.getChildren().clear();
+
+            try {
+                List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid);
+                if (goals.isEmpty()) {
+                    Label empty = new Label("Aún no tienes metas. Crea tu primera meta.");
+                    empty.getStyleClass().add("text-secondary");
+                    list.getChildren().add(empty);
+                    return;
+                }
+
+                for (GoalRepository.Goal g : goals) {
+                    final long savedCents = safeComputeBalanceCents(accountRepo, userUid, g.accountId());
+                    long remaining = g.targetCents() - savedCents;
+
+                    Label name = new Label(g.name());
+                    name.getStyleClass().add("account-name");
+
+                    Label goalCaption = new Label("Objetivo:");
+                    goalCaption.getStyleClass().add("text-secondary");
+                    Label goalAmount = new Label(formatMoney(g.targetCents(), g.currency()));
+                    goalAmount.getStyleClass().addAll("account-name", "money-neutral");
+
+                    Label savedCaption = new Label("Guardado:");
+                    savedCaption.getStyleClass().add("text-secondary");
+                    Label savedAmount = new Label(formatMoney(savedCents, g.currency()));
+                    savedAmount.getStyleClass().addAll("account-name", savedCents > 0 ? "money-positive" : "money-neutral");
+
+                    Label remainingCaption = new Label("Falta:");
+                    remainingCaption.getStyleClass().add("text-secondary");
+                    Label remainingAmount = new Label(formatMoney(Math.max(0L, remaining), g.currency()));
+                    remainingAmount.getStyleClass().addAll("account-name", remaining > 0 ? "money-negative" : "money-positive");
+
+                    HBox subtitle = new HBox(10,
+                        goalCaption, goalAmount,
+                        savedCaption, savedAmount,
+                        remainingCaption, remainingAmount
+                    );
+                    subtitle.setAlignment(Pos.CENTER_LEFT);
+
+                    Button deposit = new Button("Depositar");
+                    deposit.getStyleClass().add("btn-secondary");
+                    deposit.setOnAction(ev -> {
+                        Optional<GoalTransfer> t = showGoalDepositDialog(userUid, g, accountRepo, darkTheme);
+                        if (t.isEmpty()) {
+                            return;
+                        }
+                        try {
+                            GoalTransfer gt = t.get();
+                            String transferId = transferRepo.create(userUid, gt.otherAccountId(), g.accountId(), gt.amountCents(), gt.occurredAtEpochSec(), gt.note());
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
+                            } catch (Exception ignored) {
+                            }
+                            refreshBalances.run();
+                            Runnable r = refreshListRef.get();
+                            if (r != null) {
+                                r.run();
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    });
+
+                    Button withdraw = new Button("Retirar");
+                    withdraw.getStyleClass().add("btn-secondary");
+                    withdraw.setOnAction(ev -> {
+                        Optional<GoalTransfer> t = showGoalWithdrawDialog(userUid, g, accountRepo, darkTheme);
+                        if (t.isEmpty()) {
+                            return;
+                        }
+                        try {
+                            GoalTransfer gt = t.get();
+                            String transferId = transferRepo.create(userUid, g.accountId(), gt.otherAccountId(), gt.amountCents(), gt.occurredAtEpochSec(), gt.note());
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
+                            } catch (Exception ignored) {
+                            }
+                            refreshBalances.run();
+                            Runnable r = refreshListRef.get();
+                            if (r != null) {
+                                r.run();
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    });
+
+                    Button delete = new Button("Eliminar");
+                    delete.getStyleClass().add("btn-danger");
+                    boolean canDelete = savedCents == 0L || savedCents >= g.targetCents();
+                    delete.setDisable(!canDelete);
+                    delete.setOnAction(ev -> {
+                        if (!canDelete) {
+                            Alert alert = buildAlert(
+                                AlertType.WARNING,
+                                "No se puede eliminar",
+                                "Primero retira todo el dinero",
+                                "Para eliminar la meta, el saldo guardado debe estar en 0 o la meta debe estar completada.\n\n" +
+                                    "Guardado: " + formatMoney(savedCents, g.currency()),
+                                darkTheme
+                            );
+                            alert.showAndWait();
+                            return;
+                        }
+                        Dialog<ButtonType> confirm = new Dialog<>();
+                        confirm.setTitle("Eliminar");
+                        UiDialogs.applyAppTheme(confirm, darkTheme);
+                        confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+                        confirm.setContentText("¿Eliminar la meta '" + g.name() + "'?\n\nNota: la cuenta vinculada no se eliminará automáticamente.");
+                        confirm.showAndWait().ifPresent(btn -> {
+                            if (btn != ButtonType.OK) {
+                                return;
+                            }
+                            try {
+                                goalRepo.delete(userUid, g.id());
+                                try {
+                                    AppConfig cfg = AppConfig.loadDefault();
+                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                    sync.deleteGoal(session, g.id());
+                                } catch (Exception ignored) {
+                                }
+                                refreshBalances.run();
+                                Runnable r = refreshListRef.get();
+                                if (r != null) {
+                                    r.run();
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        });
+                    });
+
+                    Region spacer = new Region();
+                    HBox.setHgrow(spacer, Priority.ALWAYS);
+                    HBox actions = new HBox(8, deposit, withdraw, delete);
+                    actions.setAlignment(Pos.CENTER_RIGHT);
+
+                    VBox left = new VBox(4, name, subtitle);
+                    HBox top = new HBox(10, left, spacer, actions);
+                    top.setAlignment(Pos.CENTER_LEFT);
+
+                    VBox row = new VBox(6, top);
+                    row.getStyleClass().add("account-item");
+                    list.getChildren().add(row);
+                }
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "Error" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        };
+
+        Button create = new Button("Nueva meta");
+        create.getStyleClass().add("btn-primary");
+        create.setOnAction(e -> {
+            Optional<NewGoal> ng = showCreateGoalDialog(darkTheme);
+            if (ng.isEmpty()) {
+                return;
+            }
+            try {
+                NewGoal g = ng.get();
+                AccountRepository.Account savings = accountRepo.create(userUid, "Meta: " + g.name(), "SAVINGS", g.currency());
+                GoalRepository.Goal created = goalRepo.create(userUid, g.name(), g.currency(), g.targetCents(), g.targetDateEpochSec(), savings.id());
+
+                try {
+                    AppConfig cfg = AppConfig.loadDefault();
+                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                    sync.syncAccount(session, savings);
+                    sync.syncGoal(session, created);
+                } catch (Exception ignored) {
+                }
+
+                refreshBalances.run();
+                Runnable r = refreshListRef.get();
+                if (r != null) {
+                    r.run();
+                }
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "No se pudo crear la meta" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        });
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerBar = new HBox(12, header, headerSpacer, create);
+        headerBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(12, headerBar, scroll, error);
+        content.setPadding(new Insets(10));
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(content);
+
+        refreshListRef.set(refreshList);
+        refreshList.run();
+        dialog.showAndWait();
+    }
+
+    private static Optional<NewGoal> showCreateGoalDialog(boolean darkTheme) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Nueva meta");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(640);
+        dialog.getDialogPane().setPrefWidth(640);
+
+        TextField name = new TextField();
+        name.setPromptText("Ej: Viaje, Ahorro, Emergencias");
+
+        TextField currency = new TextField("COP");
+        currency.setPromptText("COP");
+
+        TextField target = new TextField();
+        target.setPromptText("Ej: 1000000.00");
+
+        DatePicker targetDate = new DatePicker(LocalDate.now().plusMonths(1));
+
+        Label error = new Label();
+        error.getStyleClass().add("error");
+        error.setWrapText(true);
+        error.setVisible(false);
+        error.setManaged(false);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+        grid.setPrefWidth(600);
+
+        Label lName = new Label("Nombre");
+        lName.getStyleClass().add("account-name");
+        grid.add(lName, 0, 0);
+        grid.add(name, 1, 0);
+
+        Label lCurrency = new Label("Moneda");
+        lCurrency.getStyleClass().add("account-name");
+        grid.add(lCurrency, 0, 1);
+        grid.add(currency, 1, 1);
+
+        Label lTarget = new Label("Objetivo");
+        lTarget.getStyleClass().add("account-name");
+        grid.add(lTarget, 0, 2);
+        grid.add(target, 1, 2);
+
+        Label lDate = new Label("Fecha objetivo");
+        lDate.getStyleClass().add("account-name");
+        grid.add(lDate, 0, 3);
+        grid.add(targetDate, 1, 3);
+
+        grid.add(error, 0, 4, 2, 1);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(btn -> btn);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return Optional.empty();
+        }
+
+        String n = name.getText() == null ? "" : name.getText().trim();
+        String cur = currency.getText() == null ? "" : currency.getText().trim().toUpperCase(Locale.ROOT);
+        if (n.isBlank() || cur.isBlank() || targetDate.getValue() == null) {
+            return Optional.empty();
+        }
+
+        long cents;
+        try {
+            BigDecimal v = parseAmount(target.getText());
+            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+
+        long epoch = targetDate.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        return Optional.of(new NewGoal(n, cur, cents, epoch));
+    }
+
+    private static Optional<GoalTransfer> showGoalDepositDialog(
+        String userUid,
+        GoalRepository.Goal goal,
+        AccountRepository accountRepo,
+        boolean darkTheme
+    ) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Depositar a meta");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(700);
+        dialog.getDialogPane().setPrefWidth(700);
+
+        DatePicker date = new DatePicker(LocalDate.now());
+        ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
+        TextField amount = new TextField();
+        amount.setPromptText("Ej: 10000.00");
+        TextField note = new TextField();
+        note.setPromptText("Nota (opcional)");
+
+        try {
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
+            for (AccountRepository.Account a : accounts) {
+                if (a == null) {
+                    continue;
+                }
+                if (goal.accountId().equals(a.id())) {
+                    continue;
+                }
+                if (!goal.currency().equalsIgnoreCase(a.currency())) {
+                    continue;
+                }
+                from.getItems().add(a);
+            }
+            if (!from.getItems().isEmpty()) {
+                from.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+
+        from.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account object) {
+                return object == null ? "" : object.name();
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String string) {
+                return null;
+            }
+        });
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+
+        Label lGoal = new Label("Meta");
+        lGoal.getStyleClass().add("account-name");
+        grid.add(lGoal, 0, 0);
+        grid.add(new Label(goal.name()), 1, 0);
+
+        Label lDate = new Label("Fecha");
+        lDate.getStyleClass().add("account-name");
+        grid.add(lDate, 0, 1);
+        grid.add(date, 1, 1);
+
+        Label lFrom = new Label("Desde");
+        lFrom.getStyleClass().add("account-name");
+        grid.add(lFrom, 0, 2);
+        grid.add(from, 1, 2);
+
+        Label lAmount = new Label("Monto");
+        lAmount.getStyleClass().add("account-name");
+        grid.add(lAmount, 0, 3);
+        grid.add(amount, 1, 3);
+
+        Label lNote = new Label("Nota");
+        lNote.getStyleClass().add("account-name");
+        grid.add(lNote, 0, 4);
+        grid.add(note, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return Optional.empty();
+        }
+        if (date.getValue() == null || from.getValue() == null) {
+            return Optional.empty();
+        }
+
+        long cents;
+        try {
+            BigDecimal v = parseAmount(amount.getText());
+            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+
+        long epoch = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        return Optional.of(new GoalTransfer(from.getValue().id(), cents, epoch, note.getText()));
+    }
+
+    private static Optional<GoalTransfer> showGoalWithdrawDialog(
+        String userUid,
+        GoalRepository.Goal goal,
+        AccountRepository accountRepo,
+        boolean darkTheme
+    ) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Retirar de meta");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(700);
+        dialog.getDialogPane().setPrefWidth(700);
+
+        DatePicker date = new DatePicker(LocalDate.now());
+        ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
+        TextField amount = new TextField();
+        amount.setPromptText("Ej: 10000.00");
+        TextField note = new TextField();
+        note.setPromptText("Nota (opcional)");
+
+        try {
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
+            for (AccountRepository.Account a : accounts) {
+                if (a == null) {
+                    continue;
+                }
+                if (goal.accountId().equals(a.id())) {
+                    continue;
+                }
+                if (!goal.currency().equalsIgnoreCase(a.currency())) {
+                    continue;
+                }
+                to.getItems().add(a);
+            }
+            if (!to.getItems().isEmpty()) {
+                to.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+
+        to.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account object) {
+                return object == null ? "" : object.name();
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String string) {
+                return null;
+            }
+        });
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+
+        Label lGoal = new Label("Meta");
+        lGoal.getStyleClass().add("account-name");
+        grid.add(lGoal, 0, 0);
+        grid.add(new Label(goal.name()), 1, 0);
+
+        Label lDate = new Label("Fecha");
+        lDate.getStyleClass().add("account-name");
+        grid.add(lDate, 0, 1);
+        grid.add(date, 1, 1);
+
+        Label lTo = new Label("Hacia");
+        lTo.getStyleClass().add("account-name");
+        grid.add(lTo, 0, 2);
+        grid.add(to, 1, 2);
+
+        Label lAmount = new Label("Monto");
+        lAmount.getStyleClass().add("account-name");
+        grid.add(lAmount, 0, 3);
+        grid.add(amount, 1, 3);
+
+        Label lNote = new Label("Nota");
+        lNote.getStyleClass().add("account-name");
+        grid.add(lNote, 0, 4);
+        grid.add(note, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return Optional.empty();
+        }
+        if (date.getValue() == null || to.getValue() == null) {
+            return Optional.empty();
+        }
+
+        long cents;
+        try {
+            BigDecimal v = parseAmount(amount.getText());
+            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+
+        long epoch = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        return Optional.of(new GoalTransfer(to.getValue().id(), cents, epoch, note.getText()));
     }
 
     private static Optional<EditAccountResult> showEditAccountDialog(AccountRepository.Account existing, boolean darkTheme) {
@@ -4519,6 +5167,7 @@ public final class DashboardView {
     private static void refreshBalances(
         AuthSession session,
         AccountRepository accountRepo,
+        GoalRepository goalRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
         Label totalValue,
@@ -4537,10 +5186,34 @@ public final class DashboardView {
                 return;
             }
 
+            java.util.Set<String> goalAccountIds = new java.util.HashSet<>();
+            java.util.Map<String, GoalRepository.Goal> goalByAccount = new java.util.HashMap<>();
+            try {
+                List<GoalRepository.Goal> goals = goalRepo.listByUser(session.uid());
+                for (GoalRepository.Goal g : goals) {
+                    if (g == null || g.accountId() == null || g.accountId().isBlank()) {
+                        continue;
+                    }
+                    goalAccountIds.add(g.accountId());
+                    goalByAccount.put(g.accountId(), g);
+                }
+            } catch (Exception ignored) {
+            }
+
             long totalCents = 0L;
             for (AccountRepository.Account a : accounts) {
                 long balance = accountRepo.computeBalanceCents(session.uid(), a.id());
                 totalCents += balance;
+
+                if (goalAccountIds.contains(a.id())) {
+                    continue;
+                }
+
+                if (accountsBox.getChildren().isEmpty()) {
+                    Label hdr = new Label("Cuentas");
+                    hdr.getStyleClass().add("account-name");
+                    accountsBox.getChildren().add(hdr);
+                }
 
                 Label name = new Label(a.name());
                 name.getStyleClass().add("account-name");
@@ -4682,7 +5355,7 @@ public final class DashboardView {
                                 sync.syncAccount(session, updated);
                             } catch (Exception ignored) {
                             }
-                            refreshBalances(session, accountRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
                         } else if (res.get().action() == EditAccountAction.VIEW_SUMMARY) {
                             showAccountSummaryDialog(session.uid(), a, txRepo, transferRepo, accountRepo, darkTheme.get());
                         } else if (res.get().action() == EditAccountAction.DELETE) {
@@ -4705,7 +5378,7 @@ public final class DashboardView {
                                 sync.deleteAccount(session, a.id());
                             } catch (Exception ignored) {
                             }
-                            refreshBalances(session, accountRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
                         }
                     } catch (IllegalStateException ex) {
                         if ("account_has_movements".equals(ex.getMessage())) {
@@ -4733,6 +5406,41 @@ public final class DashboardView {
                 });
 
                 accountsBox.getChildren().add(row);
+            }
+
+            if (!goalAccountIds.isEmpty()) {
+                if (!accountsBox.getChildren().isEmpty()) {
+                    Separator sep = new Separator();
+                    sep.getStyleClass().add("sidebar-separator");
+                    accountsBox.getChildren().add(sep);
+                }
+
+                Label hdrGoals = new Label("Metas");
+                hdrGoals.getStyleClass().add("account-name");
+                accountsBox.getChildren().add(hdrGoals);
+
+                for (AccountRepository.Account a : accounts) {
+                    if (!goalAccountIds.contains(a.id())) {
+                        continue;
+                    }
+                    long balance = accountRepo.computeBalanceCents(session.uid(), a.id());
+
+                    GoalRepository.Goal g = goalByAccount.get(a.id());
+                    String displayName = g == null ? a.name() : g.name();
+
+                    Label name = new Label(displayName);
+                    name.getStyleClass().add("account-name");
+
+                    Label amount = new Label(formatMoney(balance, a.currency()));
+                    amount.getStyleClass().add(balance > 0 ? "money-positive" : (balance < 0 ? "money-negative" : "money-neutral"));
+
+                    Region spacer = new Region();
+                    HBox.setHgrow(spacer, Priority.ALWAYS);
+                    HBox row = new HBox(10, name, spacer, amount);
+                    row.getStyleClass().add("account-item");
+                    row.setMinHeight(Region.USE_PREF_SIZE);
+                    accountsBox.getChildren().add(row);
+                }
             }
 
             String totalCurrency = null;
@@ -4851,7 +5559,7 @@ public final class DashboardView {
 
     private static String currencySymbol(String currencyCode) {
         if (currencyCode == null || currencyCode.isBlank()) {
-            return "¤";
+            return "$";
         }
         String c = currencyCode.trim().toUpperCase(Locale.ROOT);
         return switch (c) {
@@ -4865,6 +5573,17 @@ public final class DashboardView {
             case "PEN" -> "S/";
             default -> c + " ";
         };
+    }
+
+    private static long safeComputeBalanceCents(AccountRepository accountRepo, String userUid, String accountId) {
+        try {
+            if (accountRepo == null || userUid == null || accountId == null) {
+                return 0L;
+            }
+            return accountRepo.computeBalanceCents(userUid, accountId);
+        } catch (Exception ignored) {
+            return 0L;
+        }
     }
 
     private static BigDecimal parseAmount(String raw) {

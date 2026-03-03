@@ -243,7 +243,14 @@ public final class AccountRepository {
 
         String sql =
             "SELECT (" +
-            "  COALESCE((SELECT SUM(CASE WHEN kind = 'INCOME' THEN amount_cents WHEN kind = 'EXPENSE' THEN -amount_cents ELSE 0 END)" +
+            "  COALESCE((SELECT SUM(CASE " +
+            "    WHEN kind = 'INCOME' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_BORROWED_IN' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_REPAYMENT_PRINCIPAL_IN' THEN amount_cents " +
+            "    WHEN kind = 'EXPENSE' THEN -amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_OUT' THEN -amount_cents " +
+            "    WHEN kind = 'LOAN_REPAYMENT_PRINCIPAL_OUT' THEN -amount_cents " +
+            "    ELSE 0 END)" +
             "          FROM transactions WHERE user_uid = ? AND account_id = ?), 0)" +
             "  + COALESCE((SELECT SUM(amount_cents) FROM transfers WHERE user_uid = ? AND to_account_id = ?), 0)" +
             "  - COALESCE((SELECT SUM(amount_cents) FROM transfers WHERE user_uid = ? AND from_account_id = ?), 0)" +

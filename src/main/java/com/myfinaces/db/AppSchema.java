@@ -107,6 +107,81 @@ public final class AppSchema {
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_occurred ON transfers(occurred_at_epoch_sec)");
 
             st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS budgets (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_uid TEXT NOT NULL," +
+                "  month TEXT NOT NULL," +
+                "  category_id TEXT NOT NULL," +
+                "  limit_cents INTEGER NOT NULL," +
+                "  currency TEXT NOT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE RESTRICT" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_budgets_user_month ON budgets(user_uid, month)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category_id)");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS goals (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_uid TEXT NOT NULL," +
+                "  name TEXT NOT NULL," +
+                "  currency TEXT NOT NULL," +
+                "  target_cents INTEGER NOT NULL," +
+                "  target_date_epoch_sec INTEGER NOT NULL," +
+                "  account_id TEXT NOT NULL," +
+                "  status TEXT NOT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_uid)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_goals_account ON goals(account_id)");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS loans (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_uid TEXT NOT NULL," +
+                "  type TEXT NOT NULL," +
+                "  counterparty_name TEXT NOT NULL," +
+                "  principal_cents INTEGER NOT NULL," +
+                "  currency TEXT NOT NULL," +
+                "  status TEXT NOT NULL," +
+                "  notes TEXT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loans_user_status ON loans(user_uid, status)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loans_user_type ON loans(user_uid, type)");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS loan_payments (" +
+                "  id TEXT PRIMARY KEY," +
+                "  loan_id TEXT NOT NULL," +
+                "  user_uid TEXT NOT NULL," +
+                "  account_id TEXT NOT NULL," +
+                "  principal_cents INTEGER NOT NULL," +
+                "  occurred_at_epoch_sec INTEGER NOT NULL," +
+                "  linked_transaction_id TEXT NULL," +
+                "  note TEXT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(loan_id) REFERENCES loans(id) ON DELETE CASCADE," +
+                "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_user ON loan_payments(user_uid)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_loan ON loan_payments(loan_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_occurred ON loan_payments(occurred_at_epoch_sec)");
+
+            st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS outbox (" +
                 "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "  user_uid TEXT NOT NULL," +

@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
+import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
-import com.myfinaces.sync.DeviceId;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -32,6 +32,22 @@ public final class FirestoreSyncService {
         this.projectId = projectId;
     }
 
+    public void deleteGoal(AuthSession session, String goalId) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/goals/" + urlEncode(goalId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete goal failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
     public void syncAccounts(AuthSession session, AccountRepository accountRepo) throws Exception {
         List<AccountRepository.Account> accounts = accountRepo.list(session.uid());
         System.out.println("[FirestoreSync] accounts=" + accounts.size());
@@ -40,8 +56,20 @@ public final class FirestoreSyncService {
         }
     }
 
+    public void syncGoals(AuthSession session, GoalRepository goalRepo) throws Exception {
+        List<GoalRepository.Goal> goals = goalRepo.listByUser(session.uid());
+        System.out.println("[FirestoreSync] goals=" + goals.size());
+        for (GoalRepository.Goal g : goals) {
+            upsertGoal(session, g);
+        }
+    }
+
     public void syncAccount(AuthSession session, AccountRepository.Account account) throws Exception {
         upsertAccount(session, account);
+    }
+
+    public void syncGoal(AuthSession session, GoalRepository.Goal goal) throws Exception {
+        upsertGoal(session, goal);
     }
 
     public void deleteAccount(AuthSession session, String accountId) throws Exception {
@@ -101,6 +129,80 @@ public final class FirestoreSyncService {
         return out;
     }
 
+    @SuppressWarnings("unchecked")
+    private static List<GoalRepository.Goal> parseGoalsList(String userUid, String body) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return List.of();
+        }
+
+        long now = Instant.now().getEpochSecond();
+        List<GoalRepository.Goal> out = new java.util.ArrayList<>();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+
+            String name = readStringField(fields, "name");
+            String currency = readStringField(fields, "currency");
+            Long targetCents = readLongField(fields, "targetCents");
+            Long targetDate = readLongField(fields, "targetDateEpochSec");
+            String accountId = readStringField(fields, "accountId");
+
+            if (name == null || name.isBlank()) {
+                continue;
+            }
+            if (currency == null || currency.isBlank()) {
+                continue;
+            }
+            if (targetCents == null) {
+                continue;
+            }
+            if (targetDate == null) {
+                continue;
+            }
+            if (accountId == null || accountId.isBlank()) {
+                continue;
+            }
+
+            String status = readStringField(fields, "status");
+            if (status == null || status.isBlank()) {
+                status = GoalRepository.STATUS_OPEN;
+            }
+
+            Long createdAt = readLongField(fields, "createdAtEpochSec");
+            Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+            long cAt = createdAt == null ? now : createdAt;
+            long uAt = updatedAt == null ? cAt : updatedAt;
+
+            out.add(new GoalRepository.Goal(
+                id,
+                userUid,
+                name,
+                currency,
+                targetCents,
+                targetDate,
+                accountId,
+                status,
+                cAt,
+                uAt
+            ));
+        }
+
+        return out;
+    }
+
     public List<AccountRepository.Account> pullAccounts(AuthSession session) throws Exception {
         String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
             + "/databases/(default)/documents/users/" + urlEncode(session.uid())
@@ -110,6 +212,19 @@ public final class FirestoreSyncService {
         List<AccountRepository.Account> out = new ArrayList<>();
         for (String body : pages) {
             out.addAll(parseAccountsList(session.uid(), body));
+        }
+        return out;
+    }
+
+    public List<GoalRepository.Goal> pullGoals(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/goals";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<GoalRepository.Goal> out = new ArrayList<>();
+        for (String body : pages) {
+            out.addAll(parseGoalsList(session.uid(), body));
         }
         return out;
     }
@@ -316,6 +431,27 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "category");
+    }
+
+    private void upsertGoal(AuthSession session, GoalRepository.Goal g) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/goals/" + urlEncode(g.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(g.id()));
+        fields.put("userUid", stringField(g.userUid()));
+        fields.put("name", stringField(g.name()));
+        fields.put("currency", stringField(g.currency()));
+        fields.put("targetCents", intField(g.targetCents()));
+        fields.put("targetDateEpochSec", intField(g.targetDateEpochSec()));
+        fields.put("accountId", stringField(g.accountId()));
+        fields.put("status", stringField(g.status()));
+        fields.put("createdAtEpochSec", intField(g.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(g.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "goal");
     }
 
     @SuppressWarnings("unchecked")
@@ -541,7 +677,6 @@ public final class FirestoreSyncService {
         return out;
     }
 
-    @SuppressWarnings("unchecked")
     private static String readStringField(Map<?, ?> fields, String key) {
         Object f = fields.get(key);
         if (!(f instanceof Map<?, ?> fm)) {
@@ -555,7 +690,6 @@ public final class FirestoreSyncService {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
     private static Long readLongField(Map<?, ?> fields, String key) {
         Object f = fields.get(key);
         if (!(f instanceof Map<?, ?> fm)) {

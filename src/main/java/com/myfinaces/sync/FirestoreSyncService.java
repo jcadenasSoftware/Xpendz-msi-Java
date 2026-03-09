@@ -5,6 +5,8 @@ import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanPaymentRepository;
+import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 
@@ -125,6 +127,180 @@ public final class FirestoreSyncService {
         List<CategoryRepository.Category> out = new ArrayList<>();
         for (String body : pages) {
             out.addAll(parseCategoriesList(session.uid(), body));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<LoanPaymentRepository.LoanPayment> parseLoanPaymentsList(String userUid, String body) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return List.of();
+        }
+
+        long now = Instant.now().getEpochSecond();
+        List<LoanPaymentRepository.LoanPayment> out = new java.util.ArrayList<>();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+
+            String loanId = readStringField(fields, "loanId");
+            String accountId = readStringField(fields, "accountId");
+            Long principalCents = readLongField(fields, "principalCents");
+            Long occurredAt = readLongField(fields, "occurredAtEpochSec");
+
+            if (loanId == null || loanId.isBlank()) {
+                continue;
+            }
+            if (accountId == null || accountId.isBlank()) {
+                continue;
+            }
+            if (principalCents == null) {
+                continue;
+            }
+            if (occurredAt == null) {
+                continue;
+            }
+
+            String linkedTransactionId = readStringField(fields, "linkedTransactionId");
+            String note = readStringField(fields, "note");
+            Long createdAt = readLongField(fields, "createdAtEpochSec");
+            Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+            String updatedBy = readStringField(fields, "updatedBy");
+
+            long cAt = createdAt == null ? now : createdAt;
+            long uAt = updatedAt == null ? cAt : updatedAt;
+
+            out.add(new LoanPaymentRepository.LoanPayment(
+                id,
+                loanId,
+                userUid,
+                accountId,
+                principalCents,
+                occurredAt,
+                linkedTransactionId,
+                note,
+                cAt,
+                uAt,
+                updatedBy
+            ));
+        }
+
+        return out;
+    }
+
+    public List<LoanPaymentRepository.LoanPayment> pullLoanPayments(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loanPayments";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<LoanPaymentRepository.LoanPayment> out = new ArrayList<>();
+        for (String body : pages) {
+            out.addAll(parseLoanPaymentsList(session.uid(), body));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<LoanRepository.Loan> parseLoansList(String userUid, String body) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return List.of();
+        }
+
+        long now = Instant.now().getEpochSecond();
+        List<LoanRepository.Loan> out = new java.util.ArrayList<>();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+
+            String type = readStringField(fields, "type");
+            String counterpartyName = readStringField(fields, "counterpartyName");
+            String accountId = readStringField(fields, "accountId");
+            String currency = readStringField(fields, "currency");
+            Long principalCents = readLongField(fields, "principalCents");
+            String status = readStringField(fields, "status");
+            String notes = readStringField(fields, "notes");
+            Long occurredAt = readLongField(fields, "occurredAtEpochSec");
+
+            if (type == null || type.isBlank()) {
+                continue;
+            }
+            if (counterpartyName == null || counterpartyName.isBlank()) {
+                continue;
+            }
+            if (currency == null || currency.isBlank()) {
+                continue;
+            }
+            if (principalCents == null) {
+                continue;
+            }
+            if (status == null || status.isBlank()) {
+                status = LoanRepository.STATUS_OPEN;
+            }
+
+            Long createdAt = readLongField(fields, "createdAtEpochSec");
+            Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+            String updatedBy = readStringField(fields, "updatedBy");
+
+            long cAt = createdAt == null ? now : createdAt;
+            long uAt = updatedAt == null ? cAt : updatedAt;
+            long occ = occurredAt == null ? cAt : occurredAt;
+
+            out.add(new LoanRepository.Loan(
+                id,
+                userUid,
+                type,
+                counterpartyName,
+                accountId,
+                principalCents,
+                currency,
+                status,
+                notes,
+                occ,
+                cAt,
+                uAt,
+                updatedBy
+            ));
+        }
+
+        return out;
+    }
+
+    public List<LoanRepository.Loan> pullLoans(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loans";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<LoanRepository.Loan> out = new ArrayList<>();
+        for (String body : pages) {
+            out.addAll(parseLoansList(session.uid(), body));
         }
         return out;
     }
@@ -349,6 +525,14 @@ public final class FirestoreSyncService {
         upsertTransfer(session, tr);
     }
 
+    public void syncLoanPayment(AuthSession session, LoanPaymentRepository.LoanPayment payment) throws Exception {
+        upsertLoanPayment(session, payment);
+    }
+
+    public void syncLoan(AuthSession session, LoanRepository.Loan loan) throws Exception {
+        upsertLoan(session, loan);
+    }
+
     public void deleteTransaction(AuthSession session, String transactionId) throws Exception {
         String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
             + "/databases/(default)/documents/users/" + urlEncode(session.uid())
@@ -452,6 +636,58 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "goal");
+    }
+
+    private void upsertLoan(AuthSession session, LoanRepository.Loan l) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loans/" + urlEncode(l.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(l.id()));
+        fields.put("userUid", stringField(l.userUid()));
+        fields.put("type", stringField(l.type()));
+        fields.put("counterpartyName", stringField(l.counterpartyName()));
+        if (l.accountId() == null || l.accountId().isBlank()) {
+            fields.put("accountId", nullField());
+        } else {
+            fields.put("accountId", stringField(l.accountId()));
+        }
+        fields.put("principalCents", intField(l.principalCents()));
+        fields.put("currency", stringField(l.currency()));
+        fields.put("status", stringField(l.status()));
+        fields.put("notes", stringField(l.notes()));
+        fields.put("occurredAtEpochSec", intField(l.occurredAtEpochSec()));
+        fields.put("createdAtEpochSec", intField(l.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(l.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "loan");
+    }
+
+    private void upsertLoanPayment(AuthSession session, LoanPaymentRepository.LoanPayment p) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loanPayments/" + urlEncode(p.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(p.id()));
+        fields.put("userUid", stringField(p.userUid()));
+        fields.put("loanId", stringField(p.loanId()));
+        fields.put("accountId", stringField(p.accountId()));
+        fields.put("principalCents", intField(p.principalCents()));
+        fields.put("occurredAtEpochSec", intField(p.occurredAtEpochSec()));
+        if (p.linkedTransactionId() == null || p.linkedTransactionId().isBlank()) {
+            fields.put("linkedTransactionId", nullField());
+        } else {
+            fields.put("linkedTransactionId", stringField(p.linkedTransactionId()));
+        }
+        fields.put("note", stringField(p.note()));
+        fields.put("createdAtEpochSec", intField(p.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(p.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "loanPayment");
     }
 
     @SuppressWarnings("unchecked")

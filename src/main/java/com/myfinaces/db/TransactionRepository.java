@@ -64,6 +64,64 @@ public final class TransactionRepository {
     ) {
     }
 
+    public record MonthlyCategoryDetailAccountTotal(
+        String rootCategoryId,
+        String rootCategoryName,
+        String categoryId,
+        String categoryName,
+        String accountId,
+        String accountName,
+        int month,
+        long totalAmountCents
+    ) {
+    }
+
+    public List<String> listAccountIdsUsedInCategory(
+        String userUid,
+        int year,
+        String kind,
+        String categoryId
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(categoryId, "categoryId");
+
+        int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
+        boolean hasKind = kind != null && !kind.isBlank();
+
+        StringBuilder sql = new StringBuilder(
+            "SELECT DISTINCT t.account_id AS account_id " +
+            "FROM transactions t " +
+            "WHERE t.user_uid = ? " +
+            "  AND CAST(strftime('%Y', t.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) = ? " +
+            "  AND t.category_id = ?"
+        );
+        if (hasKind) {
+            sql.append(" AND t.kind = ?");
+        }
+        sql.append(" ORDER BY account_id ASC");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            int idx = 1;
+            ps.setString(idx++, userUid);
+            ps.setInt(idx++, y);
+            ps.setString(idx++, categoryId);
+            if (hasKind) {
+                ps.setString(idx++, kind);
+            }
+
+            List<String> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String id = rs.getString("account_id");
+                    if (id != null && !id.isBlank()) {
+                        out.add(id);
+                    }
+                }
+            }
+            return out;
+        }
+    }
+
     public String create(
         String userUid,
         String accountId,
@@ -584,6 +642,88 @@ public final class TransactionRepository {
                         rs.getString("root_category_name"),
                         rs.getString("category_id"),
                         rs.getString("category_name"),
+                        rs.getInt("month"),
+                        rs.getLong("total_amount_cents")
+                    ));
+                }
+            }
+            return out;
+        }
+    }
+
+    public List<MonthlyCategoryDetailAccountTotal> listMonthlyTotalsBySubcategoryAndAccount(
+        String userUid,
+        int year,
+        String kind
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
+        boolean hasKind = kind != null && !kind.isBlank();
+
+        StringBuilder sql = new StringBuilder(
+            "WITH RECURSIVE cat_root(id, root_id, root_name) AS (" +
+            "  SELECT id, id, name FROM categories WHERE user_uid = ? AND parent_id IS NULL" +
+            "  UNION ALL " +
+            "  SELECT c.id, cr.root_id, cr.root_name FROM categories c " +
+            "  INNER JOIN cat_root cr ON c.parent_id = cr.id " +
+            "  WHERE c.user_uid = ?" +
+            ") " +
+            "SELECT cr.root_id AS root_category_id, cr.root_name AS root_category_name, " +
+            "       CASE WHEN c.parent_id IS NULL THEN (c.id || ':NONE') ELSE c.id END AS category_id, " +
+            "       CASE WHEN c.parent_id IS NULL THEN '(Sin subcategoría)' ELSE c.name END AS category_name, " +
+            "       t.account_id AS account_id, a.name AS account_name, " +
+            "       CAST(strftime('%m', t.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) AS month, " +
+            "       COALESCE(SUM(t.amount_cents), 0) AS total_amount_cents " +
+            "FROM transactions t " +
+            "INNER JOIN accounts a ON a.id = t.account_id AND a.user_uid = t.user_uid " +
+            "INNER JOIN categories c ON c.id = t.category_id " +
+            "INNER JOIN cat_root cr ON cr.id = t.category_id " +
+            "WHERE t.user_uid = ? " +
+            "  AND c.user_uid = ? " +
+            "  AND CAST(strftime('%Y', t.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) = ?"
+        );
+
+        List<Object> args = new ArrayList<>();
+        args.add(userUid);
+        args.add(userUid);
+        args.add(userUid);
+        args.add(userUid);
+        args.add(y);
+
+        if (hasKind) {
+            sql.append(" AND t.kind = ?");
+            args.add(kind);
+        }
+
+        sql.append(
+            " GROUP BY cr.root_id, cr.root_name, category_id, category_name, t.account_id, a.name, month " +
+            "ORDER BY cr.root_name ASC, category_name ASC, a.name ASC, month ASC"
+        );
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            for (int i = 0; i < args.size(); i++) {
+                Object v = args.get(i);
+                int idx = i + 1;
+                if (v == null) {
+                    ps.setObject(idx, null);
+                } else if (v instanceof Integer in) {
+                    ps.setInt(idx, in);
+                } else {
+                    ps.setString(idx, v.toString());
+                }
+            }
+
+            List<MonthlyCategoryDetailAccountTotal> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new MonthlyCategoryDetailAccountTotal(
+                        rs.getString("root_category_id"),
+                        rs.getString("root_category_name"),
+                        rs.getString("category_id"),
+                        rs.getString("category_name"),
+                        rs.getString("account_id"),
+                        rs.getString("account_name"),
                         rs.getInt("month"),
                         rs.getLong("total_amount_cents")
                     ));

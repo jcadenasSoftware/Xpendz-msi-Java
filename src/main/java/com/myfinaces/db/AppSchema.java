@@ -116,12 +116,18 @@ public final class AppSchema {
                 "  currency TEXT NOT NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE RESTRICT" +
                 ")"
             );
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_budgets_user_month ON budgets(user_uid, month)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category_id)");
+            st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS ux_budgets_user_month_currency_category ON budgets(user_uid, month, currency, category_id)");
+
+            if (!columnExists(c, "budgets", "updated_by")) {
+                st.executeUpdate("ALTER TABLE budgets ADD COLUMN updated_by TEXT");
+            }
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS goals (" +
@@ -148,17 +154,30 @@ public final class AppSchema {
                 "  user_uid TEXT NOT NULL," +
                 "  type TEXT NOT NULL," +
                 "  counterparty_name TEXT NOT NULL," +
+                "  account_id TEXT NULL," +
                 "  principal_cents INTEGER NOT NULL," +
                 "  currency TEXT NOT NULL," +
                 "  status TEXT NOT NULL," +
                 "  notes TEXT NULL," +
+                "  occurred_at_epoch_sec INTEGER NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE" +
                 ")"
             );
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loans_user_status ON loans(user_uid, status)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loans_user_type ON loans(user_uid, type)");
+
+            if (!columnExists(c, "loans", "account_id")) {
+                st.executeUpdate("ALTER TABLE loans ADD COLUMN account_id TEXT");
+            }
+            if (!columnExists(c, "loans", "occurred_at_epoch_sec")) {
+                st.executeUpdate("ALTER TABLE loans ADD COLUMN occurred_at_epoch_sec INTEGER");
+            }
+            if (!columnExists(c, "loans", "updated_by")) {
+                st.executeUpdate("ALTER TABLE loans ADD COLUMN updated_by TEXT");
+            }
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS loan_payments (" +
@@ -172,6 +191,7 @@ public final class AppSchema {
                 "  note TEXT NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(loan_id) REFERENCES loans(id) ON DELETE CASCADE," +
                 "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT" +
@@ -180,6 +200,10 @@ public final class AppSchema {
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_user ON loan_payments(user_uid)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_loan ON loan_payments(loan_id)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_occurred ON loan_payments(occurred_at_epoch_sec)");
+
+            if (!columnExists(c, "loan_payments", "updated_by")) {
+                st.executeUpdate("ALTER TABLE loan_payments ADD COLUMN updated_by TEXT");
+            }
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS outbox (" +

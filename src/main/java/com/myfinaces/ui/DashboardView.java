@@ -2,8 +2,11 @@ package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
+import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanPaymentRepository;
+import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.config.AppConfig;
@@ -41,6 +44,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Tab;
@@ -61,7 +65,6 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.Region;
 import javafx.stage.Screen;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
 import javafx.scene.control.TextFormatter;
 import javafx.util.Duration;
 
@@ -99,7 +102,19 @@ public final class DashboardView {
         void onLogout();
     }
 
-    public static Parent create(AuthSession session, Listener listener, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, BooleanProperty darkTheme) {
+    public static Parent create(
+        AuthSession session,
+        Listener listener,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        GoalRepository goalRepo,
+        TransactionRepository txRepo,
+        TransferRepository transferRepo,
+        LoanRepository loanRepo,
+        LoanPaymentRepository loanPaymentRepo,
+        BudgetRepository budgetRepo,
+        BooleanProperty darkTheme
+    ) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         AtomicReference<ScheduledFuture<?>> autoSyncRef = new AtomicReference<>();
         AtomicBoolean syncInProgress = new AtomicBoolean(false);
@@ -211,6 +226,100 @@ public final class DashboardView {
                 }
             } finally {
                 System.out.println("[Sync] pullCategories end");
+            }
+        };
+
+        Runnable pullLoanPayments = () -> {
+            System.out.println("[Sync] pullLoanPayments start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                List<LoanPaymentRepository.LoanPayment> remote = sync.pullLoanPayments(session);
+                System.out.println("[Sync] pulled loanPayments=" + remote.size());
+
+                Set<String> remoteIds = new HashSet<>();
+                for (LoanPaymentRepository.LoanPayment p : remote) {
+                    remoteIds.add(p.id());
+                    if (loanRepo.getByIdOrNull(session.uid(), p.loanId()) == null) {
+                        continue;
+                    }
+                    if (accountRepo.getById(session.uid(), p.accountId()) == null) {
+                        continue;
+                    }
+                    try {
+                        loanPaymentRepo.upsertFromRemote(session.uid(), p);
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                List<LoanPaymentRepository.LoanPayment> localAll = loanPaymentRepo.listAllByUser(session.uid());
+                for (LoanPaymentRepository.LoanPayment p : localAll) {
+                    if (remoteIds.contains(p.id())) {
+                        continue;
+                    }
+                    try {
+                        loanPaymentRepo.delete(session.uid(), p.id());
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullLoanPayments failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullLoanPayments end");
+            }
+        };
+
+        Runnable pullLoans = () -> {
+            System.out.println("[Sync] pullLoans start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                List<LoanRepository.Loan> remote = sync.pullLoans(session);
+                System.out.println("[Sync] pulled loans=" + remote.size());
+
+                Set<String> remoteIds = new HashSet<>();
+                for (LoanRepository.Loan l : remote) {
+                    remoteIds.add(l.id());
+                    try {
+                        loanRepo.upsertFromRemote(session.uid(), l);
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                List<LoanRepository.Loan> localAllLent = loanRepo.listByType(session.uid(), LoanRepository.TYPE_LENT, null, false);
+                for (LoanRepository.Loan l : localAllLent) {
+                    if (remoteIds.contains(l.id())) {
+                        continue;
+                    }
+                    try {
+                        loanRepo.delete(session.uid(), l.id());
+                    } catch (Exception ignored) {
+                    }
+                }
+                List<LoanRepository.Loan> localAllBorrowed = loanRepo.listByType(session.uid(), LoanRepository.TYPE_BORROWED, null, false);
+                for (LoanRepository.Loan l : localAllBorrowed) {
+                    if (remoteIds.contains(l.id())) {
+                        continue;
+                    }
+                    try {
+                        loanRepo.delete(session.uid(), l.id());
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullLoans failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullLoans end");
             }
         };
 
@@ -406,6 +515,8 @@ public final class DashboardView {
                         pullCategories.run();
                         pullAccounts.run();
                         pullGoals.run();
+                        pullLoans.run();
+                        pullLoanPayments.run();
                         pullTransactions.run();
                         pullTransfers.run();
                     } catch (RuntimeException quotaAbort) {
@@ -477,6 +588,20 @@ public final class DashboardView {
         goals.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(goals, new FontIcon("fas-bullseye"));
         goals.setOnAction(e -> showGoalsDialog(session, goalRepo, accountRepo, transferRepo, darkTheme.get(), refreshBalances));
+
+        Button loans = new Button("Préstamos");
+        loans.getStyleClass().add("btn-primary");
+        loans.getStyleClass().add("nav-button");
+        loans.setMaxWidth(Double.MAX_VALUE);
+        setButtonIcon(loans, new FontIcon("fas-handshake"));
+        loans.setOnAction(e -> showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, darkTheme.get()));
+
+        Button budget = new Button("Presupuesto");
+        budget.getStyleClass().add("btn-primary");
+        budget.getStyleClass().add("nav-button");
+        budget.setMaxWidth(Double.MAX_VALUE);
+        setButtonIcon(budget, new FontIcon("fas-piggy-bank"));
+        budget.setOnAction(e -> showBudgetDialog(session.uid(), budgetRepo, categoryRepo, darkTheme.get()));
 
         Button charts = new Button("Gráficos");
         charts.getStyleClass().add("btn-primary");
@@ -581,17 +706,17 @@ public final class DashboardView {
         }
         logo.setPreserveRatio(true);
         logo.setSmooth(true);
-        logo.setFitWidth(96);
+        logo.setFitWidth(72);
 
         Label appName = new Label("Mis Finanzas");
         appName.getStyleClass().addAll("sidebar-title", "sidebar-title-gold");
 
-        VBox brand = new VBox(10, logo, appName);
+        VBox brand = new VBox(6, logo, appName);
         brand.getStyleClass().add("sidebar-brand");
         brand.setMinHeight(Region.USE_PREF_SIZE);
 
-        VBox menuTop = new VBox(10, brand, userBox);
-        VBox menuMainActions = new VBox(10, transactions, transfers, summary, goals, charts);
+        VBox menuTop = new VBox(6, brand, userBox);
+        VBox menuMainActions = new VBox(10, transactions, transfers, summary, goals, loans, budget, charts);
         menuMainActions.getStyleClass().add("sidebar-actions");
         VBox.setVgrow(menuMainActions, Priority.NEVER);
 
@@ -1359,6 +1484,7 @@ public final class DashboardView {
                 String name = nameById.getOrDefault(it.getKey(), it.getKey());
                 double v = Math.abs(it.getValue()) / 100.0;
                 XYChart.Data<String, Number> d = new XYChart.Data<>(name, v);
+                d.setExtraValue(it.getKey());
                 series.getData().add(d);
             }
             chart.getData().setAll(series);
@@ -1367,6 +1493,19 @@ public final class DashboardView {
             Platform.runLater(() -> {
                 for (XYChart.Data<String, Number> d : series.getData()) {
                     try {
+                        Object extra = d.getExtraValue();
+                        String id = extra == null ? null : String.valueOf(extra);
+                        String color = colorFromKey(id == null ? String.valueOf(d.getXValue()) : id);
+                        if (d.getNode() != null) {
+                            d.getNode().setStyle("-fx-bar-fill: " + color + ";");
+                        } else {
+                            d.nodeProperty().addListener((o, oldN, newN) -> {
+                                if (newN != null) {
+                                    newN.setStyle("-fx-bar-fill: " + color + ";");
+                                }
+                            });
+                        }
+
                         String label = String.valueOf(d.getXValue());
                         long cents = 0;
                         for (var it : items) {
@@ -1579,6 +1718,59 @@ public final class DashboardView {
         };
         refreshSubcatsSummary.run();
 
+        Runnable refreshAccountsForSummary = () -> {
+            try {
+                AccountRepository.Account selected = account.getValue();
+
+                account.getItems().clear();
+                account.getItems().add(null);
+
+                boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
+                CategoryRepository.Category sub = subCategory.getValue();
+                Integer y = year.getValue();
+                String kindLabel = kind.getValue();
+                String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+
+                List<AccountRepository.Account> allAccounts;
+                try {
+                    allAccounts = accountRepo.list(userUid);
+                } catch (Exception ignored) {
+                    allAccounts = List.of();
+                }
+
+                if (bySub && sub != null) {
+                    List<String> ids;
+                    try {
+                        ids = txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, sub.id());
+                    } catch (Exception ignored) {
+                        ids = List.of();
+                    }
+
+                    Set<String> idSet = new HashSet<>(ids);
+                    for (AccountRepository.Account a : allAccounts) {
+                        if (a != null && idSet.contains(a.id())) {
+                            account.getItems().add(a);
+                        }
+                    }
+                } else {
+                    account.getItems().addAll(allAccounts);
+                }
+
+                if (selected == null) {
+                    account.getSelectionModel().selectFirst();
+                    return;
+                }
+                for (AccountRepository.Account a : account.getItems()) {
+                    if (a != null && selected.id().equals(a.id())) {
+                        account.getSelectionModel().select(a);
+                        return;
+                    }
+                }
+                account.getSelectionModel().selectFirst();
+            } catch (Exception ignored) {
+            }
+        };
+
         Label fYear = new Label("Año");
         fYear.getStyleClass().add("account-name");
         Label fKind = new Label("Tipo");
@@ -1634,6 +1826,19 @@ public final class DashboardView {
         fixedTable.setMinWidth(Region.USE_PREF_SIZE);
         fixedTable.getStyleClass().add("summary-table");
 
+        try {
+            javafx.scene.layout.ColumnConstraints c0 = new javafx.scene.layout.ColumnConstraints();
+            c0.setMinWidth(240);
+            c0.setPrefWidth(320);
+            c0.setHgrow(Priority.ALWAYS);
+            javafx.scene.layout.ColumnConstraints c1 = new javafx.scene.layout.ColumnConstraints();
+            c1.setMinWidth(120);
+            c1.setPrefWidth(130);
+            c1.setHgrow(Priority.NEVER);
+            fixedTable.getColumnConstraints().setAll(c0, c1);
+        } catch (Exception ignored) {
+        }
+
         GridPane monthsTable = new GridPane();
         monthsTable.setHgap(10);
         monthsTable.setVgap(8);
@@ -1663,6 +1868,7 @@ public final class DashboardView {
         VBox.setVgrow(tablesRow, Priority.ALWAYS);
 
         AtomicReference<List<List<String>>> exportRowsRef = new AtomicReference<>(List.of());
+        Map<String, Boolean> expandedAccountsBySubId = new HashMap<>();
 
         Runnable refreshSummary = () -> {
             fixedTable.getChildren().clear();
@@ -1676,6 +1882,14 @@ public final class DashboardView {
             AccountRepository.Account a = account.getValue();
             String accountId = a == null ? null : a.id();
             String currencyCode = "COP";
+
+            int monthsElapsed;
+            int selectedYear = y == null ? currentYear : y;
+            if (selectedYear == currentYear) {
+                monthsElapsed = Math.max(1, Math.min(12, currentMonth - 1));
+            } else {
+                monthsElapsed = 12;
+            }
 
             List<List<String>> exportRows = new ArrayList<>();
 
@@ -1692,6 +1906,8 @@ public final class DashboardView {
             if (bySubcategory) {
                 Map<String, Map<String, String>> subNameByRoot = new HashMap<>();
                 Map<String, Map<String, long[]>> byRootSub = new HashMap<>();
+                Map<String, Map<String, Map<String, long[]>>> byRootSubAccount = new HashMap<>();
+                Map<String, String> accountNameById = new HashMap<>();
                 for (CategoryRepository.Category r : roots) {
                     byRootSub.put(r.id(), new HashMap<>());
                     subNameByRoot.put(r.id(), new HashMap<>());
@@ -1700,24 +1916,52 @@ public final class DashboardView {
                         for (CategoryRepository.Category c : children) {
                             subNameByRoot.get(r.id()).put(c.id(), c.name());
                             byRootSub.get(r.id()).put(c.id(), new long[13]);
+                            byRootSubAccount.computeIfAbsent(r.id(), __ -> new HashMap<>()).put(c.id(), new HashMap<>());
                         }
                     } catch (Exception ignored) {
                     }
                     subNameByRoot.get(r.id()).put(r.id() + ":NONE", "(Sin subcategoría)");
                     byRootSub.get(r.id()).put(r.id() + ":NONE", new long[13]);
+                    byRootSubAccount.computeIfAbsent(r.id(), __ -> new HashMap<>()).put(r.id() + ":NONE", new HashMap<>());
                 }
 
                 try {
-                    List<TransactionRepository.MonthlyCategoryDetailTotal> rows = txRepo.listMonthlyTotalsBySubcategory(userUid, accountId, y == null ? currentYear : y, k);
-                    for (TransactionRepository.MonthlyCategoryDetailTotal row : rows) {
-                        Map<String, long[]> subs = byRootSub.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>());
-                        long[] months = subs.computeIfAbsent(row.categoryId(), __ -> new long[13]);
-                        int m = row.month();
-                        if (m >= 1 && m <= 12) {
-                            months[m] = row.totalAmountCents();
+                    if (accountId == null) {
+                        List<TransactionRepository.MonthlyCategoryDetailAccountTotal> rows = txRepo.listMonthlyTotalsBySubcategoryAndAccount(userUid, selectedYear, k);
+                        for (TransactionRepository.MonthlyCategoryDetailAccountTotal row : rows) {
+                            Map<String, long[]> subs = byRootSub.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>());
+                            long[] months = subs.computeIfAbsent(row.categoryId(), __ -> new long[13]);
+                            int m = row.month();
+                            if (m >= 1 && m <= 12) {
+                                months[m] += row.totalAmountCents();
+                            }
+
+                            Map<String, Map<String, long[]>> subsByAcc = byRootSubAccount
+                                .computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>());
+                            Map<String, long[]> accs = subsByAcc.computeIfAbsent(row.categoryId(), __ -> new HashMap<>());
+                            long[] accMonths = accs.computeIfAbsent(row.accountId(), __ -> new long[13]);
+                            if (m >= 1 && m <= 12) {
+                                accMonths[m] += row.totalAmountCents();
+                            }
+
+                            subNameByRoot.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>())
+                                .putIfAbsent(row.categoryId(), row.categoryName());
+                            if (row.accountId() != null && row.accountName() != null) {
+                                accountNameById.putIfAbsent(row.accountId(), row.accountName());
+                            }
                         }
-                        subNameByRoot.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>())
-                            .putIfAbsent(row.categoryId(), row.categoryName());
+                    } else {
+                        List<TransactionRepository.MonthlyCategoryDetailTotal> rows = txRepo.listMonthlyTotalsBySubcategory(userUid, accountId, selectedYear, k);
+                        for (TransactionRepository.MonthlyCategoryDetailTotal row : rows) {
+                            Map<String, long[]> subs = byRootSub.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>());
+                            long[] months = subs.computeIfAbsent(row.categoryId(), __ -> new long[13]);
+                            int m = row.month();
+                            if (m >= 1 && m <= 12) {
+                                months[m] = row.totalAmountCents();
+                            }
+                            subNameByRoot.computeIfAbsent(row.rootCategoryId(), __ -> new HashMap<>())
+                                .putIfAbsent(row.categoryId(), row.categoryName());
+                        }
                     }
                 } catch (Exception ignored) {
                 }
@@ -1763,7 +2007,6 @@ public final class DashboardView {
                 long[] totalByMonth = new long[13];
                 int rowIdx = 1;
                 long grandTotal = 0;
-                int grandMonthCount = 0;
                 for (CategoryRepository.Category r : roots) {
                     if (rootFilter != null && !rootFilter.id().equals(r.id())) {
                         continue;
@@ -1817,21 +2060,24 @@ public final class DashboardView {
                             continue;
                         }
 
-                        Label name = new Label("  - " + subNameByRoot.get(r.id()).getOrDefault(subId, subId));
+                        String subLabel = subNameByRoot.get(r.id()).getOrDefault(subId, subId);
+                        boolean canToggleAccounts = accountId == null;
+                        boolean expanded = expandedAccountsBySubId.getOrDefault(subId, false);
+                        String chevron = canToggleAccounts ? (expanded ? "▼" : "▶") : "";
+                        Label name = new Label("  - " + (canToggleAccounts ? (chevron + " ") : "") + subLabel);
                         name.getStyleClass().add("text-secondary");
                         name.getStyleClass().add("summary-sub-name");
+                        name.setMaxWidth(320);
+                        name.setTextOverrun(OverrunStyle.ELLIPSIS);
+                        Tooltip.install(name, new Tooltip(subLabel));
                         String zebraSub = (rowIdx % 2 == 0) ? "summary-row-even" : "summary-row-odd";
                         name.getStyleClass().add(zebraSub);
                         fixedTable.add(name, 0, rowIdx);
 
                         long rowTotal = 0;
-                        int rowMonthCount = 0;
                         for (int m = 1; m <= 12; m++) {
                             totalByMonth[m] += months[m];
                             rowTotal += months[m];
-                            if (months[m] != 0) {
-                                rowMonthCount++;
-                            }
                             Label v = new Label(formatMoney(months[m], currencyCode));
                             v.setMinWidth(100);
                             v.setAlignment(Pos.CENTER_RIGHT);
@@ -1844,7 +2090,6 @@ public final class DashboardView {
                         }
 
                         grandTotal += rowTotal;
-                        grandMonthCount = Math.max(grandMonthCount, rowMonthCount);
                         Label totalCell = new Label(formatMoney(rowTotal, currencyCode));
                         totalCell.setMinWidth(100);
                         totalCell.setAlignment(Pos.CENTER_RIGHT);
@@ -1853,7 +2098,7 @@ public final class DashboardView {
                         totalCell.getStyleClass().add(zebraSub);
                         fixedTable.add(totalCell, 1, rowIdx);
 
-                        long avgCents = rowMonthCount == 0 ? 0 : (rowTotal / rowMonthCount);
+                        long avgCents = monthsElapsed <= 0 ? 0 : (rowTotal / monthsElapsed);
                         Label avgCell = new Label(formatMoney(avgCents, currencyCode));
                         avgCell.setMinWidth(100);
                         avgCell.setAlignment(Pos.CENTER_RIGHT);
@@ -1871,6 +2116,100 @@ public final class DashboardView {
                         exportRow.add(formatMoney(avgCents, currencyCode));
                         exportRows.add(exportRow);
                         rowIdx++;
+
+                        if (accountId == null) {
+                            List<Node> accountRowNodes = new ArrayList<>();
+                            Map<String, long[]> accs = byRootSubAccount
+                                .getOrDefault(r.id(), Map.of())
+                                .getOrDefault(subId, Map.of());
+                            List<String> accountIds = new ArrayList<>(accs.keySet());
+                            accountIds.sort((a1, a2) -> {
+                                String n1 = accountNameById.getOrDefault(a1, a1);
+                                String n2 = accountNameById.getOrDefault(a2, a2);
+                                return n1.compareToIgnoreCase(n2);
+                            });
+                            for (String accId : accountIds) {
+                                long[] am = accs.getOrDefault(accId, new long[13]);
+                                boolean anyAcc = false;
+                                for (int m = 1; m <= 12; m++) {
+                                    if (am[m] != 0) {
+                                        anyAcc = true;
+                                        break;
+                                    }
+                                }
+                                if (!anyAcc) {
+                                    continue;
+                                }
+
+                                String accName = accountNameById.getOrDefault(accId, accId);
+                                Label accLabel = new Label("      • " + accName);
+                                accLabel.getStyleClass().add("text-secondary");
+                                accLabel.getStyleClass().add("summary-sub-name");
+                                accLabel.setMaxWidth(320);
+                                accLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+                                Tooltip.install(accLabel, new Tooltip(accName));
+                                String zebraAcc = (rowIdx % 2 == 0) ? "summary-row-even" : "summary-row-odd";
+                                accLabel.getStyleClass().add(zebraAcc);
+                                fixedTable.add(accLabel, 0, rowIdx);
+                                accountRowNodes.add(accLabel);
+
+                                long accTotal = 0;
+                                for (int m = 1; m <= 12; m++) {
+                                    accTotal += am[m];
+                                    Label vv = new Label(formatMoney(am[m], currencyCode));
+                                    vv.setMinWidth(100);
+                                    vv.setAlignment(Pos.CENTER_RIGHT);
+                                    vv.getStyleClass().add("summary-amount-cell");
+                                    vv.getStyleClass().add(zebraAcc);
+                                    if (m == currentMonth) {
+                                        vv.getStyleClass().add("summary-current-month");
+                                    }
+                                    monthsTable.add(vv, m - 1, rowIdx);
+                                    accountRowNodes.add(vv);
+                                }
+
+                                Label accTotalCell = new Label(formatMoney(accTotal, currencyCode));
+                                accTotalCell.setMinWidth(100);
+                                accTotalCell.setAlignment(Pos.CENTER_RIGHT);
+                                accTotalCell.getStyleClass().add("summary-amount-cell");
+                                accTotalCell.getStyleClass().add("summary-total-col");
+                                accTotalCell.getStyleClass().add(zebraAcc);
+                                fixedTable.add(accTotalCell, 1, rowIdx);
+                                accountRowNodes.add(accTotalCell);
+
+                                long accAvg = monthsElapsed <= 0 ? 0 : (accTotal / monthsElapsed);
+                                Label accAvgCell = new Label(formatMoney(accAvg, currencyCode));
+                                accAvgCell.setMinWidth(100);
+                                accAvgCell.setAlignment(Pos.CENTER_RIGHT);
+                                accAvgCell.getStyleClass().add("summary-amount-cell");
+                                accAvgCell.getStyleClass().add("summary-avg-col");
+                                accAvgCell.getStyleClass().add(zebraAcc);
+                                monthsTable.add(accAvgCell, 12, rowIdx);
+                                accountRowNodes.add(accAvgCell);
+
+                                rowIdx++;
+                            }
+
+                            boolean initialExpanded = expandedAccountsBySubId.getOrDefault(subId, false);
+                            for (Node n : accountRowNodes) {
+                                n.setVisible(initialExpanded);
+                                n.setManaged(initialExpanded);
+                            }
+
+                            if (canToggleAccounts) {
+                                name.setOnMouseClicked(ev -> {
+                                    boolean cur = expandedAccountsBySubId.getOrDefault(subId, false);
+                                    boolean newV = !cur;
+                                    expandedAccountsBySubId.put(subId, newV);
+                                    String ch = newV ? "▼" : "▶";
+                                    name.setText("  - " + ch + " " + subLabel);
+                                    for (Node n : accountRowNodes) {
+                                        n.setVisible(newV);
+                                        n.setManaged(newV);
+                                    }
+                                });
+                            }
+                        }
                     }
                 }
 
@@ -1898,13 +2237,7 @@ public final class DashboardView {
                 grand.getStyleClass().add("summary-total-col");
                 fixedTable.add(grand, 1, rowIdx);
 
-                int totalMonthCount = 0;
-                for (int m = 1; m <= 12; m++) {
-                    if (totalByMonth[m] != 0) {
-                        totalMonthCount++;
-                    }
-                }
-                long avgTotal = totalMonthCount == 0 ? 0 : (grandTotal / totalMonthCount);
+                long avgTotal = monthsElapsed <= 0 ? 0 : (grandTotal / monthsElapsed);
                 Label grandAvg = new Label(formatMoney(avgTotal, currencyCode));
                 grandAvg.getStyleClass().add("account-name");
                 grandAvg.setMinWidth(100);
@@ -2001,13 +2334,9 @@ public final class DashboardView {
                 fixedTable.add(name, 0, rowIdx);
 
                 long rowTotal = 0;
-                int rowMonthCount = 0;
                 for (int m = 1; m <= 12; m++) {
                     totalByMonth[m] += months[m];
                     rowTotal += months[m];
-                    if (months[m] != 0) {
-                        rowMonthCount++;
-                    }
                     Label v = new Label(formatMoney(months[m], currencyCode));
                     v.setMinWidth(100);
                     v.setAlignment(Pos.CENTER_RIGHT);
@@ -2028,7 +2357,7 @@ public final class DashboardView {
                 totalCell.getStyleClass().add(zebra);
                 fixedTable.add(totalCell, 1, rowIdx);
 
-                long avgCents = rowMonthCount == 0 ? 0 : (rowTotal / rowMonthCount);
+                long avgCents = monthsElapsed <= 0 ? 0 : (rowTotal / monthsElapsed);
                 Label avgCell = new Label(formatMoney(avgCents, currencyCode));
                 avgCell.setMinWidth(100);
                 avgCell.setAlignment(Pos.CENTER_RIGHT);
@@ -2105,14 +2434,23 @@ public final class DashboardView {
         kind.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
         view.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsSummary.run();
+            refreshAccountsForSummary.run();
             refreshSummary.run();
         });
         account.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
         rootCategory.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsSummary.run();
+            refreshAccountsForSummary.run();
             refreshSummary.run();
         });
-        subCategory.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
+        subCategory.valueProperty().addListener((obs, o, n) -> {
+            refreshAccountsForSummary.run();
+            refreshSummary.run();
+        });
+        year.valueProperty().addListener((obs, o, n) -> refreshAccountsForSummary.run());
+        kind.valueProperty().addListener((obs, o, n) -> refreshAccountsForSummary.run());
+
+        refreshAccountsForSummary.run();
 
         Button exportCsv = new Button("Exportar CSV");
         exportCsv.getStyleClass().add("btn-secondary");
@@ -4782,7 +5120,6 @@ public final class DashboardView {
 
         VBox content = new VBox(12, headerBar, scroll, error);
         content.setPadding(new Insets(10));
-        VBox.setVgrow(scroll, Priority.ALWAYS);
 
         dialog.getDialogPane().setContent(content);
 
@@ -4802,8 +5139,19 @@ public final class DashboardView {
         TextField name = new TextField();
         name.setPromptText("Ej: Viaje, Ahorro, Emergencias");
 
-        TextField currency = new TextField("COP");
-        currency.setPromptText("COP");
+        ComboBox<String> currency = new ComboBox<>();
+        currency.getItems().addAll(
+            "COP",
+            "USD",
+            "EUR",
+            "GBP",
+            "MXN",
+            "ARS",
+            "CLP",
+            "PEN",
+            "VES"
+        );
+        currency.getSelectionModel().select("COP");
 
         TextField target = new TextField();
         target.setPromptText("Ej: 1000000.00");
@@ -4853,7 +5201,7 @@ public final class DashboardView {
         }
 
         String n = name.getText() == null ? "" : name.getText().trim();
-        String cur = currency.getText() == null ? "" : currency.getText().trim().toUpperCase(Locale.ROOT);
+        String cur = currency.getValue() == null ? "" : currency.getValue().trim().toUpperCase(Locale.ROOT);
         if (n.isBlank() || cur.isBlank() || targetDate.getValue() == null) {
             return Optional.empty();
         }
@@ -4868,6 +5216,579 @@ public final class DashboardView {
 
         long epoch = targetDate.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
         return Optional.of(new NewGoal(n, cur, cents, epoch));
+    }
+
+    private static void showLoansDialog(
+        AuthSession session,
+        LoanRepository loanRepo,
+        LoanPaymentRepository loanPaymentRepo,
+        AccountRepository accountRepo,
+        boolean darkTheme
+    ) {
+        String userUid = session.uid();
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Préstamos");
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+
+        ButtonType closeBtn = new ButtonType("Volver", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(closeBtn);
+        dialog.setResizable(true);
+        dialog.getDialogPane().setMinWidth(980);
+        dialog.getDialogPane().setMinHeight(720);
+
+        Label headerTitle = new Label("Préstamos");
+        headerTitle.getStyleClass().add("app-title");
+        Label headerDesc = new Label("Registra préstamos y devoluciones.");
+        headerDesc.getStyleClass().add("text-secondary");
+        VBox header = new VBox(2, headerTitle, headerDesc);
+
+        Label error = new Label();
+        error.getStyleClass().add("error");
+        error.setWrapText(true);
+        error.setVisible(false);
+        error.setManaged(false);
+
+        VBox lentList = new VBox(10);
+        lentList.getStyleClass().add("accounts-list");
+        ScrollPane lentScroll = new ScrollPane(lentList);
+        lentScroll.setFitToWidth(true);
+        lentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        lentScroll.getStyleClass().addAll("card", "content-card");
+        VBox.setVgrow(lentScroll, Priority.ALWAYS);
+
+        VBox borrowedList = new VBox(10);
+        borrowedList.getStyleClass().add("accounts-list");
+        ScrollPane borrowedScroll = new ScrollPane(borrowedList);
+        borrowedScroll.setFitToWidth(true);
+        borrowedScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        borrowedScroll.getStyleClass().addAll("card", "content-card");
+        VBox.setVgrow(borrowedScroll, Priority.ALWAYS);
+
+        TabPane tabs = new TabPane();
+        Tab tabLent = new Tab("Me deben", lentScroll);
+        tabLent.setClosable(false);
+        Tab tabBorrowed = new Tab("Yo debo", borrowedScroll);
+        tabBorrowed.setClosable(false);
+        tabs.getTabs().addAll(tabLent, tabBorrowed);
+        tabs.getStyleClass().add("account-summary-tabs");
+        VBox.setVgrow(tabs, Priority.ALWAYS);
+
+        AtomicReference<Runnable> refreshRef = new AtomicReference<>();
+        Runnable refresh = () -> {
+            lentList.getChildren().clear();
+            borrowedList.getChildren().clear();
+            error.setText("");
+            error.setVisible(false);
+            error.setManaged(false);
+            try {
+                List<LoanRepository.Loan> lent = loanRepo.listByType(userUid, LoanRepository.TYPE_LENT, null, true);
+                List<LoanRepository.Loan> borrowed = loanRepo.listByType(userUid, LoanRepository.TYPE_BORROWED, null, true);
+
+                java.util.function.Consumer<List<LoanRepository.Loan>> render = (items) -> {
+                    for (LoanRepository.Loan l : items) {
+                        try {
+                            long paidCents = loanPaymentRepo.sumPrincipalPaidCents(userUid, l.id());
+                            long pendingCents = Math.max(0L, l.principalCents() - paidCents);
+                            if (pendingCents <= 0L) {
+                                continue;
+                            }
+
+                            Label name = new Label(l.counterpartyName());
+                            name.getStyleClass().add("account-name");
+
+                            Label totalValue = new Label(formatMoney(l.principalCents(), l.currency()));
+                            totalValue.getStyleClass().addAll("account-name", "money-neutral");
+
+                            Label paidValue = new Label(formatMoney(paidCents, l.currency()));
+                            paidValue.getStyleClass().addAll("account-name", paidCents > 0 ? "money-positive" : "money-neutral");
+
+                            Label pendingValue = new Label(formatMoney(pendingCents, l.currency()));
+                            pendingValue.getStyleClass().addAll("account-name", pendingCents > 0 ? "money-negative" : "money-positive");
+
+                            VBox totalBlock = new VBox(2, new Label("Total"), totalValue);
+                            totalBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                            totalBlock.getStyleClass().add("loan-amount-block");
+                            VBox paidBlock = new VBox(2, new Label("Pagado"), paidValue);
+                            paidBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                            paidBlock.getStyleClass().add("loan-amount-block");
+                            VBox pendingBlock = new VBox(2, new Label("Pendiente"), pendingValue);
+                            pendingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                            pendingBlock.getStyleClass().add("loan-amount-block");
+
+                            HBox amounts = new HBox(18, totalBlock, paidBlock, pendingBlock);
+                            amounts.setAlignment(Pos.CENTER_LEFT);
+
+                            Button addPayment = new Button("Registrar pago");
+                            addPayment.getStyleClass().add("btn-secondary");
+                            addPayment.setOnAction(ev -> {
+                                Optional<LoanPaymentDraft> draft = showRegisterLoanPaymentDialog(userUid, l, accountRepo, darkTheme, pendingCents);
+                                if (draft.isEmpty()) {
+                                    return;
+                                }
+                                try {
+                                    LoanPaymentDraft d = draft.get();
+                                    String paymentId = loanPaymentRepo.create(userUid, l.id(), d.accountId(), d.principalCents(), d.occurredAtEpochSec(), null, d.note());
+
+                                    long newPaid = loanPaymentRepo.sumPrincipalPaidCents(userUid, l.id());
+                                    long newPending = Math.max(0L, l.principalCents() - newPaid);
+                                    if (newPending <= 0L) {
+                                        loanRepo.update(userUid, l.id(), l.type(), l.counterpartyName(), l.principalCents(), l.currency(), LoanRepository.STATUS_CLOSED, l.notes());
+                                    }
+
+                                    try {
+                                        AppConfig cfg = AppConfig.loadDefault();
+                                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                        LoanPaymentRepository.LoanPayment p = loanPaymentRepo.getByIdOrNull(userUid, paymentId);
+                                        if (p != null) {
+                                            sync.syncLoanPayment(session, p);
+                                        }
+                                        LoanRepository.Loan updatedLoan = loanRepo.getByIdOrNull(userUid, l.id());
+                                        if (updatedLoan != null) {
+                                            sync.syncLoan(session, updatedLoan);
+                                        }
+                                    } catch (Exception ignored) {
+                                    }
+
+                                    Runnable r = refreshRef.get();
+                                    if (r != null) {
+                                        r.run();
+                                    }
+                                } catch (Exception ex) {
+                                    error.setText(ex.getMessage() == null ? "No se pudo registrar el pago" : ex.getMessage());
+                                    error.setVisible(true);
+                                    error.setManaged(true);
+                                }
+                            });
+
+                            Region spacer = new Region();
+                            HBox.setHgrow(spacer, Priority.ALWAYS);
+                            HBox top = new HBox(10, name, spacer, addPayment);
+                            top.setAlignment(Pos.CENTER_LEFT);
+
+                            VBox row = new VBox(6, top, amounts);
+                            row.getStyleClass().add("account-item");
+
+                            if (LoanRepository.TYPE_LENT.equals(l.type())) {
+                                lentList.getChildren().add(row);
+                            } else {
+                                borrowedList.getChildren().add(row);
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    }
+                };
+
+                render.accept(lent);
+                render.accept(borrowed);
+
+                if (lentList.getChildren().isEmpty()) {
+                    Label empty = new Label("No hay préstamos");
+                    empty.getStyleClass().add("text-secondary");
+                    lentList.getChildren().add(empty);
+                }
+
+                if (borrowedList.getChildren().isEmpty()) {
+                    Label empty = new Label("No hay préstamos");
+                    empty.getStyleClass().add("text-secondary");
+                    borrowedList.getChildren().add(empty);
+                }
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "No se pudieron cargar los préstamos" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        };
+
+        refreshRef.set(refresh);
+
+        Button create = new Button("Nuevo préstamo");
+        create.getStyleClass().add("btn-primary");
+        create.setOnAction(e -> {
+            Optional<LoanDraft> draft = showCreateLoanDialog(darkTheme);
+            if (draft.isEmpty()) {
+                return;
+            }
+            try {
+                LoanDraft d = draft.get();
+                loanRepo.create(userUid, d.type(), d.counterpartyName(), d.principalCents(), d.currency(), d.notes());
+                Runnable r = refreshRef.get();
+                if (r != null) {
+                    r.run();
+                }
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "No se pudo crear el préstamo" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        });
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerBar = new HBox(12, header, headerSpacer, create);
+        headerBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(12, headerBar, tabs, error);
+        content.setPadding(new Insets(10));
+
+        dialog.getDialogPane().setContent(content);
+        Runnable r = refreshRef.get();
+        if (r != null) {
+            r.run();
+        }
+        dialog.showAndWait();
+    }
+
+    private record LoanPaymentDraft(
+        String accountId,
+        long principalCents,
+        long occurredAtEpochSec,
+        String note
+    ) {
+    }
+
+    private static Optional<LoanPaymentDraft> showRegisterLoanPaymentDialog(
+        String userUid,
+        LoanRepository.Loan loan,
+        AccountRepository accountRepo,
+        boolean darkTheme,
+        long maxPendingCents
+    ) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Registrar pago");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(680);
+        dialog.getDialogPane().setPrefWidth(680);
+
+        ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
+        try {
+            account.getItems().addAll(accountRepo.list(userUid));
+            if (!account.getItems().isEmpty()) {
+                account.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+        account.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account object) {
+                if (object == null) {
+                    return "";
+                }
+                return object.name() + " · " + object.currency();
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String string) {
+                return null;
+            }
+        });
+
+        DatePicker date = new DatePicker(LocalDate.now());
+
+        TextField amount = new TextField();
+        amount.setPromptText("Ej: 50000.00");
+
+        TextField note = new TextField();
+        note.setPromptText("Nota (opcional)");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+        grid.setPrefWidth(640);
+
+        Label lLoan = new Label("Préstamo");
+        lLoan.getStyleClass().add("account-name");
+        grid.add(lLoan, 0, 0);
+        grid.add(new Label(loan.counterpartyName() + " · " + loan.currency()), 1, 0);
+
+        Label lAccount = new Label("Cuenta");
+        lAccount.getStyleClass().add("account-name");
+        grid.add(lAccount, 0, 1);
+        grid.add(account, 1, 1);
+
+        Label lDate = new Label("Fecha");
+        lDate.getStyleClass().add("account-name");
+        grid.add(lDate, 0, 2);
+        grid.add(date, 1, 2);
+
+        Label lAmt = new Label("Monto");
+        lAmt.getStyleClass().add("account-name");
+        grid.add(lAmt, 0, 3);
+        grid.add(amount, 1, 3);
+
+        Label lNote = new Label("Nota");
+        lNote.getStyleClass().add("account-name");
+        grid.add(lNote, 0, 4);
+        grid.add(note, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(btn -> btn);
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return Optional.empty();
+        }
+
+        if (account.getValue() == null || date.getValue() == null) {
+            return Optional.empty();
+        }
+
+        long cents;
+        try {
+            BigDecimal v = parseAmount(amount.getText());
+            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+        if (cents <= 0L || cents > maxPendingCents) {
+            return Optional.empty();
+        }
+
+        long epoch = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        String n = note.getText() == null ? null : note.getText().trim();
+        if (n != null && n.isBlank()) {
+            n = null;
+        }
+        return Optional.of(new LoanPaymentDraft(account.getValue().id(), cents, epoch, n));
+    }
+
+    private record LoanDraft(
+        String type,
+        String counterpartyName,
+        String currency,
+        long principalCents,
+        String notes
+    ) {
+    }
+
+    private static Optional<LoanDraft> showCreateLoanDialog(boolean darkTheme) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Nuevo préstamo");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(640);
+        dialog.getDialogPane().setPrefWidth(640);
+
+        ChoiceBox<String> type = new ChoiceBox<>();
+        type.getItems().addAll(LoanRepository.TYPE_LENT, LoanRepository.TYPE_BORROWED);
+        type.getSelectionModel().selectFirst();
+
+        TextField counterparty = new TextField();
+        counterparty.setPromptText("Ej: Juan / Banco X");
+
+        ComboBox<String> currency = new ComboBox<>();
+        currency.getItems().addAll("COP", "USD", "EUR", "GBP", "MXN", "ARS", "CLP", "PEN", "VES");
+        currency.getSelectionModel().select("COP");
+
+        TextField amount = new TextField();
+        amount.setPromptText("Ej: 100000.00");
+
+        TextField notes = new TextField();
+        notes.setPromptText("Nota (opcional)");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+        grid.setPrefWidth(600);
+
+        Label lType = new Label("Tipo");
+        lType.getStyleClass().add("account-name");
+        grid.add(lType, 0, 0);
+        grid.add(type, 1, 0);
+        Label lCp = new Label("Persona/Entidad");
+        lCp.getStyleClass().add("account-name");
+        grid.add(lCp, 0, 1);
+        grid.add(counterparty, 1, 1);
+        Label lCur = new Label("Moneda");
+        lCur.getStyleClass().add("account-name");
+        grid.add(lCur, 0, 2);
+        grid.add(currency, 1, 2);
+        Label lAmt = new Label("Monto");
+        lAmt.getStyleClass().add("account-name");
+        grid.add(lAmt, 0, 3);
+        grid.add(amount, 1, 3);
+        Label lNotes = new Label("Nota");
+        lNotes.getStyleClass().add("account-name");
+        grid.add(lNotes, 0, 4);
+        grid.add(notes, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(btn -> btn);
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return Optional.empty();
+        }
+
+        String t = type.getValue() == null ? LoanRepository.TYPE_LENT : type.getValue();
+        String cp = counterparty.getText() == null ? "" : counterparty.getText().trim();
+        String cur = currency.getValue() == null ? "" : currency.getValue().trim().toUpperCase(Locale.ROOT);
+        if (cp.isBlank() || cur.isBlank()) {
+            return Optional.empty();
+        }
+
+        long cents;
+        try {
+            BigDecimal v = parseAmount(amount.getText());
+            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
+        if (cents < 0) {
+            return Optional.empty();
+        }
+
+        String n = notes.getText() == null ? null : notes.getText().trim();
+        if (n != null && n.isBlank()) {
+            n = null;
+        }
+        return Optional.of(new LoanDraft(t, cp, cur, cents, n));
+    }
+
+    private static void showBudgetDialog(
+        String userUid,
+        BudgetRepository budgetRepo,
+        CategoryRepository categoryRepo,
+        boolean darkTheme
+    ) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Presupuesto");
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+
+        ButtonType closeBtn = new ButtonType("Volver", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(closeBtn);
+        dialog.setResizable(true);
+        dialog.getDialogPane().setMinWidth(980);
+        dialog.getDialogPane().setMinHeight(720);
+
+        Label headerTitle = new Label("Presupuesto");
+        headerTitle.getStyleClass().add("app-title");
+        Label headerDesc = new Label("Define límites mensuales por categoría.");
+        headerDesc.getStyleClass().add("text-secondary");
+        VBox header = new VBox(2, headerTitle, headerDesc);
+
+        ChoiceBox<String> month = new ChoiceBox<>();
+        LocalDate now = LocalDate.now();
+        String currentMonth = String.format("%04d-%02d", now.getYear(), now.getMonthValue());
+        month.getItems().add(currentMonth);
+        month.getSelectionModel().selectFirst();
+
+        ComboBox<String> currency = new ComboBox<>();
+        currency.getItems().addAll("COP", "USD", "EUR", "GBP", "MXN", "ARS", "CLP", "PEN", "VES");
+        currency.getSelectionModel().select("COP");
+
+        ChoiceBox<CategoryRepository.Category> category = new ChoiceBox<>();
+        try {
+            category.getItems().addAll(categoryRepo.listRoots(userUid));
+            if (!category.getItems().isEmpty()) {
+                category.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+        category.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(CategoryRepository.Category object) {
+                return object == null ? "" : object.name();
+            }
+
+            @Override
+            public CategoryRepository.Category fromString(String string) {
+                return null;
+            }
+        });
+
+        TextField limit = new TextField();
+        limit.setPromptText("Ej: 500000.00");
+
+        Label error = new Label();
+        error.getStyleClass().add("error");
+        error.setWrapText(true);
+        error.setVisible(false);
+        error.setManaged(false);
+
+        VBox list = new VBox(10);
+        list.getStyleClass().add("accounts-list");
+        ScrollPane scroll = new ScrollPane(list);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().addAll("card", "content-card");
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        Runnable refresh = () -> {
+            list.getChildren().clear();
+            error.setText("");
+            error.setVisible(false);
+            error.setManaged(false);
+            try {
+                String m = month.getValue() == null ? currentMonth : month.getValue();
+                String cur = currency.getValue() == null ? "COP" : currency.getValue();
+                List<BudgetRepository.BudgetProgress> rows = budgetRepo.listProgressByMonthAndCurrency(userUid, m, cur);
+                if (rows.isEmpty()) {
+                    Label empty = new Label("No hay presupuestos");
+                    empty.getStyleClass().add("text-secondary");
+                    list.getChildren().add(empty);
+                    return;
+                }
+                for (BudgetRepository.BudgetProgress p : rows) {
+                    list.getChildren().add(new Label(p.budget().month() + " · " + p.budget().currency() + " · " + p.budget().categoryId() + " · " + formatMoney(p.budget().limitCents(), p.budget().currency())));
+                }
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "No se pudo cargar el presupuesto" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        };
+
+        Button upsert = new Button("Guardar límite");
+        upsert.getStyleClass().add("btn-primary");
+        upsert.setOnAction(e -> {
+            error.setText("");
+            error.setVisible(false);
+            error.setManaged(false);
+            try {
+                CategoryRepository.Category cat = category.getValue();
+                if (cat == null) {
+                    return;
+                }
+                String m = month.getValue() == null ? currentMonth : month.getValue();
+                String cur = currency.getValue() == null ? "COP" : currency.getValue().trim().toUpperCase(Locale.ROOT);
+                BigDecimal v = parseAmount(limit.getText());
+                long cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+                if (cents < 0) {
+                    return;
+                }
+                budgetRepo.create(userUid, m, cat.id(), cents, cur);
+                refresh.run();
+            } catch (Exception ex) {
+                error.setText(ex.getMessage() == null ? "No se pudo guardar el límite" : ex.getMessage());
+                error.setVisible(true);
+                error.setManaged(true);
+            }
+        });
+
+        HBox filters = new HBox(10,
+            new Label("Mes"), month,
+            new Label("Moneda"), currency,
+            new Label("Categoría"), category,
+            new Label("Límite"), limit,
+            upsert
+        );
+        filters.setAlignment(Pos.CENTER_LEFT);
+        filters.setPadding(new Insets(10));
+        filters.getStyleClass().addAll("card", "content-card");
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerBar = new HBox(12, header, headerSpacer);
+        headerBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(12, headerBar, filters, scroll, error);
+        content.setPadding(new Insets(10));
+
+        dialog.getDialogPane().setContent(content);
+        refresh.run();
+        dialog.showAndWait();
     }
 
     private static Optional<GoalTransfer> showGoalDepositDialog(
@@ -5584,6 +6505,60 @@ public final class DashboardView {
         } catch (Exception ignored) {
             return 0L;
         }
+    }
+
+    private static String colorFromKey(String key) {
+        String k = key == null ? "" : key;
+        int h = k.hashCode();
+        double hue = (h & 0x7fffffff) % 360;
+        double s = 0.68;
+        double l = 0.52;
+        int rgb = hslToRgb(hue / 360.0, s, l);
+        return String.format("#%06X", (0xFFFFFF & rgb));
+    }
+
+    private static int hslToRgb(double h, double s, double l) {
+        double r;
+        double g;
+        double b;
+
+        if (s == 0) {
+            r = g = b = l;
+        } else {
+            double q = l < 0.5 ? (l * (1 + s)) : (l + s - l * s);
+            double p = 2 * l - q;
+            r = hueToRgb(p, q, h + 1.0 / 3.0);
+            g = hueToRgb(p, q, h);
+            b = hueToRgb(p, q, h - 1.0 / 3.0);
+        }
+
+        int ri = (int) Math.round(r * 255);
+        int gi = (int) Math.round(g * 255);
+        int bi = (int) Math.round(b * 255);
+        ri = Math.max(0, Math.min(255, ri));
+        gi = Math.max(0, Math.min(255, gi));
+        bi = Math.max(0, Math.min(255, bi));
+        return (ri << 16) | (gi << 8) | bi;
+    }
+
+    private static double hueToRgb(double p, double q, double t) {
+        double tt = t;
+        if (tt < 0) {
+            tt += 1;
+        }
+        if (tt > 1) {
+            tt -= 1;
+        }
+        if (tt < 1.0 / 6.0) {
+            return p + (q - p) * 6 * tt;
+        }
+        if (tt < 1.0 / 2.0) {
+            return q;
+        }
+        if (tt < 2.0 / 3.0) {
+            return p + (q - p) * (2.0 / 3.0 - tt) * 6;
+        }
+        return p;
     }
 
     private static BigDecimal parseAmount(String raw) {

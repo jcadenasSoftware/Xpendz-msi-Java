@@ -29,12 +29,15 @@ public final class LoanRepository {
         String userUid,
         String type,
         String counterpartyName,
+        String accountId,
         long principalCents,
         String currency,
         String status,
         String notes,
+        long occurredAtEpochSec,
         long createdAtEpochSec,
-        long updatedAtEpochSec
+        long updatedAtEpochSec,
+        String updatedBy
     ) {
     }
 
@@ -55,19 +58,22 @@ public final class LoanRepository {
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO loans (id, user_uid, type, counterparty_name, principal_cents, currency, status, notes, created_at_epoch_sec, updated_at_epoch_sec) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )) {
             ps.setString(1, id);
             ps.setString(2, userUid);
             ps.setString(3, type);
             ps.setString(4, counterpartyName);
-            ps.setLong(5, principalCents);
-            ps.setString(6, currency);
-            ps.setString(7, STATUS_OPEN);
-            ps.setString(8, notes);
-            ps.setLong(9, now);
+            ps.setObject(5, null);
+            ps.setLong(6, principalCents);
+            ps.setString(7, currency);
+            ps.setString(8, STATUS_OPEN);
+            ps.setString(9, notes);
             ps.setLong(10, now);
+            ps.setLong(11, now);
+            ps.setLong(12, now);
+            ps.setObject(13, null);
             ps.executeUpdate();
         }
 
@@ -114,7 +120,7 @@ public final class LoanRepository {
         Objects.requireNonNull(loanId, "loanId");
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, type, counterparty_name, principal_cents, currency, status, notes, created_at_epoch_sec, updated_at_epoch_sec FROM loans WHERE user_uid = ? AND id = ?"
+            "SELECT id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by FROM loans WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
             ps.setString(2, loanId);
@@ -127,12 +133,15 @@ public final class LoanRepository {
                     rs.getString("user_uid"),
                     rs.getString("type"),
                     rs.getString("counterparty_name"),
+                    rs.getString("account_id"),
                     rs.getLong("principal_cents"),
                     rs.getString("currency"),
                     rs.getString("status"),
                     rs.getString("notes"),
+                    rs.getLong("occurred_at_epoch_sec"),
                     rs.getLong("created_at_epoch_sec"),
-                    rs.getLong("updated_at_epoch_sec")
+                    rs.getLong("updated_at_epoch_sec"),
+                    rs.getString("updated_by")
                 );
             }
         }
@@ -141,11 +150,12 @@ public final class LoanRepository {
     public List<Loan> listByType(String userUid, String type, String currency, boolean onlyOpen) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(type, "type");
-        Objects.requireNonNull(currency, "currency");
+
+        boolean hasCurrency = currency != null && !currency.isBlank();
 
         String sql =
-            "SELECT id, user_uid, type, counterparty_name, principal_cents, currency, status, notes, created_at_epoch_sec, updated_at_epoch_sec " +
-            "FROM loans WHERE user_uid = ? AND type = ? AND currency = ?";
+            "SELECT id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loans WHERE user_uid = ? AND type = ?" + (hasCurrency ? " AND currency = ?" : "");
 
         if (onlyOpen) {
             sql += " AND status = 'OPEN'";
@@ -155,7 +165,9 @@ public final class LoanRepository {
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, userUid);
             ps.setString(2, type);
-            ps.setString(3, currency);
+            if (hasCurrency) {
+                ps.setString(3, currency);
+            }
 
             List<Loan> out = new ArrayList<>();
             try (ResultSet rs = ps.executeQuery()) {
@@ -165,16 +177,88 @@ public final class LoanRepository {
                         rs.getString("user_uid"),
                         rs.getString("type"),
                         rs.getString("counterparty_name"),
+                        rs.getString("account_id"),
                         rs.getLong("principal_cents"),
                         rs.getString("currency"),
                         rs.getString("status"),
                         rs.getString("notes"),
+                        rs.getLong("occurred_at_epoch_sec"),
                         rs.getLong("created_at_epoch_sec"),
-                        rs.getLong("updated_at_epoch_sec")
+                        rs.getLong("updated_at_epoch_sec"),
+                        rs.getString("updated_by")
                     ));
                 }
             }
             return out;
+        }
+    }
+
+    public void upsertFromRemote(String userUid, Loan remote) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(remote, "remote");
+
+        Loan local = getByIdOrNull(userUid, remote.id());
+        if (local == null) {
+            try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )) {
+                ps.setString(1, remote.id());
+                ps.setString(2, userUid);
+                ps.setString(3, remote.type());
+                ps.setString(4, remote.counterpartyName());
+                if (remote.accountId() == null || remote.accountId().isBlank()) {
+                    ps.setObject(5, null);
+                } else {
+                    ps.setString(5, remote.accountId());
+                }
+                ps.setLong(6, remote.principalCents());
+                ps.setString(7, remote.currency());
+                ps.setString(8, remote.status());
+                ps.setString(9, remote.notes());
+                ps.setLong(10, remote.occurredAtEpochSec());
+                ps.setLong(11, remote.createdAtEpochSec());
+                ps.setLong(12, remote.updatedAtEpochSec());
+                if (remote.updatedBy() == null || remote.updatedBy().isBlank()) {
+                    ps.setObject(13, null);
+                } else {
+                    ps.setString(13, remote.updatedBy());
+                }
+                ps.executeUpdate();
+            }
+            return;
+        }
+
+        if (remote.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
+            return;
+        }
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE loans SET type = ?, counterparty_name = ?, account_id = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, occurred_at_epoch_sec = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ?, updated_by = ? " +
+            "WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, remote.type());
+            ps.setString(2, remote.counterpartyName());
+            if (remote.accountId() == null || remote.accountId().isBlank()) {
+                ps.setObject(3, null);
+            } else {
+                ps.setString(3, remote.accountId());
+            }
+            ps.setLong(4, remote.principalCents());
+            ps.setString(5, remote.currency());
+            ps.setString(6, remote.status());
+            ps.setString(7, remote.notes());
+            ps.setLong(8, remote.occurredAtEpochSec());
+            ps.setLong(9, remote.createdAtEpochSec());
+            ps.setLong(10, remote.updatedAtEpochSec());
+            if (remote.updatedBy() == null || remote.updatedBy().isBlank()) {
+                ps.setObject(11, null);
+            } else {
+                ps.setString(11, remote.updatedBy());
+            }
+            ps.setString(12, userUid);
+            ps.setString(13, remote.id());
+            ps.executeUpdate();
         }
     }
 

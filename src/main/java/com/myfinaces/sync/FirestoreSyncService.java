@@ -3,6 +3,7 @@ package com.myfinaces.sync;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
+import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.LoanPaymentRepository;
@@ -66,12 +67,24 @@ public final class FirestoreSyncService {
         }
     }
 
+    public void syncBudgets(AuthSession session, BudgetRepository budgetRepo) throws Exception {
+        List<BudgetRepository.Budget> budgets = budgetRepo.listByUser(session.uid());
+        System.out.println("[FirestoreSync] budgets=" + budgets.size());
+        for (BudgetRepository.Budget b : budgets) {
+            upsertBudget(session, b);
+        }
+    }
+
     public void syncAccount(AuthSession session, AccountRepository.Account account) throws Exception {
         upsertAccount(session, account);
     }
 
     public void syncGoal(AuthSession session, GoalRepository.Goal goal) throws Exception {
         upsertGoal(session, goal);
+    }
+
+    public void syncBudget(AuthSession session, BudgetRepository.Budget budget) throws Exception {
+        upsertBudget(session, budget);
     }
 
     public void deleteAccount(AuthSession session, String accountId) throws Exception {
@@ -127,6 +140,82 @@ public final class FirestoreSyncService {
         List<CategoryRepository.Category> out = new ArrayList<>();
         for (String body : pages) {
             out.addAll(parseCategoriesList(session.uid(), body));
+        }
+        return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<BudgetRepository.Budget> parseBudgetsList(String userUid, String body) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return List.of();
+        }
+
+        long now = Instant.now().getEpochSecond();
+        List<BudgetRepository.Budget> out = new java.util.ArrayList<>();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+
+            String month = readStringField(fields, "month");
+            String categoryId = readStringField(fields, "categoryId");
+            Long limitCents = readLongField(fields, "limitCents");
+            String currency = readStringField(fields, "currency");
+
+            if (month == null || month.isBlank()) {
+                continue;
+            }
+            if (categoryId == null || categoryId.isBlank()) {
+                continue;
+            }
+            if (limitCents == null) {
+                continue;
+            }
+            if (currency == null || currency.isBlank()) {
+                continue;
+            }
+
+            Long createdAt = readLongField(fields, "createdAtEpochSec");
+            Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+            long cAt = createdAt == null ? now : createdAt;
+            long uAt = updatedAt == null ? cAt : updatedAt;
+
+            out.add(new BudgetRepository.Budget(
+                id,
+                userUid,
+                month,
+                categoryId,
+                limitCents,
+                currency,
+                cAt,
+                uAt
+            ));
+        }
+
+        return out;
+    }
+
+    public List<BudgetRepository.Budget> pullBudgets(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/budgets";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<BudgetRepository.Budget> out = new ArrayList<>();
+        for (String body : pages) {
+            out.addAll(parseBudgetsList(session.uid(), body));
         }
         return out;
     }
@@ -636,6 +725,25 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "goal");
+    }
+
+    private void upsertBudget(AuthSession session, BudgetRepository.Budget b) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/budgets/" + urlEncode(b.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(b.id()));
+        fields.put("userUid", stringField(b.userUid()));
+        fields.put("month", stringField(b.month()));
+        fields.put("categoryId", stringField(b.categoryId()));
+        fields.put("limitCents", intField(b.limitCents()));
+        fields.put("currency", stringField(b.currency()));
+        fields.put("createdAtEpochSec", intField(b.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(b.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "budget");
     }
 
     private void upsertLoan(AuthSession session, LoanRepository.Loan l) throws Exception {

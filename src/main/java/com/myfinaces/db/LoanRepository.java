@@ -41,7 +41,16 @@ public final class LoanRepository {
     ) {
     }
 
-    public String create(String userUid, String type, String counterpartyName, long principalCents, String currency, String notes) throws SQLException {
+    public String create(
+        String userUid,
+        String type,
+        String counterpartyName,
+        String accountId,
+        long principalCents,
+        String currency,
+        long occurredAtEpochSec,
+        String notes
+    ) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(counterpartyName, "counterpartyName");
@@ -65,12 +74,16 @@ public final class LoanRepository {
             ps.setString(2, userUid);
             ps.setString(3, type);
             ps.setString(4, counterpartyName);
-            ps.setObject(5, null);
+            if (accountId == null || accountId.isBlank()) {
+                ps.setObject(5, null);
+            } else {
+                ps.setString(5, accountId);
+            }
             ps.setLong(6, principalCents);
             ps.setString(7, currency);
             ps.setString(8, STATUS_OPEN);
             ps.setString(9, notes);
-            ps.setLong(10, now);
+            ps.setLong(10, occurredAtEpochSec <= 0L ? now : occurredAtEpochSec);
             ps.setLong(11, now);
             ps.setLong(12, now);
             ps.setObject(13, null);

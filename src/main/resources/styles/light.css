@@ -362,15 +362,13 @@
     -fx-border-radius: 10;
     -fx-padding: 6 12;
 }
- .account-summary-tabs > .tab-header-area > .headers-region > .tab:selected {
-     -fx-background-color: rgba(29, 78, 216, 0.14);
-     -fx-border-color: rgba(29, 78, 216, 0.45);
- }
 
- .account-summary-tabs > .tab-header-area > .headers-region > .tab .tab-label {
-     -fx-font-weight: 800;
-     -fx-text-fill: #0F172A;
- }
+.account-summary-tabs > .tab-header-area > .headers-region > .tab:selected {
+    -fx-background-color: rgba(29, 78, 216, 0.14);
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
 
  .account-summary-tabs > .tab-header-area > .headers-region > .tab:selected .tab-label {
      -fx-text-fill: #1D4ED8;
@@ -490,6 +488,16 @@
     -fx-border-color: rgba(15, 23, 42, 0.08);
     -fx-border-radius: 10;
     -fx-padding: 8 10;
+}
+
+.loan-amount-block-paid {
+    -fx-background-color: rgba(22, 163, 74, 0.10);
+    -fx-border-color: rgba(22, 163, 74, 0.25);
+}
+
+.loan-amount-block-pending {
+    -fx-background-color: rgba(220, 38, 38, 0.12);
+    -fx-border-color: rgba(220, 38, 38, 0.32);
 }
 
 .loan-amount-block > .label {

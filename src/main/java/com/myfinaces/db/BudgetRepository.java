@@ -41,6 +41,106 @@ public final class BudgetRepository {
         }
     }
 
+    public Budget getByUniqueKeyOrNull(String userUid, String month, String currency, String categoryId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(month, "month");
+        Objects.requireNonNull(currency, "currency");
+        Objects.requireNonNull(categoryId, "categoryId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, user_uid, month, category_id, limit_cents, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM budgets WHERE user_uid = ? AND month = ? AND currency = ? AND category_id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, month);
+            ps.setString(3, currency);
+            ps.setString(4, categoryId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return new Budget(
+                    rs.getString("id"),
+                    rs.getString("user_uid"),
+                    rs.getString("month"),
+                    rs.getString("category_id"),
+                    rs.getLong("limit_cents"),
+                    rs.getString("currency"),
+                    rs.getLong("created_at_epoch_sec"),
+                    rs.getLong("updated_at_epoch_sec")
+                );
+            }
+        }
+    }
+
+    public List<Budget> listByUser(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, user_uid, month, category_id, limit_cents, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM budgets WHERE user_uid = ? ORDER BY updated_at_epoch_sec DESC"
+        )) {
+            ps.setString(1, userUid);
+            List<Budget> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Budget(
+                        rs.getString("id"),
+                        rs.getString("user_uid"),
+                        rs.getString("month"),
+                        rs.getString("category_id"),
+                        rs.getLong("limit_cents"),
+                        rs.getString("currency"),
+                        rs.getLong("created_at_epoch_sec"),
+                        rs.getLong("updated_at_epoch_sec")
+                    ));
+                }
+            }
+            return out;
+        }
+    }
+
+    public void upsertFromRemote(String userUid, Budget remote) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(remote, "remote");
+
+        Budget localById = getByIdOrNull(userUid, remote.id());
+        if (localById == null) {
+            Budget localByKey = getByUniqueKeyOrNull(userUid, remote.month(), remote.currency(), remote.categoryId());
+            if (localByKey != null && !localByKey.id().equals(remote.id())) {
+                delete(userUid, localByKey.id());
+            }
+            try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO budgets (id, user_uid, month, category_id, limit_cents, currency, created_at_epoch_sec, updated_at_epoch_sec) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            )) {
+                ps.setString(1, remote.id());
+                ps.setString(2, userUid);
+                ps.setString(3, remote.month());
+                ps.setString(4, remote.categoryId());
+                ps.setLong(5, remote.limitCents());
+                ps.setString(6, remote.currency());
+                ps.setLong(7, remote.createdAtEpochSec());
+                ps.setLong(8, remote.updatedAtEpochSec());
+                ps.executeUpdate();
+            }
+            return;
+        }
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE budgets SET month = ?, category_id = ?, limit_cents = ?, currency = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, remote.month());
+            ps.setString(2, remote.categoryId());
+            ps.setLong(3, remote.limitCents());
+            ps.setString(4, remote.currency());
+            ps.setLong(5, remote.updatedAtEpochSec());
+            ps.setString(6, userUid);
+            ps.setString(7, remote.id());
+            ps.executeUpdate();
+        }
+    }
+
     public String create(String userUid, String month, String categoryId, long limitCents, String currency) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(month, "month");

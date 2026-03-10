@@ -1553,7 +1553,7 @@ public final class DashboardView {
                 d.setExtraValue(it.getKey());
                 series.getData().add(d);
             }
-            chart.getData().setAll(series);
+            chart.getData().setAll(List.of(series));
             chartPane.setCenter(chart);
 
             Platform.runLater(() -> {

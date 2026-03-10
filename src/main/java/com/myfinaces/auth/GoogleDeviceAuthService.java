@@ -16,6 +16,7 @@ import java.time.Instant;
 /**
  * @deprecated
  */
+@Deprecated
 public final class GoogleDeviceAuthService {
 
     @Deprecated

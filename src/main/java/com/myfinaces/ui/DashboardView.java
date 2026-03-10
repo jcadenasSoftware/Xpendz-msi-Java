@@ -131,18 +131,82 @@ public final class DashboardView {
         totalValue.getStyleClass().add("money-neutral");
         totalValue.getStyleClass().add("dashboard-total-value");
 
-        VBox totalCard = new VBox(4, totalCaption, totalValue);
+        AtomicReference<Runnable> refreshBalancesRef = new AtomicReference<>();
+        AtomicBoolean hideTotalBalance = new AtomicBoolean(true);
+        Button toggleTotal = new Button("");
+        toggleTotal.getStyleClass().add("btn-primary-soft");
+        toggleTotal.setGraphic(new FontIcon("far-eye"));
+        toggleTotal.setTooltip(new Tooltip("Mostrar saldo"));
+        toggleTotal.setMinWidth(42);
+        toggleTotal.setPrefWidth(42);
+        toggleTotal.setMinHeight(34);
+        toggleTotal.setPrefHeight(34);
+        toggleTotal.setOnAction(e -> {
+            hideTotalBalance.set(!hideTotalBalance.get());
+
+            toggleTotal.setText("");
+            toggleTotal.setGraphic(new FontIcon(hideTotalBalance.get() ? "far-eye" : "far-eye-slash"));
+            toggleTotal.setTooltip(new Tooltip(hideTotalBalance.get() ? "Mostrar saldo" : "Ocultar saldo"));
+            Runnable r = refreshBalancesRef.get();
+            if (r != null) {
+                r.run();
+            }
+        });
+
+        HBox totalTop = new HBox(10, totalCaption);
+        totalTop.setAlignment(Pos.CENTER_LEFT);
+
+        Region totalValueSpacer = new Region();
+        HBox.setHgrow(totalValueSpacer, Priority.ALWAYS);
+        HBox totalRow = new HBox(10, totalValue, totalValueSpacer, toggleTotal);
+        totalRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox totalCard = new VBox(6, totalTop, totalRow);
         totalCard.getStyleClass().addAll("card", "summary-card");
 
         VBox accountsBox = new VBox(6);
         accountsBox.getStyleClass().add("accounts-list");
+
+        VBox goalsBox = new VBox(6);
+        goalsBox.getStyleClass().add("accounts-list");
 
         ScrollPane accountsScroll = new ScrollPane(accountsBox);
         accountsScroll.setFitToWidth(true);
         accountsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         accountsScroll.getStyleClass().addAll("card", "content-card");
 
-        Runnable refreshBalances = () -> refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+        ScrollPane goalsScroll = new ScrollPane(goalsBox);
+        goalsScroll.setFitToWidth(true);
+        goalsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        goalsScroll.getStyleClass().addAll("card", "content-card");
+        goalsScroll.setMinViewportHeight(240);
+        goalsScroll.setPrefViewportHeight(260);
+        goalsScroll.setVisible(false);
+        goalsScroll.setManaged(false);
+
+        Runnable openBudgetGoalsTab = () -> {
+            Runnable r = refreshBalancesRef.get();
+            if (r == null) {
+                r = () -> {
+                };
+            }
+            showBudgetDialog(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme.get(), r, 1);
+        };
+
+        Runnable refreshBalances = () -> refreshBalances(
+            session,
+            accountRepo,
+            goalRepo,
+            txRepo,
+            transferRepo,
+            totalValue,
+            accountsBox,
+            goalsBox,
+            darkTheme,
+            hideTotalBalance,
+            openBudgetGoalsTab
+        );
+        refreshBalancesRef.set(refreshBalances);
         refreshBalances.run();
 
         Runnable pullCategories = () -> {
@@ -760,10 +824,11 @@ public final class DashboardView {
         HBox headerBar = new HBox(12, title, headerSpacer, toggleTheme);
         headerBar.setFillHeight(true);
 
-        VBox content = new VBox(14, headerBar, totalCard, accountsScroll);
+        VBox content = new VBox(14, headerBar, totalCard, accountsScroll, goalsScroll);
         content.getStyleClass().add("content");
         content.setPadding(new Insets(20));
         VBox.setVgrow(accountsScroll, Priority.ALWAYS);
+        VBox.setVgrow(goalsScroll, Priority.SOMETIMES);
 
         ScrollPane sidebarScroll = new ScrollPane(menu);
         sidebarScroll.setFitToWidth(true);
@@ -4946,30 +5011,32 @@ public final class DashboardView {
                     Label name = new Label(g.name());
                     name.getStyleClass().add("account-name");
 
-                    Label goalCaption = new Label("Objetivo:");
-                    goalCaption.getStyleClass().add("text-secondary");
                     Label goalAmount = new Label(formatMoney(g.targetCents(), g.currency()));
                     goalAmount.getStyleClass().addAll("account-name", "money-neutral");
 
-                    Label savedCaption = new Label("Guardado:");
-                    savedCaption.getStyleClass().add("text-secondary");
                     Label savedAmount = new Label(formatMoney(savedCents, g.currency()));
                     savedAmount.getStyleClass().addAll("account-name", savedCents > 0 ? "money-positive" : "money-neutral");
 
-                    Label remainingCaption = new Label("Falta:");
-                    remainingCaption.getStyleClass().add("text-secondary");
                     Label remainingAmount = new Label(formatMoney(Math.max(0L, remaining), g.currency()));
                     remainingAmount.getStyleClass().addAll("account-name", remaining > 0 ? "money-negative" : "money-positive");
 
-                    HBox subtitle = new HBox(10,
-                        goalCaption, goalAmount,
-                        savedCaption, savedAmount,
-                        remainingCaption, remainingAmount
-                    );
-                    subtitle.setAlignment(Pos.CENTER_LEFT);
+                    VBox goalBlock = new VBox(2, new Label("Objetivo"), goalAmount);
+                    goalBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    goalBlock.getStyleClass().add("loan-amount-block");
+
+                    VBox savedBlock = new VBox(2, new Label("Guardado"), savedAmount);
+                    savedBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    savedBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
+
+                    VBox remainingBlock = new VBox(2, new Label("Falta"), remainingAmount);
+                    remainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    remainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
+
+                    HBox amounts = new HBox(18, goalBlock, savedBlock, remainingBlock);
+                    amounts.setAlignment(Pos.CENTER_LEFT);
 
                     Button deposit = new Button("Depositar");
-                    deposit.getStyleClass().add("btn-secondary");
+                    deposit.getStyleClass().add("btn-primary");
                     deposit.setOnAction(ev -> {
                         Optional<GoalTransfer> t = showGoalDepositDialog(userUid, g, accountRepo, darkTheme);
                         if (t.isEmpty()) {
@@ -5067,11 +5134,10 @@ public final class DashboardView {
                     HBox actions = new HBox(8, deposit, withdraw, delete);
                     actions.setAlignment(Pos.CENTER_RIGHT);
 
-                    VBox left = new VBox(4, name, subtitle);
-                    HBox top = new HBox(10, left, spacer, actions);
+                    HBox top = new HBox(10, spacer, actions);
                     top.setAlignment(Pos.CENTER_LEFT);
 
-                    VBox row = new VBox(6, top);
+                    VBox row = new VBox(8, name, amounts, top);
                     row.getStyleClass().add("account-item");
                     list.getChildren().add(row);
                 }
@@ -5237,11 +5303,72 @@ public final class DashboardView {
         dialog.getDialogPane().setMinWidth(980);
         dialog.getDialogPane().setMinHeight(720);
 
+        javafx.event.EventHandler<javafx.scene.control.DialogEvent> existingOnShown = dialog.getOnShown();
+        dialog.setOnShown(ev -> {
+            if (existingOnShown != null) {
+                existingOnShown.handle(ev);
+            }
+            Platform.runLater(() -> {
+                try {
+                    javafx.stage.Window w = dialog.getDialogPane().getScene().getWindow();
+                    if (w instanceof javafx.stage.Stage s) {
+                        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+                        s.setX(bounds.getMinX());
+                        s.setY(bounds.getMinY());
+                        s.setWidth(bounds.getWidth());
+                        s.setHeight(bounds.getHeight());
+                        s.setMaximized(true);
+
+                        final double normalW = Math.min(1100, bounds.getWidth() * 0.92);
+                        final double normalH = Math.min(760, bounds.getHeight() * 0.90);
+                        s.maximizedProperty().addListener((o, oldV, newV) -> {
+                            if (Boolean.TRUE.equals(newV)) {
+                                return;
+                            }
+                            try {
+                                s.setWidth(normalW);
+                                s.setHeight(normalH);
+                                s.centerOnScreen();
+                            } catch (Exception ignored) {
+                            }
+                        });
+                    }
+                } catch (Exception ignored) {
+                }
+            });
+        });
+
         Label headerTitle = new Label("Préstamos");
         headerTitle.getStyleClass().add("app-title");
+        headerTitle.setStyle("-fx-font-size: 30px; -fx-font-weight: 800;");
         Label headerDesc = new Label("Registra préstamos y devoluciones.");
         headerDesc.getStyleClass().add("text-secondary");
-        VBox header = new VBox(2, headerTitle, headerDesc);
+        headerDesc.setStyle("-fx-font-size: 14px;");
+        headerDesc.setWrapText(true);
+
+        ImageView headerLogo = new ImageView();
+        try {
+            var logoStream = DashboardView.class.getResourceAsStream("/images/logo.png");
+            if (logoStream != null) {
+                headerLogo.setImage(new Image(logoStream));
+            }
+        } catch (Exception ignored) {
+        }
+        headerLogo.setPreserveRatio(true);
+        headerLogo.setSmooth(true);
+        headerLogo.setFitWidth(96);
+
+        VBox headerText = new VBox(4, headerTitle, headerDesc);
+        headerText.setAlignment(Pos.CENTER);
+        headerText.setMaxWidth(Double.MAX_VALUE);
+
+        BorderPane header = new BorderPane();
+        header.getStyleClass().add("dialog-header");
+        header.setLeft(headerLogo);
+        header.setCenter(headerText);
+        BorderPane.setAlignment(headerLogo, Pos.CENTER_LEFT);
+        BorderPane.setMargin(headerLogo, new Insets(0, 14, 0, 10));
+        dialog.getDialogPane().setHeader(header);
 
         Label error = new Label();
         error.getStyleClass().add("error");
@@ -5270,7 +5397,18 @@ public final class DashboardView {
         tabLent.setClosable(false);
         Tab tabBorrowed = new Tab("Yo debo", borrowedScroll);
         tabBorrowed.setClosable(false);
-        tabs.getTabs().addAll(tabLent, tabBorrowed);
+
+        VBox historyList = new VBox(10);
+        historyList.getStyleClass().add("accounts-list");
+        ScrollPane historyScroll = new ScrollPane(historyList);
+        historyScroll.setFitToWidth(true);
+        historyScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        historyScroll.getStyleClass().addAll("card", "content-card");
+        VBox.setVgrow(historyScroll, Priority.ALWAYS);
+        Tab tabHistory = new Tab("Historial", historyScroll);
+        tabHistory.setClosable(false);
+
+        tabs.getTabs().addAll(tabLent, tabBorrowed, tabHistory);
         tabs.getStyleClass().add("account-summary-tabs");
         VBox.setVgrow(tabs, Priority.ALWAYS);
 
@@ -5278,6 +5416,7 @@ public final class DashboardView {
         Runnable refresh = () -> {
             lentList.getChildren().clear();
             borrowedList.getChildren().clear();
+            historyList.getChildren().clear();
             error.setText("");
             error.setVisible(false);
             error.setManaged(false);
@@ -5311,10 +5450,10 @@ public final class DashboardView {
                             totalBlock.getStyleClass().add("loan-amount-block");
                             VBox paidBlock = new VBox(2, new Label("Pagado"), paidValue);
                             paidBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
-                            paidBlock.getStyleClass().add("loan-amount-block");
+                            paidBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
                             VBox pendingBlock = new VBox(2, new Label("Pendiente"), pendingValue);
                             pendingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
-                            pendingBlock.getStyleClass().add("loan-amount-block");
+                            pendingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
 
                             HBox amounts = new HBox(18, totalBlock, paidBlock, pendingBlock);
                             amounts.setAlignment(Pos.CENTER_LEFT);
@@ -5363,10 +5502,10 @@ public final class DashboardView {
 
                             Region spacer = new Region();
                             HBox.setHgrow(spacer, Priority.ALWAYS);
-                            HBox top = new HBox(10, name, spacer, addPayment);
-                            top.setAlignment(Pos.CENTER_LEFT);
+                            HBox actions = new HBox(10, spacer, addPayment);
+                            actions.setAlignment(Pos.CENTER_RIGHT);
 
-                            VBox row = new VBox(6, top, amounts);
+                            VBox row = new VBox(8, name, amounts, actions);
                             row.getStyleClass().add("account-item");
 
                             if (LoanRepository.TYPE_LENT.equals(l.type())) {
@@ -5392,6 +5531,39 @@ public final class DashboardView {
                     Label empty = new Label("No hay préstamos");
                     empty.getStyleClass().add("text-secondary");
                     borrowedList.getChildren().add(empty);
+                }
+
+                try {
+                    List<LoanPaymentRepository.LoanPayment> payments = loanPaymentRepo.listAllByUser(userUid);
+                    if (payments.isEmpty()) {
+                        Label empty = new Label("No hay pagos registrados");
+                        empty.getStyleClass().add("text-secondary");
+                        historyList.getChildren().add(empty);
+                    } else {
+                        for (LoanPaymentRepository.LoanPayment p : payments) {
+                            LoanRepository.Loan loan;
+                            try {
+                                loan = loanRepo.getByIdOrNull(userUid, p.loanId());
+                            } catch (Exception ignored) {
+                                loan = null;
+                            }
+                            String title = loan == null ? p.loanId() : loan.counterpartyName();
+                            Label name = new Label(title);
+                            name.getStyleClass().add("account-name");
+
+                            String cur = loan == null ? "COP" : loan.currency();
+                            Label amount = new Label(formatMoney(p.principalCents(), cur));
+                            amount.getStyleClass().addAll("account-name", "money-neutral");
+
+                            Region pSpacer = new Region();
+                            HBox.setHgrow(pSpacer, Priority.ALWAYS);
+                            HBox row = new HBox(10, name, pSpacer, amount);
+                            row.getStyleClass().add("account-item");
+                            row.setMinHeight(Region.USE_PREF_SIZE);
+                            historyList.getChildren().add(row);
+                        }
+                    }
+                } catch (Exception ignored) {
                 }
             } catch (Exception ex) {
                 error.setText(ex.getMessage() == null ? "No se pudieron cargar los préstamos" : ex.getMessage());
@@ -5434,10 +5606,15 @@ public final class DashboardView {
 
         Region headerSpacer = new Region();
         HBox.setHgrow(headerSpacer, Priority.ALWAYS);
-        HBox headerBar = new HBox(12, header, headerSpacer, create);
-        headerBar.setAlignment(Pos.CENTER_LEFT);
+        VBox tabsWrap = new VBox(tabs);
+        tabsWrap.getStyleClass().addAll("card", "content-card");
+        tabsWrap.setPadding(new Insets(8, 10, 0, 10));
+        VBox.setVgrow(tabsWrap, Priority.ALWAYS);
 
-        VBox content = new VBox(12, headerBar, tabs, error);
+        HBox headerBar = new HBox(12, headerSpacer, create);
+        headerBar.setAlignment(Pos.CENTER_RIGHT);
+
+        VBox content = new VBox(12, headerBar, tabsWrap, error);
         content.setPadding(new Insets(10));
 
         dialog.getDialogPane().setContent(content);
@@ -5666,6 +5843,20 @@ public final class DashboardView {
         boolean darkTheme,
         Runnable refreshBalances
     ) {
+        showBudgetDialog(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme, refreshBalances, 0);
+    }
+
+    private static void showBudgetDialog(
+        AuthSession session,
+        BudgetRepository budgetRepo,
+        GoalRepository goalRepo,
+        CategoryRepository categoryRepo,
+        AccountRepository accountRepo,
+        TransferRepository transferRepo,
+        boolean darkTheme,
+        Runnable refreshBalances,
+        int initialTabIndex
+    ) {
         String userUid = session.uid();
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Presupuesto");
@@ -5677,10 +5868,33 @@ public final class DashboardView {
         dialog.getDialogPane().setMinWidth(980);
         dialog.getDialogPane().setMinHeight(720);
 
+        javafx.event.EventHandler<javafx.scene.control.DialogEvent> existingOnShown = dialog.getOnShown();
+        dialog.setOnShown(ev -> {
+            if (existingOnShown != null) {
+                existingOnShown.handle(ev);
+            }
+            Platform.runLater(() -> {
+                try {
+                    javafx.stage.Window w = dialog.getDialogPane().getScene().getWindow();
+                    if (w instanceof javafx.stage.Stage s) {
+                        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+                        s.setX(bounds.getMinX());
+                        s.setY(bounds.getMinY());
+                        s.setWidth(bounds.getWidth());
+                        s.setHeight(bounds.getHeight());
+                        s.setMaximized(true);
+                    }
+                } catch (Exception ignored) {
+                }
+            });
+        });
+
         Label headerTitle = new Label("Presupuesto");
         headerTitle.getStyleClass().add("app-title");
+        headerTitle.setStyle("-fx-font-size: 34px; -fx-font-weight: 800;");
         Label headerDesc = new Label("Presupuesto mensual y metas.");
         headerDesc.getStyleClass().add("text-secondary");
+        headerDesc.setStyle("-fx-font-size: 16px;");
         headerDesc.setWrapText(true);
 
         ImageView headerLogo = new ImageView();
@@ -5716,6 +5930,10 @@ public final class DashboardView {
         Tab tabGoals = new Tab("Metas", goals);
         tabGoals.setClosable(false);
         tabs.getTabs().addAll(tabMonthly, tabGoals);
+
+        if (initialTabIndex >= 0 && initialTabIndex < tabs.getTabs().size()) {
+            tabs.getSelectionModel().select(initialTabIndex);
+        }
 
         VBox tabsWrap = new VBox(tabs);
         tabsWrap.getStyleClass().addAll("card", "content-card");
@@ -5808,6 +6026,7 @@ public final class DashboardView {
         scroll.getStyleClass().addAll("card", "content-card");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
+        AtomicReference<Runnable> refreshRef = new AtomicReference<>();
         Runnable refresh = () -> {
             list.getChildren().clear();
             error.setText("");
@@ -5874,7 +6093,27 @@ public final class DashboardView {
                     HBox amounts = new HBox(18, limitBlock, spentBlock, remainingBlock);
                     amounts.setAlignment(Pos.CENTER_LEFT);
 
-                    VBox row = new VBox(8, name, amounts);
+                    Button del = new Button("Eliminar");
+                    del.getStyleClass().add("btn-danger");
+                    del.setOnAction(ev -> {
+                        try {
+                            budgetRepo.delete(userUid, p.budget().id());
+                            Runnable r = refreshRef.get();
+                            if (r != null) {
+                                r.run();
+                            }
+                        } catch (Exception ex) {
+                            error.setText(ex.getMessage() == null ? "No se pudo eliminar el límite" : ex.getMessage());
+                            error.setVisible(true);
+                            error.setManaged(true);
+                        }
+                    });
+                    Region spacer = new Region();
+                    HBox.setHgrow(spacer, Priority.ALWAYS);
+                    HBox top = new HBox(10, name, spacer, del);
+                    top.setAlignment(Pos.CENTER_LEFT);
+
+                    VBox row = new VBox(8, top, amounts);
                     row.getStyleClass().add("account-item");
                     list.getChildren().add(row);
                 }
@@ -5884,6 +6123,8 @@ public final class DashboardView {
                 error.setManaged(true);
             }
         };
+
+        refreshRef.set(refresh);
 
         Button upsert = new Button("Guardar límite");
         upsert.getStyleClass().add("btn-primary");
@@ -5905,7 +6146,12 @@ public final class DashboardView {
                 }
                 CategoryRepository.Category sub = subCategory.getValue();
                 String categoryId = (sub == null) ? root.id() : sub.id();
-                budgetRepo.create(userUid, m, categoryId, cents, cur);
+                BudgetRepository.Budget existing = budgetRepo.getByUniqueKeyOrNull(userUid, m, cur, categoryId);
+                if (existing == null) {
+                    budgetRepo.create(userUid, m, categoryId, cents, cur);
+                } else {
+                    budgetRepo.update(userUid, existing.id(), m, categoryId, cents, cur);
+                }
                 refresh.run();
             } catch (Exception ex) {
                 error.setText(ex.getMessage() == null ? "No se pudo guardar el límite" : ex.getMessage());
@@ -6005,30 +6251,32 @@ public final class DashboardView {
                     Label name = new Label(g.name());
                     name.getStyleClass().add("account-name");
 
-                    Label goalCaption = new Label("Objetivo:");
-                    goalCaption.getStyleClass().add("text-secondary");
                     Label goalAmount = new Label(formatMoney(g.targetCents(), g.currency()));
                     goalAmount.getStyleClass().addAll("account-name", "money-neutral");
 
-                    Label savedCaption = new Label("Guardado:");
-                    savedCaption.getStyleClass().add("text-secondary");
                     Label savedAmount = new Label(formatMoney(savedCents, g.currency()));
                     savedAmount.getStyleClass().addAll("account-name", savedCents > 0 ? "money-positive" : "money-neutral");
 
-                    Label remainingCaption = new Label("Falta:");
-                    remainingCaption.getStyleClass().add("text-secondary");
                     Label remainingAmount = new Label(formatMoney(Math.max(0L, remaining), g.currency()));
                     remainingAmount.getStyleClass().addAll("account-name", remaining > 0 ? "money-negative" : "money-positive");
 
-                    HBox subtitle = new HBox(10,
-                        goalCaption, goalAmount,
-                        savedCaption, savedAmount,
-                        remainingCaption, remainingAmount
-                    );
-                    subtitle.setAlignment(Pos.CENTER_LEFT);
+                    VBox goalBlock = new VBox(2, new Label("Objetivo"), goalAmount);
+                    goalBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    goalBlock.getStyleClass().add("loan-amount-block");
+
+                    VBox savedBlock = new VBox(2, new Label("Guardado"), savedAmount);
+                    savedBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    savedBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
+
+                    VBox remainingBlock = new VBox(2, new Label("Falta"), remainingAmount);
+                    remainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    remainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
+
+                    HBox amounts = new HBox(18, goalBlock, savedBlock, remainingBlock);
+                    amounts.setAlignment(Pos.CENTER_LEFT);
 
                     Button deposit = new Button("Depositar");
-                    deposit.getStyleClass().add("btn-secondary");
+                    deposit.getStyleClass().add("btn-primary");
                     deposit.setOnAction(ev -> {
                         Optional<GoalTransfer> t = showGoalDepositDialog(userUid, g, accountRepo, darkTheme);
                         if (t.isEmpty()) {
@@ -6126,11 +6374,10 @@ public final class DashboardView {
                     HBox actions = new HBox(8, deposit, withdraw, delete);
                     actions.setAlignment(Pos.CENTER_RIGHT);
 
-                    VBox left = new VBox(4, name, subtitle);
-                    HBox top = new HBox(10, left, spacer, actions);
+                    HBox top = new HBox(10, spacer, actions);
                     top.setAlignment(Pos.CENTER_LEFT);
 
-                    VBox row = new VBox(6, top);
+                    VBox row = new VBox(8, name, amounts, top);
                     row.getStyleClass().add("account-item");
                     list.getChildren().add(row);
                 }
@@ -6198,6 +6445,8 @@ public final class DashboardView {
 
         DatePicker date = new DatePicker(LocalDate.now());
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
+        Label balance = new Label("");
+        balance.getStyleClass().add("text-secondary");
         TextField amount = new TextField();
         amount.setPromptText("Ej: 10000.00");
         TextField note = new TextField();
@@ -6255,15 +6504,17 @@ public final class DashboardView {
         grid.add(lFrom, 0, 2);
         grid.add(from, 1, 2);
 
+        grid.add(balance, 1, 3);
+
         Label lAmount = new Label("Monto");
         lAmount.getStyleClass().add("account-name");
-        grid.add(lAmount, 0, 3);
-        grid.add(amount, 1, 3);
+        grid.add(lAmount, 0, 4);
+        grid.add(amount, 1, 4);
 
         Label lNote = new Label("Nota");
         lNote.getStyleClass().add("account-name");
-        grid.add(lNote, 0, 4);
-        grid.add(note, 1, 4);
+        grid.add(lNote, 0, 5);
+        grid.add(note, 1, 5);
 
         dialog.getDialogPane().setContent(grid);
         Optional<ButtonType> result = dialog.showAndWait();
@@ -6485,13 +6736,23 @@ public final class DashboardView {
         TransferRepository transferRepo,
         Label totalValue,
         VBox accountsBox,
-        BooleanProperty darkTheme
+        VBox goalsBox,
+        BooleanProperty darkTheme,
+        AtomicBoolean hideTotalBalance,
+        Runnable openBudgetGoalsTab
     ) {
         accountsBox.getChildren().clear();
+        goalsBox.getChildren().clear();
+
+        Parent goalsParent = goalsBox.getParent();
+        if (goalsParent instanceof ScrollPane sp) {
+            sp.setVisible(false);
+            sp.setManaged(false);
+        }
         try {
             List<AccountRepository.Account> accounts = accountRepo.list(session.uid());
             if (accounts.isEmpty()) {
-                totalValue.setText(formatMoney(0));
+                totalValue.setText(hideTotalBalance.get() ? "••••" : formatMoney(0));
                 totalValue.getStyleClass().setAll("account-name", "dashboard-total-value", "money-neutral");
                 Label empty = new Label("No hay cuentas creadas aún.");
                 empty.getStyleClass().add("text-secondary");
@@ -6668,7 +6929,7 @@ public final class DashboardView {
                                 sync.syncAccount(session, updated);
                             } catch (Exception ignored) {
                             }
-                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, goalsBox, darkTheme, hideTotalBalance, openBudgetGoalsTab);
                         } else if (res.get().action() == EditAccountAction.VIEW_SUMMARY) {
                             showAccountSummaryDialog(session.uid(), a, txRepo, transferRepo, accountRepo, darkTheme.get());
                         } else if (res.get().action() == EditAccountAction.DELETE) {
@@ -6691,7 +6952,7 @@ public final class DashboardView {
                                 sync.deleteAccount(session, a.id());
                             } catch (Exception ignored) {
                             }
-                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, darkTheme);
+                            refreshBalances(session, accountRepo, goalRepo, txRepo, transferRepo, totalValue, accountsBox, goalsBox, darkTheme, hideTotalBalance, openBudgetGoalsTab);
                         }
                     } catch (IllegalStateException ex) {
                         if ("account_has_movements".equals(ex.getMessage())) {
@@ -6722,15 +6983,9 @@ public final class DashboardView {
             }
 
             if (!goalAccountIds.isEmpty()) {
-                if (!accountsBox.getChildren().isEmpty()) {
-                    Separator sep = new Separator();
-                    sep.getStyleClass().add("sidebar-separator");
-                    accountsBox.getChildren().add(sep);
-                }
-
                 Label hdrGoals = new Label("Metas");
                 hdrGoals.getStyleClass().add("account-name");
-                accountsBox.getChildren().add(hdrGoals);
+                goalsBox.getChildren().add(hdrGoals);
 
                 for (AccountRepository.Account a : accounts) {
                     if (!goalAccountIds.contains(a.id())) {
@@ -6752,8 +7007,20 @@ public final class DashboardView {
                     HBox row = new HBox(10, name, spacer, amount);
                     row.getStyleClass().add("account-item");
                     row.setMinHeight(Region.USE_PREF_SIZE);
-                    accountsBox.getChildren().add(row);
+                    row.setOnMouseClicked(ev -> {
+                        if (ev.getButton() != MouseButton.PRIMARY || ev.getClickCount() != 2) {
+                            return;
+                        }
+                        openBudgetGoalsTab.run();
+                    });
+                    goalsBox.getChildren().add(row);
                 }
+            }
+
+            if (goalsParent instanceof ScrollPane sp) {
+                boolean showGoals = !goalAccountIds.isEmpty();
+                sp.setVisible(showGoals);
+                sp.setManaged(showGoals);
             }
 
             String totalCurrency = null;
@@ -6766,13 +7033,17 @@ public final class DashboardView {
                     break;
                 }
             }
-            totalValue.setText(formatMoney(totalCents, mixed ? null : totalCurrency));
+            totalValue.setText(hideTotalBalance.get() ? "••••" : formatMoney(totalCents, mixed ? null : totalCurrency));
             totalValue.getStyleClass().setAll("account-name", "dashboard-total-value");
             if (totalCents > 0) {
                 totalValue.getStyleClass().add("money-positive");
             } else if (totalCents < 0) {
                 totalValue.getStyleClass().add("money-negative");
             } else {
+                totalValue.getStyleClass().add("money-neutral");
+            }
+            if (hideTotalBalance.get()) {
+                totalValue.getStyleClass().removeAll("money-positive", "money-negative");
                 totalValue.getStyleClass().add("money-neutral");
             }
         } catch (Exception ex) {

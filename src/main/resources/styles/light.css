@@ -432,6 +432,25 @@
     -fx-icon-color: white;
 }
 
+.btn-primary-soft {
+    -fx-background-color: rgba(29, 78, 216, 0.12);
+    -fx-text-fill: #1D4ED8;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12;
+    -fx-font-weight: bold;
+    -fx-border-color: rgba(29, 78, 216, 0.16);
+    -fx-border-radius: 8;
+}
+
+.btn-primary-soft:hover {
+    -fx-background-color: rgba(29, 78, 216, 0.18);
+    -fx-border-color: rgba(29, 78, 216, 0.22);
+}
+
+.btn-primary-soft .icon {
+    -fx-icon-color: #1D4ED8;
+}
+
 .btn-secondary {
     -fx-background-color: #E2E8F0;
     -fx-text-fill: #0F172A;

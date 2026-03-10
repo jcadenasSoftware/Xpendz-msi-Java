@@ -473,6 +473,25 @@
     -fx-icon-color: white;
 }
 
+.btn-primary-soft {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+    -fx-text-fill: #E5E7EB;
+    -fx-background-radius: 8;
+    -fx-padding: 8 12;
+    -fx-font-weight: bold;
+    -fx-border-color: rgba(59, 130, 246, 0.22);
+    -fx-border-radius: 8;
+}
+
+.btn-primary-soft:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.26);
+    -fx-border-color: rgba(59, 130, 246, 0.30);
+}
+
+.btn-primary-soft .icon {
+    -fx-icon-color: #E5E7EB;
+}
+
 .btn-secondary {
     -fx-background-color: #1F2937;
     -fx-text-fill: #E5E7EB;

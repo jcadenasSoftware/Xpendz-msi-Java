@@ -1,13 +1,15 @@
 MIS FINANZAS - README
 
 Descripción
-Mis Finanzas es una aplicación de escritorio para el control y organización de finanzas personales. Permite administrar cuentas, registrar transacciones, visualizar resúmenes y analizar tu evolución financiera desde una interfaz moderna (JavaFX) con soporte de tema claro/oscuro.
+Mis Finanzas es una aplicación de escritorio para el control y organización de finanzas personales. Permite administrar cuentas, registrar transacciones, visualizar resúmenes y analizar tu evolución financiera desde una interfaz moderna (JavaFX) con soporte de tema claro/oscuro. Soporta múltiples monedas por cuenta (sin conversión automática entre monedas).
 
 Características principales
 - Gestión de cuentas: creación/edición/eliminación y visualización de saldos.
+- Multi-moneda por cuenta (sin conversión automática).
 - Registro de movimientos: ingresos y egresos con historial.
 - Transferencias entre cuentas.
 - Resúmenes y gráficos para análisis.
+- Exportación a CSV desde el módulo de Resumen.
 - Interfaz moderna con tema claro/oscuro.
 - Instalador MSI para Windows con soporte de actualización (upgrade).
 

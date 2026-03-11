@@ -1112,29 +1112,6 @@ public final class FirestoreSyncService {
         }
     }
 
-    private void debugPrintCollectionSize(AuthSession session, String collectionName) throws Exception {
-        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
-            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
-            + "/" + urlEncode(collectionName);
-
-        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
-            .header("Authorization", "Bearer " + session.idToken())
-            .header("Content-Type", "application/json")
-            .GET()
-            .build();
-
-        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() / 100 != 2) {
-            System.out.println("[FirestoreSync] list " + collectionName + " failed (" + resp.statusCode() + "): " + resp.body());
-            return;
-        }
-
-        Map<?, ?> json = MAPPER.readValue(resp.body(), Map.class);
-        Object docs = json.get("documents");
-        int size = (docs instanceof List<?> l) ? l.size() : 0;
-        System.out.println("[FirestoreSync] firestore " + collectionName + " documents=" + size);
-    }
-
     private static Map<String, Object> stringField(String v) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("stringValue", v == null ? "" : v);

@@ -16,7 +16,7 @@ Requisitos (usuario final)
 - No se requiere Java instalado: el instalador incluye un runtime.
 
 Instalación (Windows)
-1) Descarga el archivo MSI (ej.: dist\MisFinanzas-1.0.5.msi).
+1) Descarga el archivo MSI (ej.: dist\MisFinanzas-3.0.1.msi).
 2) Ejecuta el MSI y sigue el asistente.
 3) Se creará un acceso directo en el escritorio y en el menú inicio.
 
@@ -59,11 +59,15 @@ Notas del instalador (importante)
 Modo diagnóstico (opcional)
 Si necesitas ver errores en consola al ejecutar la app instalada:
 - Generar MSI con consola:
-  powershell -ExecutionPolicy Bypass -File .\build-msi.ps1 -SkipBuild -WinConsole -AppVersionOverride 1.0.5.1
+  powershell -ExecutionPolicy Bypass -File .\build-msi.ps1 -SkipBuild -WinConsole -AppVersionOverride 3.0.1.1
 
 Solución de problemas
 - "Ya está instalada otra versión": Windows Installer no permite reinstalar la MISMA versión.
   Usa una versión superior o genera una versión de diagnóstico con -AppVersionOverride.
+
+Notas de versión (3.0.1)
+- Refactor interno del Dashboard para mejorar modularidad y mantenimiento.
+- Corrección del Resumen Mensual: columna TOTAL visible y PROMEDIO calculado solo con meses anteriores.
 
 Licencia
 - Definir según tu preferencia (MIT, Apache-2.0, etc.).

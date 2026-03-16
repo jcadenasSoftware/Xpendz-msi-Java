@@ -33,8 +33,10 @@ import javafx.stage.Screen;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class DashboardChartsDialog {
 
@@ -231,6 +233,59 @@ public final class DashboardChartsDialog {
         };
         refreshSubcatsCharts.run();
 
+        Runnable refreshAccountsForCharts = () -> {
+            try {
+                AccountRepository.Account selected = account.getValue();
+
+                account.getItems().clear();
+                account.getItems().add(null);
+
+                boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
+                CategoryRepository.Category sub = subCategory.getValue();
+                Integer y = year.getValue();
+                String kindLabel = kind.getValue();
+                String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+
+                List<AccountRepository.Account> allAccounts;
+                try {
+                    allAccounts = accountRepo.list(userUid);
+                } catch (Exception ignored) {
+                    allAccounts = List.of();
+                }
+
+                if (bySub && sub != null) {
+                    List<String> ids;
+                    try {
+                        ids = txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, sub.id());
+                    } catch (Exception ignored) {
+                        ids = List.of();
+                    }
+
+                    Set<String> idSet = new HashSet<>(ids);
+                    for (AccountRepository.Account a : allAccounts) {
+                        if (a != null && idSet.contains(a.id())) {
+                            account.getItems().add(a);
+                        }
+                    }
+                } else {
+                    account.getItems().addAll(allAccounts);
+                }
+
+                if (selected == null) {
+                    account.getSelectionModel().selectFirst();
+                    return;
+                }
+                for (AccountRepository.Account a : account.getItems()) {
+                    if (a != null && selected.id().equals(a.id())) {
+                        account.getSelectionModel().select(a);
+                        return;
+                    }
+                }
+                account.getSelectionModel().selectFirst();
+            } catch (Exception ignored) {
+            }
+        };
+
         Label fYear = new Label("Año");
         fYear.getStyleClass().add("text-secondary");
         Label fKind = new Label("Tipo");
@@ -309,6 +364,31 @@ public final class DashboardChartsDialog {
             Map<String, long[]> centsById = new HashMap<>();
 
             if (bySubcategory) {
+                if (accountId == null && subFilter != null) {
+                    try {
+                        List<TransactionRepository.MonthlyCategoryDetailAccountTotal> rows =
+                            txRepo.listMonthlyTotalsBySubcategoryAndAccount(userUid, y, k);
+                        for (TransactionRepository.MonthlyCategoryDetailAccountTotal row : rows) {
+                            if (rootFilter != null && !rootFilter.id().equals(row.rootCategoryId())) {
+                                continue;
+                            }
+                            if (!subFilter.id().equals(row.categoryId())) {
+                                continue;
+                            }
+
+                            long[] monthsArr = centsById.computeIfAbsent(row.accountId(), __ -> new long[13]);
+                            int m = row.month();
+                            if (m >= 1 && m <= 12) {
+                                monthsArr[m] += row.totalAmountCents();
+                            }
+
+                            if (row.accountId() != null && row.accountName() != null) {
+                                nameById.putIfAbsent(row.accountId(), row.accountName());
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+                } else {
                 try {
                     List<CategoryRepository.Category> roots = categoryRepo.listRoots(userUid);
                     for (CategoryRepository.Category r : roots) {
@@ -342,6 +422,7 @@ public final class DashboardChartsDialog {
                         nameById.putIfAbsent(row.categoryId(), row.categoryName());
                     }
                 } catch (Exception ignored) {
+                }
                 }
             } else {
                 try {
@@ -475,16 +556,25 @@ public final class DashboardChartsDialog {
         kind.valueProperty().addListener((obs, o, n) -> refreshChart.run());
         view.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsCharts.run();
+            refreshAccountsForCharts.run();
             refreshChart.run();
         });
         account.valueProperty().addListener((obs, o, n) -> refreshChart.run());
         rootCategory.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsCharts.run();
+            refreshAccountsForCharts.run();
             refreshChart.run();
         });
-        subCategory.valueProperty().addListener((obs, o, n) -> refreshChart.run());
+        subCategory.valueProperty().addListener((obs, o, n) -> {
+            refreshAccountsForCharts.run();
+            refreshChart.run();
+        });
         month.valueProperty().addListener((obs, o, n) -> refreshChart.run());
         chartType.valueProperty().addListener((obs, o, n) -> refreshChart.run());
+        year.valueProperty().addListener((obs, o, n) -> refreshAccountsForCharts.run());
+        kind.valueProperty().addListener((obs, o, n) -> refreshAccountsForCharts.run());
+
+        refreshAccountsForCharts.run();
 
         HBox actionsRow = new HBox(10, toggleFilters);
         actionsRow.setAlignment(Pos.CENTER_LEFT);

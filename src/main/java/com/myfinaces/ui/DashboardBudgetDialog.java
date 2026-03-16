@@ -6,6 +6,7 @@ import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.animation.PauseTransition;
@@ -47,6 +48,7 @@ import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -148,7 +150,7 @@ public final class DashboardBudgetDialog {
 
         TabPane tabs = new TabPane();
         tabs.getStyleClass().add("account-summary-tabs");
-        VBox monthly = buildMonthlyBudgetPane(userUid, budgetRepo, categoryRepo);
+        VBox monthly = buildMonthlyBudgetPane(session, userUid, budgetRepo, categoryRepo);
         VBox goals = buildGoalsPane(session, goalRepo, accountRepo, transferRepo, darkTheme, refreshBalances);
         Tab tabMonthly = new Tab("Mensual", monthly);
         tabMonthly.setClosable(false);
@@ -172,6 +174,7 @@ public final class DashboardBudgetDialog {
     }
 
     private static VBox buildMonthlyBudgetPane(
+        AuthSession session,
         String userUid,
         BudgetRepository budgetRepo,
         CategoryRepository categoryRepo
@@ -323,6 +326,14 @@ public final class DashboardBudgetDialog {
                     del.setOnAction(ev -> {
                         try {
                             budgetRepo.delete(userUid, p.budget().id());
+                            new Thread(() -> {
+                                try {
+                                    AppConfig cfg = AppConfig.loadDefault();
+                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                    sync.deleteBudget(session, p.budget().id());
+                                } catch (Exception ignored) {
+                                }
+                            }).start();
                             Runnable r = refreshRef.get();
                             if (r != null) {
                                 r.run();
@@ -373,9 +384,31 @@ public final class DashboardBudgetDialog {
                 String categoryId = (sub == null) ? root.id() : sub.id();
                 BudgetRepository.Budget existing = budgetRepo.getByUniqueKeyOrNull(userUid, m, cur, categoryId);
                 if (existing == null) {
-                    budgetRepo.create(userUid, m, categoryId, cents, cur);
+                    String id = budgetRepo.create(userUid, m, categoryId, cents, cur);
+                    BudgetRepository.Budget created = budgetRepo.getByIdOrNull(userUid, id);
+                    if (created != null) {
+                        new Thread(() -> {
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.syncBudget(session, created);
+                            } catch (Exception ignored) {
+                            }
+                        }).start();
+                    }
                 } else {
                     budgetRepo.update(userUid, existing.id(), m, categoryId, cents, cur);
+                    BudgetRepository.Budget updated = budgetRepo.getByIdOrNull(userUid, existing.id());
+                    if (updated != null) {
+                        new Thread(() -> {
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.syncBudget(session, updated);
+                            } catch (Exception ignored) {
+                            }
+                        }).start();
+                    }
                 }
                 refresh.run();
             } catch (Exception ex) {

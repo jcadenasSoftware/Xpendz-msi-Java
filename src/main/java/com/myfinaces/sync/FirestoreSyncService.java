@@ -87,6 +87,22 @@ public final class FirestoreSyncService {
         upsertBudget(session, budget);
     }
 
+    public void deleteBudget(AuthSession session, String budgetId) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/budgets/" + urlEncode(budgetId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete budget failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
     public void deleteAccount(AuthSession session, String accountId) throws Exception {
         String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
             + "/databases/(default)/documents/users/" + urlEncode(session.uid())

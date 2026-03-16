@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public final class DashboardSyncCoordinator {
 
@@ -44,7 +45,10 @@ public final class DashboardSyncCoordinator {
         Runnable refreshBalances,
         AtomicBoolean syncInProgress,
         AtomicLong lastSyncMs,
-        AtomicLong syncBlockedUntilMs
+        AtomicLong syncBlockedUntilMs,
+        Runnable onSyncStart,
+        Runnable onSyncSuccess,
+        Consumer<String> onSyncStatus
     ) {
         Runnable pullCategories = () -> {
             System.out.println("[Sync] pullCategories start");
@@ -408,17 +412,6 @@ public final class DashboardSyncCoordinator {
                     } catch (Exception ignored) {
                     }
                 }
-
-                List<BudgetRepository.Budget> localAll = budgetRepo.listByUser(session.uid());
-                for (BudgetRepository.Budget b : localAll) {
-                    if (remoteIds.contains(b.id())) {
-                        continue;
-                    }
-                    try {
-                        budgetRepo.delete(session.uid(), b.id());
-                    } catch (Exception ignored) {
-                    }
-                }
             } catch (Exception ex) {
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullBudgets failed: " + msg);
@@ -436,6 +429,7 @@ public final class DashboardSyncCoordinator {
             long blockedUntil = syncBlockedUntilMs.get();
             if (blockedUntil > nowMs) {
                 System.out.println("[Sync] skip: quota cooldown active");
+                Platform.runLater(() -> onSyncStatus.accept("Sincronización pausada por cuota (intenta más tarde)"));
                 return;
             }
             long last = lastSyncMs.get();
@@ -448,6 +442,7 @@ public final class DashboardSyncCoordinator {
                 return;
             }
             lastSyncMs.set(nowMs);
+            Platform.runLater(onSyncStart);
             new Thread(() -> {
                 System.out.println("[Sync] refresh thread start");
                 try {
@@ -462,6 +457,7 @@ public final class DashboardSyncCoordinator {
                         pullBudgets.run();
                     } catch (RuntimeException quotaAbort) {
                         System.out.println("[Sync] aborted due to quota (429)");
+                        Platform.runLater(() -> onSyncStatus.accept("Sincronización pausada por cuota (intenta más tarde)"));
                     }
                 } finally {
                     syncInProgress.set(false);
@@ -469,6 +465,7 @@ public final class DashboardSyncCoordinator {
                 Platform.runLater(() -> {
                     try {
                         refreshBalances.run();
+                        onSyncSuccess.run();
                     } finally {
                         System.out.println("[Sync] refresh thread end");
                     }

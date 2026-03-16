@@ -52,6 +52,7 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.function.UnaryOperator;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -125,6 +126,9 @@ public final class DashboardView {
         refreshBalancesRef.set(refreshBalances);
         refreshBalances.run();
 
+        Label syncStatus = new Label("Sincronización pendiente");
+        syncStatus.setWrapText(true);
+
         DashboardSyncCoordinator.SyncActions syncActions = DashboardSyncCoordinator.setup(
             session,
             accountRepo,
@@ -138,7 +142,10 @@ public final class DashboardView {
             refreshBalances,
             syncInProgress,
             lastSyncMs,
-            syncBlockedUntilMs
+            syncBlockedUntilMs,
+            () -> syncStatus.setText("Sincronizando..."),
+            () -> syncStatus.setText("Actualizado: " + LocalTime.now().withNano(0)),
+            (msg) -> syncStatus.setText(msg)
         );
         Runnable runSyncNow = syncActions.runSyncNow();
         Runnable doRefreshNow = syncActions.doRefreshNow();
@@ -303,7 +310,7 @@ public final class DashboardView {
 
         HBox headerBar = DashboardHeaderPane.build(title, toggleTheme);
 
-        VBox content = new VBox(14, headerBar, totalCard, accountsScroll, goalsScroll);
+        VBox content = new VBox(14, headerBar, syncStatus, totalCard, accountsScroll, goalsScroll);
         content.getStyleClass().add("content");
         content.setPadding(new Insets(20));
         VBox.setVgrow(accountsScroll, Priority.ALWAYS);

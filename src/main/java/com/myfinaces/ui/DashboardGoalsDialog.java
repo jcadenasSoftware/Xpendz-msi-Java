@@ -485,6 +485,18 @@ public final class DashboardGoalsDialog {
             }
         });
 
+        Runnable refreshBalance = () -> {
+            AccountRepository.Account a = from.getValue();
+            if (a == null) {
+                balance.setText("");
+                return;
+            }
+            long cents = safeComputeBalanceCents(accountRepo, userUid, a.id());
+            balance.setText("Saldo disponible: " + formatMoney(cents, a.currency()));
+        };
+        from.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
+        refreshBalance.run();
+
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setHgap(12);
         grid.setVgap(12);

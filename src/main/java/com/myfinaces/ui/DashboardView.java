@@ -16,14 +16,9 @@ import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ContextMenu;
@@ -42,16 +37,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.layout.Region;
-import javafx.stage.Screen;
 import javafx.scene.control.TextFormatter;
 import javafx.util.Duration;
 
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.math.BigDecimal;
-import java.util.Locale;
 import java.util.function.UnaryOperator;
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -128,6 +120,7 @@ public final class DashboardView {
 
         Label syncStatus = new Label("Sincronización pendiente");
         syncStatus.setWrapText(true);
+        syncStatus.getStyleClass().add("sync-status-label");
 
         DashboardSyncCoordinator.SyncActions syncActions = DashboardSyncCoordinator.setup(
             session,
@@ -149,6 +142,17 @@ public final class DashboardView {
         );
         Runnable runSyncNow = syncActions.runSyncNow();
         Runnable doRefreshNow = syncActions.doRefreshNow();
+
+        Runnable shutdownSyncScheduler = () -> {
+            try {
+                ScheduledFuture<?> f = autoSyncRef.getAndSet(null);
+                if (f != null) {
+                    f.cancel(true);
+                }
+                scheduler.shutdownNow();
+            } catch (Exception ignored) {
+            }
+        };
 
         Button addAccount = new Button("Agregar cuenta");
         addAccount.getStyleClass().add("btn-primary");
@@ -205,7 +209,7 @@ public final class DashboardView {
         loans.getStyleClass().add("nav-button");
         loans.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(loans, new FontIcon("fas-handshake"));
-        loans.setOnAction(e -> showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, darkTheme.get()));
+        loans.setOnAction(e -> showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo, darkTheme.get(), refreshBalances));
 
         Button budget = new Button("Presupuesto");
         budget.getStyleClass().add("btn-primary");
@@ -242,40 +246,120 @@ public final class DashboardView {
         setButtonIcon(syncNow, new FontIcon("fas-sync"));
         syncNow.setOnAction(e -> doRefreshNow.run());
 
+        VBox syncArea = new VBox(6, syncNow, syncStatus);
+        syncArea.setFillWidth(true);
+        syncArea.setMaxWidth(Double.MAX_VALUE);
+
         Button logout = new Button("Cerrar sesión");
         logout.getStyleClass().add("btn-danger");
         logout.getStyleClass().add("nav-button");
         logout.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(logout, new FontIcon("fas-sign-out-alt"));
-        logout.setOnAction(e -> {
-            try {
-                ScheduledFuture<?> f = autoSyncRef.getAndSet(null);
-                if (f != null) {
-                    f.cancel(true);
-                }
-                scheduler.shutdownNow();
-            } catch (Exception ignored) {
-            }
-            listener.onLogout();
-        });
 
         Button exit = new Button("Salir");
         exit.getStyleClass().add("btn-danger");
         exit.getStyleClass().add("nav-button");
         exit.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(exit, new FontIcon("fas-times-circle"));
-        exit.setOnAction(e -> {
-            try {
-                ScheduledFuture<?> f = autoSyncRef.getAndSet(null);
-                if (f != null) {
-                    f.cancel(true);
+
+        java.util.function.Consumer<Runnable> flushAndThen = (after) -> {
+            logout.setDisable(true);
+            exit.setDisable(true);
+            syncStatus.setText("Sincronizando antes de salir...");
+            new Thread(() -> {
+                long timeoutMs = 60_000L;
+                long startMs = System.currentTimeMillis();
+
+                try {
+                    while (syncInProgress.get() && (System.currentTimeMillis() - startMs) < 10_000L) {
+                        try {
+                            Thread.sleep(250L);
+                        } catch (InterruptedException ignored) {
+                            break;
+                        }
+                    }
+                } catch (Exception ignored) {
                 }
-                scheduler.shutdownNow();
-            } catch (Exception ignored) {
-            }
+
+                try {
+                    Thread worker = new Thread(() -> {
+                        try {
+                            AppConfig cfg = AppConfig.loadDefault();
+                            FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                            sync.syncAccounts(session, accountRepo);
+                            sync.syncCategories(session, categoryRepo);
+                            sync.syncGoals(session, goalRepo);
+                            sync.syncBudgets(session, budgetRepo);
+                            sync.syncTransactions(session, txRepo);
+                            sync.syncTransfers(session, transferRepo);
+
+                            try {
+                                List<LoanRepository.Loan> pendingLoans = loanRepo.listPendingForSync(session.uid());
+                                for (LoanRepository.Loan l : pendingLoans) {
+                                    sync.syncLoan(session, l);
+                                    try {
+                                        loanRepo.markSynced(session.uid(), l.id());
+                                    } catch (Exception ignored) {
+                                    }
+                                }
+                            } catch (Exception ignored) {
+                            }
+
+                            try {
+                                List<LoanPaymentRepository.LoanPayment> payments = loanPaymentRepo.listPendingForSync(session.uid());
+                                for (LoanPaymentRepository.LoanPayment p : payments) {
+                                    sync.syncLoanPayment(session, p);
+                                    try {
+                                        loanPaymentRepo.markSynced(session.uid(), p.id());
+                                    } catch (Exception ignored) {
+                                    }
+                                }
+                            } catch (Exception ignored) {
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    }, "final-sync-worker");
+                    worker.setDaemon(true);
+                    worker.start();
+
+                    long elapsed = System.currentTimeMillis() - startMs;
+                    long remaining = Math.max(1_000L, timeoutMs - elapsed);
+                    try {
+                        worker.join(remaining);
+                    } catch (InterruptedException ignored) {
+                    }
+
+                    if (worker.isAlive()) {
+                        try {
+                            worker.interrupt();
+                        } catch (Exception ignored) {
+                        }
+                        Platform.runLater(() -> syncStatus.setText("Sincronización tardó demasiado. Cerrando igual..."));
+                    }
+                } catch (Exception ignored) {
+                }
+
+                Platform.runLater(() -> {
+                    try {
+                        after.run();
+                    } finally {
+                        logout.setDisable(false);
+                        exit.setDisable(false);
+                    }
+                });
+            }, "final-sync-before-close").start();
+        };
+
+        logout.setOnAction(e -> flushAndThen.accept(() -> {
+            shutdownSyncScheduler.run();
+            listener.onLogout();
+        }));
+
+        exit.setOnAction(e -> flushAndThen.accept(() -> {
+            shutdownSyncScheduler.run();
             Platform.exit();
             System.exit(0);
-        });
+        }));
 
         Button toggleTheme = new Button();
         toggleTheme.getStyleClass().add("btn-secondary");
@@ -303,18 +387,24 @@ public final class DashboardView {
             charts,
             addAccount,
             categories,
-            syncNow,
+            syncArea,
             logout,
             exit
         );
 
         HBox headerBar = DashboardHeaderPane.build(title, toggleTheme);
 
-        VBox content = new VBox(14, headerBar, syncStatus, totalCard, accountsScroll, goalsScroll);
+        VBox content = new VBox(14, headerBar, totalCard, accountsScroll, goalsScroll);
         content.getStyleClass().add("content");
         content.setPadding(new Insets(20));
         VBox.setVgrow(accountsScroll, Priority.ALWAYS);
         VBox.setVgrow(goalsScroll, Priority.SOMETIMES);
+
+        Platform.runLater(() -> {
+            PauseTransition pt = new PauseTransition(Duration.seconds(0.25));
+            pt.setOnFinished(e -> doRefreshNow.run());
+            pt.play();
+        });
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("app-root");
@@ -421,9 +511,12 @@ public final class DashboardView {
         LoanRepository loanRepo,
         LoanPaymentRepository loanPaymentRepo,
         AccountRepository accountRepo,
-        boolean darkTheme
+        CategoryRepository categoryRepo,
+        TransactionRepository txRepo,
+        boolean darkTheme,
+        Runnable refreshBalances
     ) {
-        DashboardLoansDialog.showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, darkTheme);
+        DashboardLoansDialog.showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo, darkTheme, refreshBalances);
     }
 
     private static void showBudgetDialog(

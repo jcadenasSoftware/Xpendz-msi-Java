@@ -195,27 +195,6 @@ public final class DashboardSyncCoordinator {
                     } catch (Exception ignored) {
                     }
                 }
-
-                List<LoanRepository.Loan> localAllLent = loanRepo.listByType(session.uid(), LoanRepository.TYPE_LENT, null, false);
-                for (LoanRepository.Loan l : localAllLent) {
-                    if (remoteIds.contains(l.id())) {
-                        continue;
-                    }
-                    try {
-                        loanRepo.delete(session.uid(), l.id());
-                    } catch (Exception ignored) {
-                    }
-                }
-                List<LoanRepository.Loan> localAllBorrowed = loanRepo.listByType(session.uid(), LoanRepository.TYPE_BORROWED, null, false);
-                for (LoanRepository.Loan l : localAllBorrowed) {
-                    if (remoteIds.contains(l.id())) {
-                        continue;
-                    }
-                    try {
-                        loanRepo.delete(session.uid(), l.id());
-                    } catch (Exception ignored) {
-                    }
-                }
             } catch (Exception ex) {
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullLoans failed: " + msg);
@@ -236,28 +215,87 @@ public final class DashboardSyncCoordinator {
                 List<TransferRepository.TransferSyncRow> remote = sync.pullTransfers(session);
                 System.out.println("[Sync] pulled transfers=" + remote.size());
 
+                int appliedInsert = 0;
+                int appliedUpdate = 0;
+                int skippedMissingAccount = 0;
+                int skippedStale = 0;
+                int staleButDifferent = 0;
+                int pushedLocalNewer = 0;
+                int printed = 0;
+
                 Set<String> remoteIds = new HashSet<>();
                 for (TransferRepository.TransferSyncRow tr : remote) {
                     remoteIds.add(tr.id());
                     if (accountRepo.getById(session.uid(), tr.fromAccountId()) == null) {
+                        skippedMissingAccount++;
                         continue;
                     }
                     if (accountRepo.getById(session.uid(), tr.toAccountId()) == null) {
+                        skippedMissingAccount++;
                         continue;
                     }
                     try {
+                        TransferRepository.TransferSyncRow local = transferRepo.getForSyncByIdOrNull(session.uid(), tr.id());
+                        boolean shouldApplyUpdate = false;
+                        if (local != null) {
+                            if (tr.updatedAtEpochSec() > local.updatedAtEpochSec()) {
+                                shouldApplyUpdate = true;
+                            } else if (tr.updatedAtEpochSec() == local.updatedAtEpochSec()) {
+                                boolean same =
+                                    local.amountCents() == tr.amountCents() &&
+                                        local.occurredAtEpochSec() == tr.occurredAtEpochSec() &&
+                                        java.util.Objects.equals(local.note(), tr.note()) &&
+                                        java.util.Objects.equals(local.fromAccountId(), tr.fromAccountId()) &&
+                                        java.util.Objects.equals(local.toAccountId(), tr.toAccountId());
+                                if (!same) {
+                                    shouldApplyUpdate = true;
+                                }
+                            }
+                        }
                         transferRepo.upsertFromRemote(session.uid(), tr);
+                        if (local == null) {
+                            appliedInsert++;
+                        } else if (shouldApplyUpdate) {
+                            appliedUpdate++;
+                        } else {
+                            skippedStale++;
+                            if (local.amountCents() != tr.amountCents() || local.occurredAtEpochSec() != tr.occurredAtEpochSec() || !java.util.Objects.equals(local.note(), tr.note())) {
+                                staleButDifferent++;
+                                if (local.updatedAtEpochSec() > tr.updatedAtEpochSec()) {
+                                    sync.syncTransfer(session, local);
+                                    pushedLocalNewer++;
+                                }
+                                if (printed++ < 8) {
+                                    System.out.println(
+                                        "[Sync] transfer stale-but-different id=" + tr.id() +
+                                            " remoteAmount=" + tr.amountCents() +
+                                            " localAmount=" + local.amountCents() +
+                                            " remoteUpdatedAt=" + tr.updatedAtEpochSec() +
+                                            " localUpdatedAt=" + local.updatedAtEpochSec()
+                                    );
+                                }
+                            }
+                        }
                     } catch (Exception ignored) {
                     }
                 }
 
-                List<TransferRepository.TransferSyncRow> localAll = transferRepo.listAllForSync(session.uid());
-                for (TransferRepository.TransferSyncRow tr : localAll) {
-                    if (remoteIds.contains(tr.id())) {
+                System.out.println(
+                    "[Sync] transfers appliedInsert=" + appliedInsert +
+                        " appliedUpdate=" + appliedUpdate +
+                        " skippedMissingAccount=" + skippedMissingAccount +
+                        " skippedStale=" + skippedStale +
+                        " staleButDifferent=" + staleButDifferent +
+                        " pushedLocalNewer=" + pushedLocalNewer
+                );
+
+                List<String> localIds = transferRepo.listIdsForRemotePrune(session.uid());
+                for (String id : localIds) {
+                    if (remoteIds.contains(id)) {
                         continue;
                     }
                     try {
-                        transferRepo.delete(session.uid(), tr.id());
+                        transferRepo.delete(session.uid(), id);
                     } catch (Exception ignored) {
                     }
                 }
@@ -281,28 +319,99 @@ public final class DashboardSyncCoordinator {
                 List<TransactionRepository.TransactionSyncRow> remote = sync.pullTransactions(session);
                 System.out.println("[Sync] pulled transactions=" + remote.size());
 
+                int appliedInsert = 0;
+                int appliedUpdate = 0;
+                int skippedMissingAccount = 0;
+                int skippedMissingCategory = 0;
+                int skippedStale = 0;
+                int staleButDifferent = 0;
+                int pushedLocalNewer = 0;
+                int printed = 0;
+
                 Set<String> remoteIds = new HashSet<>();
                 for (TransactionRepository.TransactionSyncRow t : remote) {
                     remoteIds.add(t.id());
                     if (accountRepo.getById(session.uid(), t.accountId()) == null) {
+                        skippedMissingAccount++;
                         continue;
                     }
                     if (categoryRepo.getById(session.uid(), t.categoryId()) == null) {
+                        skippedMissingCategory++;
                         continue;
                     }
                     try {
+                        TransactionRepository.TransactionSyncRow local = txRepo.getForSyncByIdOrNull(session.uid(), t.id());
+                        boolean shouldApplyUpdate = false;
+                        if (local != null) {
+                            if (t.updatedAtEpochSec() > local.updatedAtEpochSec()) {
+                                shouldApplyUpdate = true;
+                            } else if (t.updatedAtEpochSec() == local.updatedAtEpochSec()) {
+                                boolean same =
+                                    local.amountCents() == t.amountCents() &&
+                                        local.occurredAtEpochSec() == t.occurredAtEpochSec() &&
+                                        java.util.Objects.equals(local.note(), t.note()) &&
+                                        java.util.Objects.equals(local.accountId(), t.accountId()) &&
+                                        java.util.Objects.equals(local.categoryId(), t.categoryId()) &&
+                                        java.util.Objects.equals(local.kind(), t.kind());
+                                if (!same) {
+                                    shouldApplyUpdate = true;
+                                }
+                            }
+                        }
                         txRepo.upsertFromRemote(session.uid(), t);
+                        if (local == null) {
+                            appliedInsert++;
+                        } else if (shouldApplyUpdate) {
+                            appliedUpdate++;
+                        } else {
+                            skippedStale++;
+                            if (
+                                local.amountCents() != t.amountCents() ||
+                                    local.occurredAtEpochSec() != t.occurredAtEpochSec() ||
+                                    !java.util.Objects.equals(local.accountId(), t.accountId()) ||
+                                    !java.util.Objects.equals(local.categoryId(), t.categoryId()) ||
+                                    !java.util.Objects.equals(local.kind(), t.kind()) ||
+                                    !java.util.Objects.equals(local.note(), t.note())
+                            ) {
+                                staleButDifferent++;
+                                if (local.updatedAtEpochSec() > t.updatedAtEpochSec()) {
+                                    sync.syncTransaction(session, local);
+                                    pushedLocalNewer++;
+                                }
+                                if (printed++ < 12) {
+                                    System.out.println(
+                                        "[Sync] tx stale-but-different id=" + t.id() +
+                                            " remoteAmount=" + t.amountCents() +
+                                            " localAmount=" + local.amountCents() +
+                                            " remoteUpdatedAt=" + t.updatedAtEpochSec() +
+                                            " localUpdatedAt=" + local.updatedAtEpochSec() +
+                                            " accountId=" + t.accountId() +
+                                            " categoryId=" + t.categoryId()
+                                    );
+                                }
+                            }
+                        }
                     } catch (Exception ignored) {
                     }
                 }
 
-                List<TransactionRepository.TransactionSyncRow> localAll = txRepo.listAllForSync(session.uid());
-                for (TransactionRepository.TransactionSyncRow t : localAll) {
-                    if (remoteIds.contains(t.id())) {
+                System.out.println(
+                    "[Sync] transactions appliedInsert=" + appliedInsert +
+                        " appliedUpdate=" + appliedUpdate +
+                        " skippedMissingAccount=" + skippedMissingAccount +
+                        " skippedMissingCategory=" + skippedMissingCategory +
+                        " skippedStale=" + skippedStale +
+                        " staleButDifferent=" + staleButDifferent +
+                        " pushedLocalNewer=" + pushedLocalNewer
+                );
+
+                List<String> localIds = txRepo.listIdsForRemotePrune(session.uid());
+                for (String id : localIds) {
+                    if (remoteIds.contains(id)) {
                         continue;
                     }
                     try {
-                        txRepo.delete(session.uid(), t.id());
+                        txRepo.delete(session.uid(), id);
                     } catch (Exception ignored) {
                     }
                 }

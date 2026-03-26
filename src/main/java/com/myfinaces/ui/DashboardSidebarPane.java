@@ -12,6 +12,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.control.Separator;
+import javafx.scene.Node;
 
 public final class DashboardSidebarPane {
 
@@ -28,7 +29,7 @@ public final class DashboardSidebarPane {
         Button charts,
         Button addAccount,
         Button categories,
-        Button syncNow,
+        Node syncArea,
         Button logout,
         Button exit
     ) {
@@ -73,7 +74,7 @@ public final class DashboardSidebarPane {
         Separator actionsSeparator = new Separator();
         actionsSeparator.getStyleClass().add("sidebar-separator");
 
-        VBox menuSecondaryActions = new VBox(10, addAccount, categories, syncNow, logout, exit);
+        VBox menuSecondaryActions = new VBox(10, addAccount, categories, syncArea, logout, exit);
         menuSecondaryActions.getStyleClass().add("sidebar-actions");
         VBox.setVgrow(menuSecondaryActions, Priority.NEVER);
 

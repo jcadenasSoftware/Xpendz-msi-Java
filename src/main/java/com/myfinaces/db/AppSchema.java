@@ -68,6 +68,7 @@ public final class AppSchema {
                 "  note TEXT NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT," +
                 "  FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE RESTRICT" +
@@ -78,11 +79,15 @@ public final class AppSchema {
                 // NOTA: SQLite no permite agregar FK por ALTER; asumimos que aún no hay data importante.
                 st.executeUpdate("ALTER TABLE transactions ADD COLUMN account_id TEXT");
             }
+            if (!columnExists(c, "transactions", "pending_sync")) {
+                st.executeUpdate("ALTER TABLE transactions ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 0");
+            }
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tx_user ON transactions(user_uid)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account_id)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tx_occurred ON transactions(occurred_at_epoch_sec)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_tx_pending_sync ON transactions(user_uid, pending_sync)");
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS transfers (" +
@@ -95,16 +100,22 @@ public final class AppSchema {
                 "  note TEXT NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(from_account_id) REFERENCES accounts(id) ON DELETE RESTRICT," +
                 "  FOREIGN KEY(to_account_id) REFERENCES accounts(id) ON DELETE RESTRICT" +
                 ")"
             );
 
+            if (!columnExists(c, "transfers", "pending_sync")) {
+                st.executeUpdate("ALTER TABLE transfers ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 0");
+            }
+
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfers(user_uid)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_from ON transfers(from_account_id)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_to ON transfers(to_account_id)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_occurred ON transfers(occurred_at_epoch_sec)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_transfers_pending_sync ON transfers(user_uid, pending_sync)");
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS budgets (" +
@@ -163,6 +174,7 @@ public final class AppSchema {
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_by TEXT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE" +
                 ")"
             );
@@ -178,6 +190,11 @@ public final class AppSchema {
             if (!columnExists(c, "loans", "updated_by")) {
                 st.executeUpdate("ALTER TABLE loans ADD COLUMN updated_by TEXT");
             }
+            if (!columnExists(c, "loans", "pending_sync")) {
+                st.executeUpdate("ALTER TABLE loans ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 0");
+            }
+
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loans_pending_sync ON loans(user_uid, pending_sync)");
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS loan_payments (" +
@@ -192,6 +209,7 @@ public final class AppSchema {
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_by TEXT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(loan_id) REFERENCES loans(id) ON DELETE CASCADE," +
                 "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT" +
@@ -204,6 +222,11 @@ public final class AppSchema {
             if (!columnExists(c, "loan_payments", "updated_by")) {
                 st.executeUpdate("ALTER TABLE loan_payments ADD COLUMN updated_by TEXT");
             }
+            if (!columnExists(c, "loan_payments", "pending_sync")) {
+                st.executeUpdate("ALTER TABLE loan_payments ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 0");
+            }
+
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_pending_sync ON loan_payments(user_uid, pending_sync)");
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS outbox (" +

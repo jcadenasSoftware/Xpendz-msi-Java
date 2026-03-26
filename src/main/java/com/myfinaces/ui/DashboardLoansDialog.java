@@ -3,8 +3,11 @@ package com.myfinaces.ui;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
+import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.TransactionKind;
+import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -14,7 +17,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
@@ -50,7 +52,11 @@ public final class DashboardLoansDialog {
         LoanRepository loanRepo,
         LoanPaymentRepository loanPaymentRepo,
         AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        TransactionRepository txRepo,
         boolean darkTheme
+        ,
+        Runnable refreshBalances
     ) {
         String userUid = session.uid();
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -227,7 +233,22 @@ public final class DashboardLoansDialog {
                                 }
                                 try {
                                     LoanPaymentDraft d = draft.get();
-                                    String paymentId = loanPaymentRepo.create(userUid, l.id(), d.accountId(), d.principalCents(), d.occurredAtEpochSec(), null, d.note());
+
+                                    String repaymentCategoryId = ensureSystemLoanCategories(userUid, categoryRepo, session).repaymentCategoryId();
+                                    String kind = LoanRepository.TYPE_LENT.equals(l.type())
+                                        ? TransactionKind.LOAN_REPAYMENT_PRINCIPAL_IN.name()
+                                        : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
+                                    String txId = txRepo.create(
+                                        userUid,
+                                        d.accountId(),
+                                        repaymentCategoryId,
+                                        kind,
+                                        d.principalCents(),
+                                        d.occurredAtEpochSec(),
+                                        d.note() == null ? (kind + ": " + l.counterpartyName()) : d.note()
+                                    );
+
+                                    String paymentId = loanPaymentRepo.create(userUid, l.id(), d.accountId(), d.principalCents(), d.occurredAtEpochSec(), txId, d.note());
 
                                     long newPaid = loanPaymentRepo.sumPrincipalPaidCents(userUid, l.id());
                                     long newPending = Math.max(0L, l.principalCents() - newPaid);
@@ -238,6 +259,15 @@ public final class DashboardLoansDialog {
                                     try {
                                         AppConfig cfg = AppConfig.loadDefault();
                                         FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+
+                                        try {
+                                            TransactionRepository.TransactionSyncRow t = txRepo.getForSyncByIdOrNull(userUid, txId);
+                                            if (t != null) {
+                                                sync.syncTransaction(session, t);
+                                            }
+                                        } catch (Exception ignored) {
+                                        }
+
                                         LoanPaymentRepository.LoanPayment p = loanPaymentRepo.getByIdOrNull(userUid, paymentId);
                                         if (p != null) {
                                             sync.syncLoanPayment(session, p);
@@ -249,10 +279,17 @@ public final class DashboardLoansDialog {
                                     } catch (Exception ignored) {
                                     }
 
-                                    Runnable r = refreshRef.get();
-                                    if (r != null) {
-                                        r.run();
-                                    }
+                                    Platform.runLater(() -> {
+                                        try {
+                                            refreshBalances.run();
+                                        } catch (Exception ignored) {
+                                        }
+
+                                        Runnable r = refreshRef.get();
+                                        if (r != null) {
+                                            r.run();
+                                        }
+                                    });
                                 } catch (Exception ex) {
                                     error.setText(ex.getMessage() == null ? "No se pudo registrar el pago" : ex.getMessage());
                                     error.setVisible(true);
@@ -337,26 +374,83 @@ public final class DashboardLoansDialog {
         Button create = new Button("Nuevo préstamo");
         create.getStyleClass().add("btn-primary");
         create.setOnAction(e -> {
-            Optional<LoanDraft> draft = showCreateLoanDialog(darkTheme);
+            Optional<LoanDraft> draft = showCreateLoanDialog(userUid, accountRepo, darkTheme);
             if (draft.isEmpty()) {
                 return;
             }
             try {
                 LoanDraft d = draft.get();
-                loanRepo.create(
+
+                String loanCategoryId = ensureSystemLoanCategories(userUid, categoryRepo, session).loanCategoryId();
+                String kind = LoanRepository.TYPE_LENT.equals(d.type())
+                    ? TransactionKind.LOAN_LENT_OUT.name()
+                    : TransactionKind.LOAN_BORROWED_IN.name();
+                long occ = Instant.now().getEpochSecond();
+                String txId = txRepo.create(
+                    userUid,
+                    d.accountId(),
+                    loanCategoryId,
+                    kind,
+                    d.principalCents(),
+                    occ,
+                    kind + ": " + d.counterpartyName()
+                );
+
+                String id = loanRepo.create(
                     userUid,
                     d.type(),
                     d.counterpartyName(),
-                    null,
+                    d.accountId(),
                     d.principalCents(),
                     d.currency(),
-                    Instant.now().getEpochSecond(),
+                    occ,
                     d.notes()
                 );
-                Runnable r = refreshRef.get();
-                if (r != null) {
-                    r.run();
+
+                try {
+                    LoanRepository.Loan created = loanRepo.getByIdOrNull(userUid, id);
+                    if (created != null) {
+                        new Thread(() -> {
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+
+                                try {
+                                    TransactionRepository.TransactionSyncRow t = txRepo.getForSyncByIdOrNull(userUid, txId);
+                                    if (t != null) {
+                                        sync.syncTransaction(session, t);
+                                    }
+                                } catch (Exception ignored) {
+                                }
+
+                                sync.syncLoan(session, created);
+                            } catch (Exception ignored) {
+                            }
+                        }).start();
+                    }
+                } catch (Exception ignored) {
                 }
+
+                Platform.runLater(() -> {
+                    try {
+                        if (LoanRepository.TYPE_LENT.equals(d.type())) {
+                            tabs.getSelectionModel().select(tabLent);
+                        } else if (LoanRepository.TYPE_BORROWED.equals(d.type())) {
+                            tabs.getSelectionModel().select(tabBorrowed);
+                        }
+                    } catch (Exception ignored) {
+                    }
+
+                    Runnable r = refreshRef.get();
+                    if (r != null) {
+                        r.run();
+                    }
+
+                    try {
+                        refreshBalances.run();
+                    } catch (Exception ignored) {
+                    }
+                });
             } catch (Exception ex) {
                 error.setText(ex.getMessage() == null ? "No se pudo crear el préstamo" : ex.getMessage());
                 error.setVisible(true);
@@ -502,13 +596,14 @@ public final class DashboardLoansDialog {
     private record LoanDraft(
         String type,
         String counterpartyName,
+        String accountId,
         String currency,
         long principalCents,
         String notes
     ) {
     }
 
-    private static Optional<LoanDraft> showCreateLoanDialog(boolean darkTheme) {
+    private static Optional<LoanDraft> showCreateLoanDialog(String userUid, AccountRepository accountRepo, boolean darkTheme) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Nuevo préstamo");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
@@ -519,13 +614,81 @@ public final class DashboardLoansDialog {
         ChoiceBox<String> type = new ChoiceBox<>();
         type.getItems().addAll(LoanRepository.TYPE_LENT, LoanRepository.TYPE_BORROWED);
         type.getSelectionModel().selectFirst();
+        type.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                if (LoanRepository.TYPE_LENT.equals(object)) {
+                    return "Prestar";
+                }
+                if (LoanRepository.TYPE_BORROWED.equals(object)) {
+                    return "Solicitar";
+                }
+                return object == null ? "" : object;
+            }
+
+            @Override
+            public String fromString(String string) {
+                return null;
+            }
+        });
+
+        ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
+        try {
+            account.getItems().addAll(accountRepo.list(userUid));
+            if (!account.getItems().isEmpty()) {
+                account.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+        account.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account object) {
+                if (object == null) {
+                    return "";
+                }
+                return object.name();
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String string) {
+                return null;
+            }
+        });
+
+        Label accountBalance = new Label();
+        accountBalance.getStyleClass().add("text-secondary");
+        accountBalance.setWrapText(true);
+        Runnable refreshBalance = () -> {
+            AccountRepository.Account a = account.getValue();
+            if (a == null) {
+                accountBalance.setText("");
+                return;
+            }
+            try {
+                long cents = accountRepo.computeBalanceCents(userUid, a.id());
+                accountBalance.setText("Saldo disponible: " + DashboardFormatters.formatMoney(cents, a.currency()));
+            } catch (Exception ignored) {
+                accountBalance.setText("");
+            }
+        };
+        account.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
+        refreshBalance.run();
+
+        Label accountLabel = new Label("Cuenta");
+        accountLabel.getStyleClass().add("account-name");
+        Runnable refreshAccountLabel = () -> {
+            String t = type.getValue();
+            if (LoanRepository.TYPE_LENT.equals(t)) {
+                accountLabel.setText("Cuenta (desde donde prestas)");
+            } else {
+                accountLabel.setText("Cuenta (donde recibes)");
+            }
+        };
+        type.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshAccountLabel.run());
+        refreshAccountLabel.run();
 
         TextField counterparty = new TextField();
         counterparty.setPromptText("Ej: Juan / Banco X");
-
-        ComboBox<String> currency = new ComboBox<>();
-        currency.getItems().addAll("COP", "USD", "EUR", "GBP", "MXN", "ARS", "CLP", "PEN", "VES");
-        currency.getSelectionModel().select("COP");
 
         TextField amount = new TextField();
         amount.setPromptText("Ej: 100000.00");
@@ -543,14 +706,15 @@ public final class DashboardLoansDialog {
         lType.getStyleClass().add("account-name");
         grid.add(lType, 0, 0);
         grid.add(type, 1, 0);
+
+        grid.add(accountLabel, 0, 1);
+        VBox accountBox = new VBox(4, account, accountBalance);
+        grid.add(accountBox, 1, 1);
+
         Label lCp = new Label("Persona/Entidad");
         lCp.getStyleClass().add("account-name");
-        grid.add(lCp, 0, 1);
-        grid.add(counterparty, 1, 1);
-        Label lCur = new Label("Moneda");
-        lCur.getStyleClass().add("account-name");
-        grid.add(lCur, 0, 2);
-        grid.add(currency, 1, 2);
+        grid.add(lCp, 0, 2);
+        grid.add(counterparty, 1, 2);
         Label lAmt = new Label("Monto");
         lAmt.getStyleClass().add("account-name");
         grid.add(lAmt, 0, 3);
@@ -569,8 +733,12 @@ public final class DashboardLoansDialog {
         }
 
         String t = type.getValue() == null ? LoanRepository.TYPE_LENT : type.getValue();
+        AccountRepository.Account acc = account.getValue();
         String cp = counterparty.getText() == null ? "" : counterparty.getText().trim();
-        String cur = currency.getValue() == null ? "" : currency.getValue().trim().toUpperCase(Locale.ROOT);
+        if (acc == null) {
+            return Optional.empty();
+        }
+        String cur = acc.currency() == null ? "" : acc.currency().trim().toUpperCase(Locale.ROOT);
         if (cp.isBlank() || cur.isBlank()) {
             return Optional.empty();
         }
@@ -590,6 +758,47 @@ public final class DashboardLoansDialog {
         if (n != null && n.isBlank()) {
             n = null;
         }
-        return Optional.of(new LoanDraft(t, cp, cur, cents, n));
+        return Optional.of(new LoanDraft(t, cp, acc.id(), cur, cents, n));
+    }
+
+    private record SystemLoanCategories(String loanCategoryId, String repaymentCategoryId) {
+    }
+
+    private static SystemLoanCategories ensureSystemLoanCategories(
+        String userUid,
+        CategoryRepository categoryRepo,
+        AuthSession session
+    ) throws Exception {
+        String loanCategoryId = "system-loan-" + userUid;
+        String repaymentCategoryId = "system-loan-repayment-" + userUid;
+
+        ensureSystemRootCategory(userUid, categoryRepo, session, loanCategoryId, "Préstamos");
+        ensureSystemRootCategory(userUid, categoryRepo, session, repaymentCategoryId, "Devoluciones");
+        return new SystemLoanCategories(loanCategoryId, repaymentCategoryId);
+    }
+
+    private static void ensureSystemRootCategory(
+        String userUid,
+        CategoryRepository categoryRepo,
+        AuthSession session,
+        String id,
+        String name
+    ) throws Exception {
+        CategoryRepository.Category existing;
+        try {
+            existing = categoryRepo.getById(userUid, id);
+        } catch (Exception ignored) {
+            existing = null;
+        }
+        if (existing != null) {
+            return;
+        }
+        CategoryRepository.Category created = categoryRepo.createWithId(userUid, id, name, null);
+        try {
+            AppConfig cfg = AppConfig.loadDefault();
+            FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+            sync.syncCategory(session, created);
+        } catch (Exception ignored) {
+        }
     }
 }

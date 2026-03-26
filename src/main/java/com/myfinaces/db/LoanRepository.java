@@ -67,8 +67,8 @@ public final class LoanRepository {
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by, pending_sync) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
         )) {
             ps.setString(1, id);
             ps.setString(2, userUid);
@@ -113,7 +113,7 @@ public final class LoanRepository {
 
         long now = Instant.now().getEpochSecond();
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE loans SET type = ?, counterparty_name = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+            "UPDATE loans SET type = ?, counterparty_name = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, updated_at_epoch_sec = ?, pending_sync = 1 WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, type);
             ps.setString(2, counterpartyName);
@@ -213,8 +213,8 @@ public final class LoanRepository {
         Loan local = getByIdOrNull(userUid, remote.id());
         if (local == null) {
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO loans (id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by, pending_sync) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
             )) {
                 ps.setString(1, remote.id());
                 ps.setString(2, userUid);
@@ -247,7 +247,7 @@ public final class LoanRepository {
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE loans SET type = ?, counterparty_name = ?, account_id = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, occurred_at_epoch_sec = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ?, updated_by = ? " +
+            "UPDATE loans SET type = ?, counterparty_name = ?, account_id = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, occurred_at_epoch_sec = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ?, updated_by = ?, pending_sync = 0 " +
             "WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, remote.type());
@@ -271,6 +271,51 @@ public final class LoanRepository {
             }
             ps.setString(12, userUid);
             ps.setString(13, remote.id());
+            ps.executeUpdate();
+        }
+    }
+
+    public List<Loan> listPendingForSync(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        String sql =
+            "SELECT id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loans WHERE user_uid = ? AND pending_sync = 1 ORDER BY updated_at_epoch_sec ASC";
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, userUid);
+            List<Loan> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Loan(
+                        rs.getString("id"),
+                        rs.getString("user_uid"),
+                        rs.getString("type"),
+                        rs.getString("counterparty_name"),
+                        rs.getString("account_id"),
+                        rs.getLong("principal_cents"),
+                        rs.getString("currency"),
+                        rs.getString("status"),
+                        rs.getString("notes"),
+                        rs.getLong("occurred_at_epoch_sec"),
+                        rs.getLong("created_at_epoch_sec"),
+                        rs.getLong("updated_at_epoch_sec"),
+                        rs.getString("updated_by")
+                    ));
+                }
+            }
+            return out;
+        }
+    }
+
+    public void markSynced(String userUid, String loanId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(loanId, "loanId");
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE loans SET pending_sync = 0 WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, loanId);
             ps.executeUpdate();
         }
     }

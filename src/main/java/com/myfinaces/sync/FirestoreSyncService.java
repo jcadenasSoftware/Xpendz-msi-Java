@@ -537,18 +537,26 @@ public final class FirestoreSyncService {
     }
 
     public void syncTransactions(AuthSession session, TransactionRepository txRepo) throws Exception {
-        List<TransactionRepository.TransactionSyncRow> txs = txRepo.listAllForSync(session.uid());
-        System.out.println("[FirestoreSync] transactions=" + txs.size());
+        List<TransactionRepository.TransactionSyncRow> txs = txRepo.listPendingForSync(session.uid());
+        System.out.println("[FirestoreSync] transactions pending=" + txs.size());
         for (TransactionRepository.TransactionSyncRow t : txs) {
             upsertTransaction(session, t);
+            try {
+                txRepo.markSynced(session.uid(), t.id());
+            } catch (Exception ignored) {
+            }
         }
     }
 
     public void syncTransfers(AuthSession session, TransferRepository transferRepo) throws Exception {
-        List<TransferRepository.TransferSyncRow> trs = transferRepo.listAllForSync(session.uid());
-        System.out.println("[FirestoreSync] transfers=" + trs.size());
+        List<TransferRepository.TransferSyncRow> trs = transferRepo.listPendingForSync(session.uid());
+        System.out.println("[FirestoreSync] transfers pending=" + trs.size());
         for (TransferRepository.TransferSyncRow tr : trs) {
             upsertTransfer(session, tr);
+            try {
+                transferRepo.markSynced(session.uid(), tr.id());
+            } catch (Exception ignored) {
+            }
         }
     }
 

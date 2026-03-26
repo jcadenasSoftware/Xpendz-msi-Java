@@ -107,6 +107,7 @@ public class MyFinances extends Application {
             stage.setFullScreen(false);
             stage.setResizable(true);
             stage.setMaximized(true);
+            stage.setOnCloseRequest(ev -> ev.consume());
         }
         scene.setRoot(DashboardView.create(session, () -> {
             try {

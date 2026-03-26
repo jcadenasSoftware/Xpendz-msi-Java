@@ -205,6 +205,12 @@
     -fx-underline: true;
 }
 
+.sync-status-label {
+    -fx-font-weight: 900;
+    -fx-text-fill: rgba(255, 255, 255, 0.95);
+    -fx-padding: 0 2 2 2;
+}
+
 .dashboard-total-value {
     -fx-font-size: 22px;
     -fx-font-weight: 900;

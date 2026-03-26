@@ -144,8 +144,8 @@ public final class TransactionRepository {
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec, pending_sync) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
         )) {
             ps.setString(1, id);
             ps.setString(2, userUid);
@@ -201,8 +201,8 @@ public final class TransactionRepository {
         TransactionSyncRow local = getForSyncByIdOrNull(userUid, remote.id());
         if (local == null) {
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec, pending_sync) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)"
             )) {
                 ps.setString(1, remote.id());
                 ps.setString(2, userUid);
@@ -219,12 +219,24 @@ public final class TransactionRepository {
             return;
         }
 
-        if (remote.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
+        if (remote.updatedAtEpochSec() < local.updatedAtEpochSec()) {
             return;
+        }
+        if (remote.updatedAtEpochSec() == local.updatedAtEpochSec()) {
+            boolean same =
+                Objects.equals(remote.accountId(), local.accountId()) &&
+                    Objects.equals(remote.categoryId(), local.categoryId()) &&
+                    Objects.equals(remote.kind(), local.kind()) &&
+                    remote.amountCents() == local.amountCents() &&
+                    remote.occurredAtEpochSec() == local.occurredAtEpochSec() &&
+                    Objects.equals(remote.note(), local.note());
+            if (same) {
+                return;
+            }
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE transactions SET account_id = ?, category_id = ?, kind = ?, amount_cents = ?, occurred_at_epoch_sec = ?, note = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
+            "UPDATE transactions SET account_id = ?, category_id = ?, kind = ?, amount_cents = ?, occurred_at_epoch_sec = ?, note = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ?, pending_sync = 0 " +
             "WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, remote.accountId());
@@ -466,11 +478,28 @@ public final class TransactionRepository {
         }
 
         long now = Instant.now().getEpochSecond();
-        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE transactions " +
-            "SET account_id = ?, category_id = ?, kind = ?, amount_cents = ?, occurred_at_epoch_sec = ?, note = ?, updated_at_epoch_sec = ? " +
-            "WHERE user_uid = ? AND id = ?"
-        )) {
+        try (Connection c = db.openConnection()) {
+            long existingUpdatedAt = 0L;
+            try (PreparedStatement ps = c.prepareStatement(
+                "SELECT updated_at_epoch_sec FROM transactions WHERE user_uid = ? AND id = ?"
+            )) {
+                ps.setString(1, userUid);
+                ps.setString(2, transactionId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        existingUpdatedAt = rs.getLong("updated_at_epoch_sec");
+                    }
+                }
+            }
+            if (now <= existingUpdatedAt) {
+                now = existingUpdatedAt + 1L;
+            }
+
+            try (PreparedStatement ps = c.prepareStatement(
+                "UPDATE transactions " +
+                "SET account_id = ?, category_id = ?, kind = ?, amount_cents = ?, occurred_at_epoch_sec = ?, note = ?, updated_at_epoch_sec = ?, pending_sync = 1 " +
+                "WHERE user_uid = ? AND id = ?"
+            )) {
             ps.setString(1, accountId);
             ps.setString(2, categoryId);
             ps.setString(3, kind);
@@ -481,6 +510,66 @@ public final class TransactionRepository {
             ps.setString(8, userUid);
             ps.setString(9, transactionId);
             ps.executeUpdate();
+            }
+        }
+    }
+
+    public List<TransactionSyncRow> listPendingForSync(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        String sql =
+            "SELECT id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM transactions WHERE user_uid = ? AND pending_sync = 1 ORDER BY occurred_at_epoch_sec ASC, created_at_epoch_sec ASC";
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, userUid);
+            List<TransactionSyncRow> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new TransactionSyncRow(
+                        rs.getString("id"),
+                        rs.getString("user_uid"),
+                        rs.getString("account_id"),
+                        rs.getString("category_id"),
+                        rs.getString("kind"),
+                        rs.getLong("amount_cents"),
+                        rs.getLong("occurred_at_epoch_sec"),
+                        rs.getString("note"),
+                        rs.getLong("created_at_epoch_sec"),
+                        rs.getLong("updated_at_epoch_sec")
+                    ));
+                }
+            }
+            return out;
+        }
+    }
+
+    public void markSynced(String userUid, String transactionId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(transactionId, "transactionId");
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE transactions SET pending_sync = 0 WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, transactionId);
+            ps.executeUpdate();
+        }
+    }
+
+    public List<String> listIdsForRemotePrune(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id FROM transactions WHERE user_uid = ? AND pending_sync = 0"
+        )) {
+            ps.setString(1, userUid);
+            List<String> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getString("id"));
+                }
+            }
+            return out;
         }
     }
 

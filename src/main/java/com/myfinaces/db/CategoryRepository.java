@@ -28,6 +28,42 @@ public final class CategoryRepository {
     ) {
     }
 
+    public Category createWithId(String userUid, String id, String name, String parentId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(name, "name");
+
+        String cid = id.trim();
+        if (cid.isBlank()) {
+            throw new IllegalArgumentException("id");
+        }
+        String n = name.trim();
+        if (n.isBlank()) {
+            throw new IllegalArgumentException("name");
+        }
+
+        long now = Instant.now().getEpochSecond();
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "INSERT INTO categories (id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec) " +
+                "VALUES (?, ?, ?, ?, ?, ?)"
+        )) {
+            ps.setString(1, cid);
+            ps.setString(2, userUid);
+            ps.setString(3, n);
+            if (parentId == null || parentId.isBlank()) {
+                ps.setObject(4, null);
+            } else {
+                ps.setString(4, parentId);
+            }
+            ps.setLong(5, now);
+            ps.setLong(6, now);
+            ps.executeUpdate();
+        }
+
+        return new Category(cid, userUid, n, (parentId == null || parentId.isBlank()) ? null : parentId, now, now);
+    }
+
     public Category create(String userUid, String name, String parentId) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(name, "name");

@@ -723,6 +723,11 @@ public final class FirestoreSyncService {
         } else {
             fields.put("parentId", stringField(c.parentId()));
         }
+        if (c.kind() == null || c.kind().isBlank()) {
+            fields.put("kind", nullField());
+        } else {
+            fields.put("kind", stringField(c.kind()));
+        }
         fields.put("createdAtEpochSec", intField(c.createdAtEpochSec()));
         fields.put("updatedAtEpochSec", intField(c.updatedAtEpochSec()));
         fields.put("updatedBy", stringField(DeviceId.get()));
@@ -756,6 +761,11 @@ public final class FirestoreSyncService {
             + "/databases/(default)/documents/users/" + urlEncode(session.uid())
             + "/budgets/" + urlEncode(b.id());
 
+        Long remoteUpdatedAt = getRemoteUpdatedAtEpochSecOrNull(session, url);
+        if (remoteUpdatedAt != null && remoteUpdatedAt >= b.updatedAtEpochSec()) {
+            return;
+        }
+
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("id", stringField(b.id()));
         fields.put("userUid", stringField(b.userUid()));
@@ -768,6 +778,46 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "budget");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Long getRemoteUpdatedAtEpochSecOrNull(AuthSession session, String url) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+                .header("Authorization", "Bearer " + session.idToken())
+                .GET()
+                .build();
+
+            HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 404) {
+                return null;
+            }
+            if (resp.statusCode() / 100 != 2) {
+                return null;
+            }
+
+            Map<String, Object> root = MAPPER.readValue(resp.body(), Map.class);
+            Object fieldsObj = root.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                return null;
+            }
+
+            Object updatedAtObj = fields.get("updatedAtEpochSec");
+            if (!(updatedAtObj instanceof Map<?, ?> updatedAt)) {
+                return null;
+            }
+
+            Object iv = updatedAt.get("integerValue");
+            if (iv instanceof String s) {
+                return Long.parseLong(s);
+            }
+            if (iv instanceof Number n) {
+                return n.longValue();
+            }
+            return null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void upsertLoan(AuthSession session, LoanRepository.Loan l) throws Exception {
@@ -1034,12 +1084,13 @@ public final class FirestoreSyncService {
             }
 
             String parentId = readStringField(fields, "parentId");
+            String kind = readStringField(fields, "kind");
             Long createdAt = readLongField(fields, "createdAtEpochSec");
             Long updatedAt = readLongField(fields, "updatedAtEpochSec");
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
 
-            out.add(new CategoryRepository.Category(id, userUid, name, parentId, cAt, uAt));
+            out.add(new CategoryRepository.Category(id, userUid, name, parentId, kind, cAt, uAt));
         }
 
         return out;

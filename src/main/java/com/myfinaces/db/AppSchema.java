@@ -44,12 +44,48 @@ public final class AppSchema {
                 "  user_uid TEXT NOT NULL," +
                 "  name TEXT NOT NULL," +
                 "  parent_id TEXT NULL," +
+                "  kind TEXT NULL," +
                 "  created_at_epoch_sec INTEGER NOT NULL," +
                 "  updated_at_epoch_sec INTEGER NOT NULL," +
                 "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
                 "  FOREIGN KEY(parent_id) REFERENCES categories(id) ON DELETE CASCADE" +
                 ")"
             );
+
+            if (!columnExists(c, "categories", "kind")) {
+                st.executeUpdate("ALTER TABLE categories ADD COLUMN kind TEXT");
+            }
+
+            try {
+                st.executeUpdate(
+                    "WITH RECURSIVE roots AS (" +
+                    "  SELECT id, user_uid, CASE" +
+                    "    WHEN UPPER(name) = 'INGRESOS' THEN 'INCOME'" +
+                    "    WHEN UPPER(name) = 'GASTOS' THEN 'EXPENSE'" +
+                    "    ELSE NULL" +
+                    "  END AS kind" +
+                    "  FROM categories" +
+                    "  WHERE parent_id IS NULL AND (UPPER(name) = 'INGRESOS' OR UPPER(name) = 'GASTOS')" +
+                    "), subtree AS (" +
+                    "  SELECT r.id, r.user_uid, r.kind FROM roots r" +
+                    "  UNION ALL" +
+                    "  SELECT c.id, c.user_uid, s.kind" +
+                    "  FROM categories c" +
+                    "  INNER JOIN subtree s ON c.parent_id = s.id AND c.user_uid = s.user_uid" +
+                    ")" +
+                    " UPDATE categories" +
+                    " SET kind = (" +
+                    "   SELECT s.kind FROM subtree s" +
+                    "   WHERE s.id = categories.id AND s.user_uid = categories.user_uid" +
+                    " )" +
+                    " WHERE (kind IS NULL OR TRIM(kind) = '')" +
+                    "   AND EXISTS (" +
+                    "     SELECT 1 FROM subtree s" +
+                    "     WHERE s.id = categories.id AND s.user_uid = categories.user_uid" +
+                    "   )"
+                );
+            } catch (Exception ignored) {
+            }
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_uid)");
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories(parent_id)");

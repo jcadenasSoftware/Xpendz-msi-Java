@@ -23,12 +23,17 @@ public final class CategoryRepository {
         String userUid,
         String name,
         String parentId,
+        String kind,
         long createdAtEpochSec,
         long updatedAtEpochSec
     ) {
     }
 
     public Category createWithId(String userUid, String id, String name, String parentId) throws SQLException {
+        return createWithId(userUid, id, name, parentId, null);
+    }
+
+    public Category createWithId(String userUid, String id, String name, String parentId, String kind) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(name, "name");
@@ -45,8 +50,8 @@ public final class CategoryRepository {
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO categories (id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec) " +
-                "VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO categories (id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)"
         )) {
             ps.setString(1, cid);
             ps.setString(2, userUid);
@@ -56,15 +61,25 @@ public final class CategoryRepository {
             } else {
                 ps.setString(4, parentId);
             }
-            ps.setLong(5, now);
+            if (kind == null || kind.isBlank()) {
+                ps.setObject(5, null);
+            } else {
+                ps.setString(5, kind);
+            }
             ps.setLong(6, now);
+            ps.setLong(7, now);
             ps.executeUpdate();
         }
 
-        return new Category(cid, userUid, n, (parentId == null || parentId.isBlank()) ? null : parentId, now, now);
+        String normalizedKind = (kind == null || kind.isBlank()) ? null : kind;
+        return new Category(cid, userUid, n, (parentId == null || parentId.isBlank()) ? null : parentId, normalizedKind, now, now);
     }
 
     public Category create(String userUid, String name, String parentId) throws SQLException {
+        return create(userUid, name, parentId, null);
+    }
+
+    public Category create(String userUid, String name, String parentId, String kind) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(name, "name");
 
@@ -72,8 +87,8 @@ public final class CategoryRepository {
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO categories (id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec) " +
-            "VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO categories (id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)"
         )) {
             ps.setString(1, id);
             ps.setString(2, userUid);
@@ -83,17 +98,23 @@ public final class CategoryRepository {
             } else {
                 ps.setString(4, parentId);
             }
-            ps.setLong(5, now);
+            if (kind == null || kind.isBlank()) {
+                ps.setObject(5, null);
+            } else {
+                ps.setString(5, kind);
+            }
             ps.setLong(6, now);
+            ps.setLong(7, now);
             ps.executeUpdate();
         }
 
-        return new Category(id, userUid, name, (parentId == null || parentId.isBlank()) ? null : parentId, now, now);
+        String normalizedKind = (kind == null || kind.isBlank()) ? null : kind;
+        return new Category(id, userUid, name, (parentId == null || parentId.isBlank()) ? null : parentId, normalizedKind, now, now);
     }
 
     public List<Category> listRoots(String userUid) throws SQLException {
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM categories WHERE user_uid = ? AND parent_id IS NULL ORDER BY name"
         )) {
             ps.setString(1, userUid);
@@ -111,7 +132,7 @@ public final class CategoryRepository {
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM categories WHERE user_uid = ? AND parent_id IS NULL AND name = ? LIMIT 1"
         )) {
             ps.setString(1, userUid);
@@ -125,6 +146,7 @@ public final class CategoryRepository {
                     rs.getString("user_uid"),
                     rs.getString("name"),
                     rs.getString("parent_id"),
+                    rs.getString("kind"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 );
@@ -142,7 +164,7 @@ public final class CategoryRepository {
 
     public List<Category> listChildren(String userUid, String parentId) throws SQLException {
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM categories WHERE user_uid = ? AND parent_id = ? ORDER BY name"
         )) {
             ps.setString(1, userUid);
@@ -156,7 +178,7 @@ public final class CategoryRepository {
         Objects.requireNonNull(categoryId, "categoryId");
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec " +
                 "FROM categories WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
@@ -170,6 +192,7 @@ public final class CategoryRepository {
                     rs.getString("user_uid"),
                     rs.getString("name"),
                     rs.getString("parent_id"),
+                    rs.getString("kind"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 );
@@ -181,11 +204,38 @@ public final class CategoryRepository {
         Objects.requireNonNull(userUid, "userUid");
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM categories WHERE user_uid = ? ORDER BY name"
         )) {
             ps.setString(1, userUid);
             return readCategories(ps);
+        }
+    }
+
+    public void update(String userUid, String categoryId, String newName, String kind) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(categoryId, "categoryId");
+        Objects.requireNonNull(newName, "newName");
+
+        String n = newName.trim();
+        if (n.isBlank()) {
+            throw new IllegalArgumentException("newName");
+        }
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE categories SET name = ?, kind = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, n);
+            if (kind == null || kind.isBlank()) {
+                ps.setObject(2, null);
+            } else {
+                ps.setString(2, kind);
+            }
+            ps.setLong(3, now);
+            ps.setString(4, userUid);
+            ps.setString(5, categoryId);
+            ps.executeUpdate();
         }
     }
 
@@ -218,8 +268,8 @@ public final class CategoryRepository {
         Category existing = getById(userUid, remote.id());
         if (existing == null) {
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO categories (id, user_uid, name, parent_id, created_at_epoch_sec, updated_at_epoch_sec) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO categories (id, user_uid, name, parent_id, kind, created_at_epoch_sec, updated_at_epoch_sec) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)"
             )) {
                 ps.setString(1, remote.id());
                 ps.setString(2, userUid);
@@ -229,8 +279,13 @@ public final class CategoryRepository {
                 } else {
                     ps.setString(4, remote.parentId());
                 }
-                ps.setLong(5, remote.createdAtEpochSec());
-                ps.setLong(6, remote.updatedAtEpochSec());
+                if (remote.kind() == null || remote.kind().isBlank()) {
+                    ps.setObject(5, null);
+                } else {
+                    ps.setString(5, remote.kind());
+                }
+                ps.setLong(6, remote.createdAtEpochSec());
+                ps.setLong(7, remote.updatedAtEpochSec());
                 ps.executeUpdate();
             }
             return;
@@ -241,7 +296,7 @@ public final class CategoryRepository {
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE categories SET name = ?, parent_id = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
+            "UPDATE categories SET name = ?, parent_id = ?, kind = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
                 "WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, remote.name());
@@ -250,10 +305,15 @@ public final class CategoryRepository {
             } else {
                 ps.setString(2, remote.parentId());
             }
-            ps.setLong(3, remote.createdAtEpochSec());
-            ps.setLong(4, remote.updatedAtEpochSec());
-            ps.setString(5, userUid);
-            ps.setString(6, remote.id());
+            if (remote.kind() == null || remote.kind().isBlank()) {
+                ps.setObject(3, null);
+            } else {
+                ps.setString(3, remote.kind());
+            }
+            ps.setLong(4, remote.createdAtEpochSec());
+            ps.setLong(5, remote.updatedAtEpochSec());
+            ps.setString(6, userUid);
+            ps.setString(7, remote.id());
             ps.executeUpdate();
         }
     }
@@ -314,6 +374,7 @@ public final class CategoryRepository {
                     rs.getString("user_uid"),
                     rs.getString("name"),
                     rs.getString("parent_id"),
+                    rs.getString("kind"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 ));

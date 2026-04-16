@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +47,55 @@ import java.util.Set;
 public final class DashboardTransactionsDialog {
 
     private DashboardTransactionsDialog() {
+    }
+
+    private static String kindForRootCategory(CategoryRepository.Category root) {
+        if (root == null) {
+            return null;
+        }
+        if (root.kind() != null && !root.kind().isBlank()) {
+            return root.kind();
+        }
+        if (root.name() == null) {
+            return null;
+        }
+        if ("INGRESOS".equalsIgnoreCase(root.name())) {
+            return "INCOME";
+        }
+        if ("GASTOS".equalsIgnoreCase(root.name())) {
+            return "EXPENSE";
+        }
+        return null;
+    }
+
+    private static String accountTypeLabel(String type) {
+        String t = type == null ? "" : type.trim();
+        if ("BANK".equalsIgnoreCase(t)) {
+            return "Banco";
+        }
+        if ("CASH".equalsIgnoreCase(t)) {
+            return "Efectivo";
+        }
+        if ("SAVINGS".equalsIgnoreCase(t)) {
+            return "Ahorro";
+        }
+        if ("CREDIT".equalsIgnoreCase(t)) {
+            return "Crédito";
+        }
+        if ("INVESTMENT".equalsIgnoreCase(t)) {
+            return "Inversión";
+        }
+        if ("OTHER".equalsIgnoreCase(t)) {
+            return "Otra";
+        }
+        return t.isBlank() ? "Cuenta" : t;
+    }
+
+    private static String formatAccountLabel(AccountRepository.Account a) {
+        if (a == null) {
+            return "";
+        }
+        return a.name();
     }
 
     public static void showTransactionsDialog(
@@ -164,14 +214,20 @@ public final class DashboardTransactionsDialog {
 
         try {
             txAccountFilter.getItems().add(null);
-            txAccountFilter.getItems().addAll(accountRepo.list(userUid));
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
+            txAccountFilter.getItems().addAll(accounts);
             txAccountFilter.getSelectionModel().selectFirst();
         } catch (Exception ignored) {
         }
         txAccountFilter.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "(Todas las cuentas)" : object.name();
+                return object == null ? "(Todas las cuentas)" : formatAccountLabel(object);
             }
 
             @Override
@@ -539,7 +595,38 @@ public final class DashboardTransactionsDialog {
         ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
         ChoiceBox<String> kind = new ChoiceBox<>();
         kind.getItems().addAll("INCOME", "EXPENSE");
-        kind.getSelectionModel().selectFirst();
+        kind.getSelectionModel().clearSelection();
+        kind.setDisable(true);
+        kind.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                if (object == null) {
+                    return "";
+                }
+                if ("INCOME".equalsIgnoreCase(object)) {
+                    return "Ingreso";
+                }
+                if ("EXPENSE".equalsIgnoreCase(object)) {
+                    return "Egreso";
+                }
+                return object;
+            }
+
+            @Override
+            public String fromString(String string) {
+                if (string == null) {
+                    return null;
+                }
+                String s = string.trim();
+                if ("Ingreso".equalsIgnoreCase(s)) {
+                    return "INCOME";
+                }
+                if ("Egreso".equalsIgnoreCase(s)) {
+                    return "EXPENSE";
+                }
+                return null;
+            }
+        });
 
         Label balanceLabel = new Label();
         balanceLabel.getStyleClass().add("account-name");
@@ -549,6 +636,8 @@ public final class DashboardTransactionsDialog {
         error.setWrapText(true);
         error.setVisible(false);
         error.setManaged(false);
+
+        java.util.concurrent.atomic.AtomicReference<Runnable> refreshKindFromRootRef = new java.util.concurrent.atomic.AtomicReference<>(null);
 
         Runnable refreshBalance = () -> {
             error.setText("");
@@ -572,9 +661,26 @@ public final class DashboardTransactionsDialog {
             }
         };
 
+        Runnable refreshKindFromRoot = () -> {
+            String derived = kindForRootCategory(rootCategory.getValue());
+            if (derived == null) {
+                kind.getSelectionModel().clearSelection();
+            } else {
+                kind.getSelectionModel().select(derived);
+            }
+            refreshBalance.run();
+        };
+        refreshKindFromRootRef.set(refreshKindFromRoot);
+
         try {
             account.getItems().add(null);
-            account.getItems().addAll(accountRepo.list(userUid));
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
+            account.getItems().addAll(accounts);
             if (!account.getItems().isEmpty()) {
                 account.getSelectionModel().selectFirst();
             }
@@ -604,13 +710,20 @@ public final class DashboardTransactionsDialog {
             }
         } catch (Exception ignored) {
         }
-        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshSubcats.run());
+        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            refreshSubcats.run();
+            Runnable r = refreshKindFromRootRef.get();
+            if (r != null) {
+                r.run();
+            }
+        });
         refreshSubcats.run();
+        refreshKindFromRoot.run();
 
         account.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override
@@ -696,7 +809,6 @@ public final class DashboardTransactionsDialog {
         dialog.getDialogPane().setContent(grid);
 
         account.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
-        kind.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
         refreshBalance.run();
 
         javafx.scene.Node okNode = dialog.getDialogPane().lookupButton(ButtonType.OK);
@@ -707,6 +819,12 @@ public final class DashboardTransactionsDialog {
                 error.setManaged(false);
 
                 if (date.getValue() == null || account.getValue() == null || rootCategory.getValue() == null) {
+                    ev.consume();
+                    return;
+                }
+
+                String derivedKind = kindForRootCategory(rootCategory.getValue());
+                if (derivedKind == null) {
                     ev.consume();
                     return;
                 }
@@ -730,7 +848,7 @@ public final class DashboardTransactionsDialog {
                     return;
                 }
 
-                if ("EXPENSE".equalsIgnoreCase(kind.getValue())) {
+                if ("EXPENSE".equalsIgnoreCase(derivedKind)) {
                     AccountRepository.Account a = account.getValue();
                     if (a != null) {
                         try {
@@ -758,6 +876,11 @@ public final class DashboardTransactionsDialog {
             return Optional.empty();
         }
 
+        String derivedKind = kindForRootCategory(rootCategory.getValue());
+        if (derivedKind == null) {
+            return Optional.empty();
+        }
+
         String raw = amount.getText() == null ? "" : amount.getText().trim();
         if (raw.isBlank()) {
             return Optional.empty();
@@ -776,12 +899,11 @@ public final class DashboardTransactionsDialog {
         }
 
         long occurredAt = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
-
         CategoryRepository.Category chosen = subCategory.getValue() != null ? subCategory.getValue() : rootCategory.getValue();
         return Optional.of(new NewTransaction(
             account.getValue().id(),
             chosen.id(),
-            kind.getValue(),
+            derivedKind,
             cents,
             occurredAt,
             note.getText() == null ? null : note.getText().trim()
@@ -809,7 +931,38 @@ public final class DashboardTransactionsDialog {
         ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
         ChoiceBox<String> kind = new ChoiceBox<>();
         kind.getItems().addAll("INCOME", "EXPENSE");
-        kind.getSelectionModel().select("EXPENSE".equalsIgnoreCase(existing.kind()) ? "EXPENSE" : "INCOME");
+        kind.getSelectionModel().clearSelection();
+        kind.setDisable(true);
+        kind.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                if (object == null) {
+                    return "";
+                }
+                if ("INCOME".equalsIgnoreCase(object)) {
+                    return "Ingreso";
+                }
+                if ("EXPENSE".equalsIgnoreCase(object)) {
+                    return "Egreso";
+                }
+                return object;
+            }
+
+            @Override
+            public String fromString(String string) {
+                if (string == null) {
+                    return null;
+                }
+                String s = string.trim();
+                if ("Ingreso".equalsIgnoreCase(s)) {
+                    return "INCOME";
+                }
+                if ("Egreso".equalsIgnoreCase(s)) {
+                    return "EXPENSE";
+                }
+                return null;
+            }
+        });
 
         Label balanceLabel = new Label();
         balanceLabel.getStyleClass().add("account-name");
@@ -819,6 +972,8 @@ public final class DashboardTransactionsDialog {
         error.setWrapText(true);
         error.setVisible(false);
         error.setManaged(false);
+
+        java.util.concurrent.atomic.AtomicReference<Runnable> refreshKindFromRootRef = new java.util.concurrent.atomic.AtomicReference<>(null);
 
         try {
             account.getItems().setAll(accountRepo.list(userUid));
@@ -852,13 +1007,19 @@ public final class DashboardTransactionsDialog {
             }
         } catch (Exception ignored) {
         }
-        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshSubcats.run());
+        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            refreshSubcats.run();
+            Runnable r = refreshKindFromRootRef.get();
+            if (r != null) {
+                r.run();
+            }
+        });
         refreshSubcats.run();
 
         account.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override
@@ -922,6 +1083,17 @@ public final class DashboardTransactionsDialog {
                 balanceLabel.setText("Saldo disponible: --");
             }
         };
+
+        Runnable refreshKindFromRoot = () -> {
+            String derived = kindForRootCategory(rootCategory.getValue());
+            if (derived == null) {
+                kind.getSelectionModel().clearSelection();
+            } else {
+                kind.getSelectionModel().select(derived);
+            }
+            refreshBalance.run();
+        };
+        refreshKindFromRootRef.set(refreshKindFromRoot);
 
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setHgap(10);
@@ -1020,9 +1192,9 @@ public final class DashboardTransactionsDialog {
             }
         };
         selectExistingCategory.run();
+        refreshKindFromRoot.run();
 
         account.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
-        kind.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
         refreshBalance.run();
 
         javafx.scene.Node okNode = dialog.getDialogPane().lookupButton(ButtonType.OK);
@@ -1056,7 +1228,13 @@ public final class DashboardTransactionsDialog {
                     return;
                 }
 
-                if ("EXPENSE".equalsIgnoreCase(kind.getValue())) {
+                String derivedKind = kindForRootCategory(rootCategory.getValue());
+                if (derivedKind == null) {
+                    ev.consume();
+                    return;
+                }
+
+                if ("EXPENSE".equalsIgnoreCase(derivedKind)) {
                     AccountRepository.Account a = account.getValue();
                     if (a != null) {
                         try {
@@ -1088,6 +1266,11 @@ public final class DashboardTransactionsDialog {
             return Optional.empty();
         }
 
+        String derivedKind = kindForRootCategory(rootCategory.getValue());
+        if (derivedKind == null) {
+            return Optional.empty();
+        }
+
         String raw = amount.getText() == null ? "" : amount.getText().trim();
         if (raw.isBlank()) {
             return Optional.empty();
@@ -1109,7 +1292,7 @@ public final class DashboardTransactionsDialog {
         return Optional.of(new NewTransaction(
             account.getValue().id(),
             chosen.id(),
-            kind.getValue(),
+            derivedKind,
             cents,
             occurredAt,
             note.getText() == null ? null : note.getText().trim()

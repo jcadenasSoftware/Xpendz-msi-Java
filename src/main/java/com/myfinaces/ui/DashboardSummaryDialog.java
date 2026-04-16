@@ -2,6 +2,7 @@ package com.myfinaces.ui;
 
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
+import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransactionRepository;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -11,9 +12,12 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
@@ -51,6 +55,7 @@ public final class DashboardSummaryDialog {
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
+        GoalRepository goalRepo,
         boolean darkTheme
     ) {
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -132,7 +137,9 @@ public final class DashboardSummaryDialog {
         ChoiceBox<String> view = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
         ChoiceBox<CategoryRepository.Category> rootCategory = new ChoiceBox<>();
-        ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
+        MenuButton subCategory = new MenuButton("(Todas las subcategorías)");
+
+        Set<String> selectedSubIds = new HashSet<>();
 
         int currentYear = LocalDate.now().getYear();
         for (int y = currentYear; y >= currentYear - 5; y--) {
@@ -166,7 +173,13 @@ public final class DashboardSummaryDialog {
 
         try {
             rootCategory.getItems().add(null);
-            rootCategory.getItems().addAll(categoryRepo.listRoots(userUid));
+            String kindLabel = kind.getValue();
+            String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+            for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
+                if (r != null && r.kind() != null && r.kind().equalsIgnoreCase(k)) {
+                    rootCategory.getItems().add(r);
+                }
+            }
             rootCategory.getSelectionModel().selectFirst();
         } catch (Exception ignored) {
         }
@@ -182,37 +195,105 @@ public final class DashboardSummaryDialog {
             }
         });
 
-        subCategory.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(CategoryRepository.Category object) {
-                return object == null ? "(Todas las subcategorías)" : object.name();
-            }
+        Runnable refreshRootCategories = () -> {
+            try {
+                CategoryRepository.Category selected = rootCategory.getValue();
+                rootCategory.getItems().clear();
+                rootCategory.getItems().add(null);
 
-            @Override
-            public CategoryRepository.Category fromString(String string) {
-                return null;
+                String kindLabel = kind.getValue();
+                String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+                for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
+                    if (r != null && r.kind() != null && r.kind().equalsIgnoreCase(k)) {
+                        rootCategory.getItems().add(r);
+                    }
+                }
+
+                if (selected == null) {
+                    rootCategory.getSelectionModel().selectFirst();
+                    return;
+                }
+                for (CategoryRepository.Category r : rootCategory.getItems()) {
+                    if (r != null && selected.id().equals(r.id())) {
+                        rootCategory.getSelectionModel().select(r);
+                        return;
+                    }
+                }
+                rootCategory.getSelectionModel().selectFirst();
+            } catch (Exception ignored) {
             }
-        });
+        };
+
+        AtomicReference<Runnable> refreshAccountsForSummaryRef = new AtomicReference<>(null);
+        AtomicReference<Runnable> refreshSummaryRef = new AtomicReference<>(null);
 
         Runnable refreshSubcatsSummary = () -> {
             boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
             CategoryRepository.Category root = rootCategory.getValue();
 
             subCategory.getItems().clear();
-            subCategory.getItems().add(null);
+            selectedSubIds.clear();
+            subCategory.setText("(Todas las subcategorías)");
 
             if (!bySub || root == null) {
                 subCategory.setDisable(true);
-                subCategory.getSelectionModel().selectFirst();
                 return;
             }
 
             subCategory.setDisable(false);
+
+            MenuItem all = new MenuItem("(Todas las subcategorías)");
+            all.setOnAction(ev -> {
+                selectedSubIds.clear();
+                subCategory.setText("(Todas las subcategorías)");
+                for (MenuItem mi : subCategory.getItems()) {
+                    if (mi instanceof CheckMenuItem cmi) {
+                        cmi.setSelected(false);
+                    }
+                }
+                Runnable ra = refreshAccountsForSummaryRef.get();
+                if (ra != null) {
+                    ra.run();
+                }
+                Runnable rs = refreshSummaryRef.get();
+                if (rs != null) {
+                    rs.run();
+                }
+            });
+            subCategory.getItems().add(all);
+
             try {
-                subCategory.getItems().addAll(categoryRepo.listChildren(userUid, root.id()));
+                List<CategoryRepository.Category> children = categoryRepo.listChildren(userUid, root.id());
+                children.sort((c1, c2) -> c1.name().compareToIgnoreCase(c2.name()));
+                for (CategoryRepository.Category c : children) {
+                    CheckMenuItem item = new CheckMenuItem(c.name());
+                    item.setStyle("-fx-font-weight: bold;");
+                    item.setOnAction(ev -> {
+                        if (item.isSelected()) {
+                            selectedSubIds.add(c.id());
+                        } else {
+                            selectedSubIds.remove(c.id());
+                        }
+
+                        if (selectedSubIds.isEmpty()) {
+                            subCategory.setText("(Todas las subcategorías)");
+                        } else {
+                            subCategory.setText(selectedSubIds.size() + " seleccionadas");
+                        }
+
+                        Runnable ra = refreshAccountsForSummaryRef.get();
+                        if (ra != null) {
+                            ra.run();
+                        }
+                        Runnable rs = refreshSummaryRef.get();
+                        if (rs != null) {
+                            rs.run();
+                        }
+                    });
+                    subCategory.getItems().add(item);
+                }
             } catch (Exception ignored) {
             }
-            subCategory.getSelectionModel().selectFirst();
         };
         refreshSubcatsSummary.run();
 
@@ -224,7 +305,6 @@ public final class DashboardSummaryDialog {
                 account.getItems().add(null);
 
                 boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
-                CategoryRepository.Category sub = subCategory.getValue();
                 Integer y = year.getValue();
                 String kindLabel = kind.getValue();
                 String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
@@ -236,15 +316,14 @@ public final class DashboardSummaryDialog {
                     allAccounts = List.of();
                 }
 
-                if (bySub && sub != null) {
-                    List<String> ids;
-                    try {
-                        ids = txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, sub.id());
-                    } catch (Exception ignored) {
-                        ids = List.of();
+                if (bySub && !selectedSubIds.isEmpty()) {
+                    Set<String> idSet = new HashSet<>();
+                    for (String subId : selectedSubIds) {
+                        try {
+                            idSet.addAll(txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, subId));
+                        } catch (Exception ignored) {
+                        }
                     }
-
-                    Set<String> idSet = new HashSet<>(ids);
                     for (AccountRepository.Account a : allAccounts) {
                         if (a != null && idSet.contains(a.id())) {
                             account.getItems().add(a);
@@ -268,6 +347,7 @@ public final class DashboardSummaryDialog {
             } catch (Exception ignored) {
             }
         };
+        refreshAccountsForSummaryRef.set(refreshAccountsForSummary);
 
         Label fYear = new Label("Año");
         fYear.getStyleClass().add("account-name");
@@ -393,11 +473,16 @@ public final class DashboardSummaryDialog {
             List<List<String>> exportRows = new ArrayList<>();
 
             CategoryRepository.Category rootFilter = rootCategory.getValue();
-            CategoryRepository.Category subFilter = subCategory.getValue();
+            Set<String> subFilterIds = bySubcategory ? new HashSet<>(selectedSubIds) : Set.of();
 
             List<CategoryRepository.Category> roots;
             try {
-                roots = categoryRepo.listRoots(userUid);
+                roots = new ArrayList<>();
+                for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
+                    if (r != null && r.kind() != null && r.kind().equalsIgnoreCase(k)) {
+                        roots.add(r);
+                    }
+                }
             } catch (Exception ignored) {
                 roots = List.of();
             }
@@ -544,7 +629,7 @@ public final class DashboardSummaryDialog {
                     });
 
                     for (String subId : keys) {
-                        if (subFilter != null && !subFilter.id().equals(subId)) {
+                        if (!subFilterIds.isEmpty() && !subFilterIds.contains(subId)) {
                             continue;
                         }
                         long[] months = byRootSub.get(r.id()).getOrDefault(subId, new long[13]);
@@ -566,6 +651,7 @@ public final class DashboardSummaryDialog {
                         Label name = new Label("  - " + (canToggleAccounts ? (chevron + " ") : "") + subLabel);
                         name.getStyleClass().add("text-secondary");
                         name.getStyleClass().add("summary-sub-name");
+                        name.setStyle("-fx-font-weight: bold;");
                         name.setMaxWidth(320);
                         name.setTextOverrun(OverrunStyle.ELLIPSIS);
                         Tooltip.install(name, new Tooltip(subLabel));
@@ -582,6 +668,7 @@ public final class DashboardSummaryDialog {
                             v.setAlignment(Pos.CENTER_RIGHT);
                             v.getStyleClass().add("summary-amount-cell");
                             v.getStyleClass().add(zebraSub);
+                            v.setStyle("-fx-font-weight: bold;");
                             if (m == currentMonth) {
                                 v.getStyleClass().add("summary-current-month");
                             }
@@ -595,6 +682,7 @@ public final class DashboardSummaryDialog {
                         totalCell.getStyleClass().add("summary-amount-cell");
                         totalCell.getStyleClass().add("summary-total-col");
                         totalCell.getStyleClass().add(zebraSub);
+                        totalCell.setStyle("-fx-font-weight: bold;");
                         fixedTable.add(totalCell, 1, rowIdx);
 
                         long avgBase = rowTotal;
@@ -612,6 +700,7 @@ public final class DashboardSummaryDialog {
                         avgCell.getStyleClass().add("summary-amount-cell");
                         avgCell.getStyleClass().add("summary-avg-col");
                         avgCell.getStyleClass().add(zebraSub);
+                        avgCell.setStyle("-fx-font-weight: bold;");
                         monthsTable.add(avgCell, 12, rowIdx);
 
                         List<String> exportRow = new ArrayList<>();
@@ -960,9 +1049,15 @@ public final class DashboardSummaryDialog {
 
             applySummaryRowHover(fixedTable, monthsTable);
         };
+        refreshSummaryRef.set(refreshSummary);
 
         year.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
-        kind.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
+        kind.valueProperty().addListener((obs, o, n) -> {
+            refreshRootCategories.run();
+            refreshSubcatsSummary.run();
+            refreshAccountsForSummary.run();
+            refreshSummary.run();
+        });
         view.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsSummary.run();
             refreshAccountsForSummary.run();
@@ -971,10 +1066,6 @@ public final class DashboardSummaryDialog {
         account.valueProperty().addListener((obs, o, n) -> refreshSummary.run());
         rootCategory.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsSummary.run();
-            refreshAccountsForSummary.run();
-            refreshSummary.run();
-        });
-        subCategory.valueProperty().addListener((obs, o, n) -> {
             refreshAccountsForSummary.run();
             refreshSummary.run();
         });
@@ -1022,7 +1113,73 @@ public final class DashboardSummaryDialog {
         HBox actionsRow = new HBox(10, toggleFilters, exportCsv);
         actionsRow.setAlignment(Pos.CENTER_LEFT);
 
-        VBox body = new VBox(12, actionsRow, filtersCard, tablesRow);
+        GridPane goalsTable = new GridPane();
+        goalsTable.setHgap(10);
+        goalsTable.setVgap(8);
+        goalsTable.setPadding(new Insets(10));
+
+        VBox goalsCard = new VBox(10, new Label("Metas"), goalsTable);
+        goalsCard.getStyleClass().addAll("card", "content-card");
+        goalsCard.getChildren().getFirst().getStyleClass().add("account-name");
+
+        Runnable refreshGoals = () -> {
+            goalsTable.getChildren().clear();
+            try {
+                if (goalRepo == null) {
+                    return;
+                }
+                List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid);
+                if (goals.isEmpty()) {
+                    goalsTable.add(new Label("Sin metas"), 0, 0);
+                    return;
+                }
+
+                Label h1 = new Label("Meta");
+                Label h2 = new Label("Guardado");
+                Label h3 = new Label("Objetivo");
+                Label h4 = new Label("Falta");
+                Label h5 = new Label("%");
+                h1.getStyleClass().add("text-secondary");
+                h2.getStyleClass().add("text-secondary");
+                h3.getStyleClass().add("text-secondary");
+                h4.getStyleClass().add("text-secondary");
+                h5.getStyleClass().add("text-secondary");
+                goalsTable.add(h1, 0, 0);
+                goalsTable.add(h2, 1, 0);
+                goalsTable.add(h3, 2, 0);
+                goalsTable.add(h4, 3, 0);
+                goalsTable.add(h5, 4, 0);
+
+                int row = 1;
+                for (GoalRepository.Goal g : goals) {
+                    long savedCents;
+                    try {
+                        savedCents = accountRepo.computeBalanceCents(userUid, g.accountId());
+                    } catch (Exception ignored) {
+                        savedCents = 0L;
+                    }
+                    long remaining = Math.max(0L, g.targetCents() - savedCents);
+                    double pct = g.targetCents() <= 0 ? 0.0 : Math.min(1.0, (double) savedCents / (double) g.targetCents());
+
+                    Label n = new Label(g.name());
+                    Label saved = new Label(DashboardFormatters.formatMoney(savedCents, g.currency()));
+                    Label target = new Label(DashboardFormatters.formatMoney(g.targetCents(), g.currency()));
+                    Label falta = new Label(DashboardFormatters.formatMoney(remaining, g.currency()));
+                    Label p = new Label(String.format(java.util.Locale.ROOT, "%.0f%%", pct * 100.0));
+
+                    goalsTable.add(n, 0, row);
+                    goalsTable.add(saved, 1, row);
+                    goalsTable.add(target, 2, row);
+                    goalsTable.add(falta, 3, row);
+                    goalsTable.add(p, 4, row);
+                    row++;
+                }
+            } catch (Exception ignored) {
+            }
+        };
+        refreshGoals.run();
+
+        VBox body = new VBox(12, actionsRow, filtersCard, tablesRow, goalsCard);
         body.setPadding(new Insets(10));
         dialog.getDialogPane().setContent(body);
 

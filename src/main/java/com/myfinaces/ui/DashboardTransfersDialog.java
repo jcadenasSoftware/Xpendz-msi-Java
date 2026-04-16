@@ -36,6 +36,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,36 @@ import java.util.Set;
 public final class DashboardTransfersDialog {
 
     private DashboardTransfersDialog() {
+    }
+
+    private static String accountTypeLabel(String type) {
+        String t = type == null ? "" : type.trim();
+        if ("BANK".equalsIgnoreCase(t)) {
+            return "Banco";
+        }
+        if ("CASH".equalsIgnoreCase(t)) {
+            return "Efectivo";
+        }
+        if ("SAVINGS".equalsIgnoreCase(t)) {
+            return "Ahorro";
+        }
+        if ("CREDIT".equalsIgnoreCase(t)) {
+            return "Crédito";
+        }
+        if ("INVESTMENT".equalsIgnoreCase(t)) {
+            return "Inversión";
+        }
+        if ("OTHER".equalsIgnoreCase(t)) {
+            return "Otra";
+        }
+        return t.isBlank() ? "Cuenta" : t;
+    }
+
+    private static String formatAccountLabel(AccountRepository.Account a) {
+        if (a == null) {
+            return "";
+        }
+        return a.name();
     }
 
     public static void showTransfersDialog(
@@ -144,14 +176,20 @@ public final class DashboardTransfersDialog {
 
         try {
             accountFilter.getItems().add(null);
-            accountFilter.getItems().addAll(accountRepo.list(userUid));
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
+            accountFilter.getItems().addAll(accounts);
             accountFilter.getSelectionModel().selectFirst();
         } catch (Exception ignored) {
         }
         accountFilter.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "(Todas las cuentas)" : object.name();
+                return object == null ? "(Todas las cuentas)" : formatAccountLabel(object);
             }
 
             @Override
@@ -466,7 +504,12 @@ public final class DashboardTransfersDialog {
         };
 
         try {
-            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
             from.getItems().setAll(accounts);
             to.getItems().setAll(accounts);
             if (!accounts.isEmpty()) {
@@ -482,7 +525,7 @@ public final class DashboardTransfersDialog {
         from.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override
@@ -493,7 +536,7 @@ public final class DashboardTransfersDialog {
         to.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override
@@ -622,7 +665,12 @@ public final class DashboardTransfersDialog {
         error.setManaged(false);
 
         try {
-            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
             from.getItems().setAll(accounts);
             to.getItems().setAll(accounts);
             for (AccountRepository.Account a : accounts) {
@@ -639,7 +687,7 @@ public final class DashboardTransfersDialog {
         from.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override
@@ -650,7 +698,7 @@ public final class DashboardTransfersDialog {
         to.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(AccountRepository.Account object) {
-                return object == null ? "" : object.name();
+                return object == null ? "" : formatAccountLabel(object);
             }
 
             @Override

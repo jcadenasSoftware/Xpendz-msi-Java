@@ -150,6 +150,8 @@ public final class DashboardBudgetDialog {
 
         TabPane tabs = new TabPane();
         tabs.getStyleClass().add("account-summary-tabs");
+        tabs.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(tabs, Priority.ALWAYS);
         VBox monthly = buildMonthlyBudgetPane(session, userUid, budgetRepo, categoryRepo);
         VBox goals = buildGoalsPane(session, goalRepo, accountRepo, transferRepo, darkTheme, refreshBalances);
         Tab tabMonthly = new Tab("Mensual", monthly);
@@ -224,15 +226,19 @@ public final class DashboardBudgetDialog {
 
         Runnable refreshSubcategories = () -> {
             subCategory.getItems().clear();
-            subCategory.getItems().add(null);
             CategoryRepository.Category root = rootCategory.getValue();
             if (root == null) {
-                subCategory.getSelectionModel().selectFirst();
                 return;
             }
             try {
-                subCategory.getItems().addAll(categoryRepo.listChildren(userUid, root.id()));
+                List<CategoryRepository.Category> children = categoryRepo.listChildren(userUid, root.id());
+                if (children == null || children.isEmpty()) {
+                    subCategory.getItems().add(null);
+                } else {
+                    subCategory.getItems().addAll(children);
+                }
             } catch (Exception ignored) {
+                subCategory.getItems().add(null);
             }
             subCategory.getSelectionModel().selectFirst();
         };
@@ -271,87 +277,225 @@ public final class DashboardBudgetDialog {
                     return;
                 }
 
+                java.util.Map<String, BudgetRepository.BudgetProgress> byCategoryId = new java.util.LinkedHashMap<>();
                 for (BudgetRepository.BudgetProgress p : rows) {
-                    CategoryRepository.Category cat;
+                    byCategoryId.put(p.budget().categoryId(), p);
+                }
+
+                List<CategoryRepository.Category> roots;
+                try {
+                    roots = categoryRepo.listRoots(userUid);
+                } catch (Exception ex) {
+                    roots = java.util.List.of();
+                }
+
+                for (CategoryRepository.Category root : roots) {
+                    List<CategoryRepository.Category> children;
                     try {
-                        cat = categoryRepo.getById(userUid, p.budget().categoryId());
+                        children = categoryRepo.listChildren(userUid, root.id());
                     } catch (Exception ex) {
-                        cat = null;
+                        children = java.util.List.of();
                     }
-                    String catName;
-                    if (cat == null) {
-                        catName = p.budget().categoryId();
-                    } else if (cat.parentId() != null && !cat.parentId().isBlank()) {
-                        try {
-                            CategoryRepository.Category parent = categoryRepo.getById(userUid, cat.parentId());
-                            String parentName = parent == null ? cat.parentId() : parent.name();
-                            catName = parentName + " / " + cat.name();
-                        } catch (Exception ignored) {
-                            catName = cat.name();
+                    boolean hasChildren = children != null && !children.isEmpty();
+
+                    if (!hasChildren) {
+                        BudgetRepository.BudgetProgress p = byCategoryId.get(root.id());
+                        if (p == null) {
+                            continue;
                         }
-                    } else {
-                        catName = cat.name();
-                    }
 
-                    Label name = new Label(catName);
-                    name.getStyleClass().add("account-name");
+                        Label name = new Label(root.name());
+                        name.getStyleClass().add("account-name");
 
-                    Label limitLabel = new Label(formatMoney(p.budget().limitCents(), p.budget().currency()));
-                    limitLabel.getStyleClass().addAll("account-name", "money-neutral");
+                        Label limitLabel = new Label(formatMoney(p.budget().limitCents(), p.budget().currency()));
+                        limitLabel.getStyleClass().addAll("account-name", "money-neutral");
 
-                    Label spentLabel = new Label(formatMoney(p.spentCents(), p.budget().currency()));
-                    spentLabel.getStyleClass().addAll("account-name", p.spentCents() > 0 ? "money-negative" : "money-neutral");
+                        Label spentLabel = new Label(formatMoney(p.spentCents(), p.budget().currency()));
+                        spentLabel.getStyleClass().addAll("account-name", p.spentCents() > 0 ? "money-negative" : "money-neutral");
 
-                    long remaining = p.remainingCents();
-                    Label remainingLabel = new Label(formatMoney(remaining, p.budget().currency()));
-                    remainingLabel.getStyleClass().addAll("account-name", remaining >= 0 ? "money-positive" : "money-negative");
+                        long remaining = p.remainingCents();
+                        Label remainingLabel = new Label(formatMoney(remaining, p.budget().currency()));
+                        remainingLabel.getStyleClass().addAll("account-name", remaining >= 0 ? "money-positive" : "money-negative");
 
-                    VBox limitBlock = new VBox(2, new Label("Límite"), limitLabel);
-                    limitBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
-                    limitBlock.getStyleClass().add("loan-amount-block");
+                        VBox limitBlock = new VBox(2, new Label("Límite"), limitLabel);
+                        limitBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        limitBlock.getStyleClass().add("loan-amount-block");
 
-                    VBox spentBlock = new VBox(2, new Label("Gastado"), spentLabel);
-                    spentBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
-                    spentBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
+                        VBox spentBlock = new VBox(2, new Label("Gastado"), spentLabel);
+                        spentBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        spentBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
 
-                    VBox remainingBlock = new VBox(2, new Label("Disponible"), remainingLabel);
-                    remainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
-                    remainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
+                        VBox remainingBlock = new VBox(2, new Label("Disponible"), remainingLabel);
+                        remainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        remainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
 
-                    HBox amounts = new HBox(18, limitBlock, spentBlock, remainingBlock);
-                    amounts.setAlignment(Pos.CENTER_LEFT);
+                        HBox amounts = new HBox(18, limitBlock, spentBlock, remainingBlock);
+                        amounts.setAlignment(Pos.CENTER_LEFT);
 
-                    Button del = new Button("Eliminar");
-                    del.getStyleClass().add("btn-danger");
-                    del.setOnAction(ev -> {
-                        try {
-                            budgetRepo.delete(userUid, p.budget().id());
-                            new Thread(() -> {
-                                try {
-                                    AppConfig cfg = AppConfig.loadDefault();
-                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                                    sync.deleteBudget(session, p.budget().id());
-                                } catch (Exception ignored) {
+                        Button del = new Button("Eliminar");
+                        del.getStyleClass().add("btn-danger");
+                        del.setOnAction(ev -> {
+                            try {
+                                budgetRepo.delete(userUid, p.budget().id());
+                                new Thread(() -> {
+                                    try {
+                                        AppConfig cfg = AppConfig.loadDefault();
+                                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                        sync.deleteBudget(session, p.budget().id());
+                                    } catch (Exception ignored) {
+                                    }
+                                }).start();
+                                Runnable r = refreshRef.get();
+                                if (r != null) {
+                                    r.run();
                                 }
-                            }).start();
-                            Runnable r = refreshRef.get();
-                            if (r != null) {
-                                r.run();
+                            } catch (Exception ex) {
+                                error.setText(ex.getMessage() == null ? "No se pudo eliminar el límite" : ex.getMessage());
+                                error.setVisible(true);
+                                error.setManaged(true);
                             }
-                        } catch (Exception ex) {
-                            error.setText(ex.getMessage() == null ? "No se pudo eliminar el límite" : ex.getMessage());
-                            error.setVisible(true);
-                            error.setManaged(true);
-                        }
-                    });
-                    Region spacer = new Region();
-                    HBox.setHgrow(spacer, Priority.ALWAYS);
-                    HBox top = new HBox(10, name, spacer, del);
-                    top.setAlignment(Pos.CENTER_LEFT);
+                        });
+                        Region spacer = new Region();
+                        HBox.setHgrow(spacer, Priority.ALWAYS);
+                        HBox top = new HBox(10, name, spacer, del);
+                        top.setAlignment(Pos.CENTER_LEFT);
 
-                    VBox row = new VBox(8, top, amounts);
-                    row.getStyleClass().add("account-item");
-                    list.getChildren().add(row);
+                        VBox row = new VBox(8, top, amounts);
+                        row.getStyleClass().add("account-item");
+                        list.getChildren().add(row);
+                        continue;
+                    }
+
+                    long sumLimit = 0L;
+                    long sumSpent = 0L;
+                    java.util.List<javafx.scene.Node> childNodes = new java.util.ArrayList<>();
+
+                    for (CategoryRepository.Category child : children) {
+                        BudgetRepository.BudgetProgress cp = byCategoryId.get(child.id());
+                        if (cp == null) {
+                            continue;
+                        }
+                        sumLimit += cp.budget().limitCents();
+                        sumSpent += cp.spentCents();
+
+                        Label childName = new Label(child.name());
+                        childName.getStyleClass().add("account-name");
+
+                        Label childLimitLabel = new Label(formatMoney(cp.budget().limitCents(), cp.budget().currency()));
+                        childLimitLabel.getStyleClass().addAll("account-name", "money-neutral");
+
+                        Label childSpentLabel = new Label(formatMoney(cp.spentCents(), cp.budget().currency()));
+                        childSpentLabel.getStyleClass().addAll("account-name", cp.spentCents() > 0 ? "money-negative" : "money-neutral");
+
+                        long childRemaining = cp.remainingCents();
+                        Label childRemainingLabel = new Label(formatMoney(childRemaining, cp.budget().currency()));
+                        childRemainingLabel.getStyleClass().addAll("account-name", childRemaining >= 0 ? "money-positive" : "money-negative");
+
+                        VBox cLimitBlock = new VBox(2, new Label("Límite"), childLimitLabel);
+                        cLimitBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        cLimitBlock.getStyleClass().add("loan-amount-block");
+
+                        VBox cSpentBlock = new VBox(2, new Label("Gastado"), childSpentLabel);
+                        cSpentBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        cSpentBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
+
+                        VBox cRemainingBlock = new VBox(2, new Label("Disponible"), childRemainingLabel);
+                        cRemainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                        cRemainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
+
+                        HBox childAmounts = new HBox(18, cLimitBlock, cSpentBlock, cRemainingBlock);
+                        childAmounts.setAlignment(Pos.CENTER_LEFT);
+
+                        Button childDel = new Button("Eliminar");
+                        childDel.getStyleClass().add("btn-danger");
+                        childDel.setOnAction(ev -> {
+                            try {
+                                budgetRepo.delete(userUid, cp.budget().id());
+                                new Thread(() -> {
+                                    try {
+                                        AppConfig cfg = AppConfig.loadDefault();
+                                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                        sync.deleteBudget(session, cp.budget().id());
+                                    } catch (Exception ignored) {
+                                    }
+                                }).start();
+                                Runnable r = refreshRef.get();
+                                if (r != null) {
+                                    r.run();
+                                }
+                            } catch (Exception ex) {
+                                error.setText(ex.getMessage() == null ? "No se pudo eliminar el límite" : ex.getMessage());
+                                error.setVisible(true);
+                                error.setManaged(true);
+                            }
+                        });
+                        Region childSpacer = new Region();
+                        HBox.setHgrow(childSpacer, Priority.ALWAYS);
+                        HBox childTop = new HBox(10, childName, childSpacer, childDel);
+                        childTop.setAlignment(Pos.CENTER_LEFT);
+
+                        VBox childRow = new VBox(8, childTop, childAmounts);
+                        childRow.getStyleClass().add("account-item");
+                        childRow.setPadding(new Insets(8, 8, 8, 24));
+                        childNodes.add(childRow);
+                    }
+
+                    if (sumLimit <= 0L && sumSpent <= 0L && childNodes.isEmpty()) {
+                        continue;
+                    }
+
+                    Label rootName = new Label(root.name());
+                    rootName.getStyleClass().add("account-name");
+
+                    Label rootLimitLabel = new Label(formatMoney(sumLimit, cur));
+                    rootLimitLabel.getStyleClass().addAll("account-name", "money-neutral");
+
+                    Label rootSpentLabel = new Label(formatMoney(sumSpent, cur));
+                    rootSpentLabel.getStyleClass().addAll("account-name", sumSpent > 0 ? "money-negative" : "money-neutral");
+
+                    long rootRemaining = sumLimit - sumSpent;
+                    Label rootRemainingLabel = new Label(formatMoney(rootRemaining, cur));
+                    rootRemainingLabel.getStyleClass().addAll("account-name", rootRemaining >= 0 ? "money-positive" : "money-negative");
+
+                    VBox rLimitBlock = new VBox(2, new Label("Límite"), rootLimitLabel);
+                    rLimitBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    rLimitBlock.getStyleClass().add("loan-amount-block");
+
+                    VBox rSpentBlock = new VBox(2, new Label("Gastado"), rootSpentLabel);
+                    rSpentBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    rSpentBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-pending");
+
+                    VBox rRemainingBlock = new VBox(2, new Label("Disponible"), rootRemainingLabel);
+                    rRemainingBlock.getChildren().getFirst().getStyleClass().add("text-secondary");
+                    rRemainingBlock.getStyleClass().addAll("loan-amount-block", "loan-amount-block-paid");
+
+                    HBox rootAmounts = new HBox(18, rLimitBlock, rSpentBlock, rRemainingBlock);
+                    rootAmounts.setAlignment(Pos.CENTER_LEFT);
+
+                    Label caret = new Label("▾");
+                    caret.getStyleClass().add("text-secondary");
+                    caret.setStyle("-fx-font-size: 16px; -fx-font-weight: 800;");
+                    Region rootSpacer = new Region();
+                    HBox.setHgrow(rootSpacer, Priority.ALWAYS);
+                    HBox rootTop = new HBox(10, rootName, rootSpacer, caret);
+                    rootTop.setAlignment(Pos.CENTER_LEFT);
+                    rootTop.setCursor(javafx.scene.Cursor.HAND);
+
+                    VBox childrenBox = new VBox(10);
+                    childrenBox.getChildren().addAll(childNodes);
+                    childrenBox.setVisible(false);
+                    childrenBox.setManaged(false);
+
+                    rootTop.setOnMouseClicked(ev -> {
+                        boolean next = !childrenBox.isVisible();
+                        childrenBox.setVisible(next);
+                        childrenBox.setManaged(next);
+                        caret.setText(next ? "▴" : "▾");
+                    });
+
+                    VBox rootCard = new VBox(8, rootTop, rootAmounts, childrenBox);
+                    rootCard.getStyleClass().add("account-item");
+                    list.getChildren().add(rootCard);
                 }
             } catch (Exception ex) {
                 error.setText(ex.getMessage() == null ? "No se pudo cargar el presupuesto" : ex.getMessage());
@@ -373,7 +517,7 @@ public final class DashboardBudgetDialog {
                 if (root == null) {
                     return;
                 }
-                String m = month.getValue() == null ? currentMonth : month.getValue();
+                String m = BudgetRepository.BASE_BUDGET_MONTH;
                 String cur = currency.getValue() == null ? "COP" : currency.getValue().trim().toUpperCase(Locale.ROOT);
                 BigDecimal v = parseAmount(limit.getText());
                 long cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
@@ -381,6 +525,20 @@ public final class DashboardBudgetDialog {
                     return;
                 }
                 CategoryRepository.Category sub = subCategory.getValue();
+                boolean rootHasChildren;
+                try {
+                    List<CategoryRepository.Category> children = categoryRepo.listChildren(userUid, root.id());
+                    rootHasChildren = children != null && !children.isEmpty();
+                } catch (Exception ex) {
+                    rootHasChildren = false;
+                }
+
+                if (rootHasChildren && sub == null) {
+                    error.setText("Define el límite en una subcategoría");
+                    error.setVisible(true);
+                    error.setManaged(true);
+                    return;
+                }
                 String categoryId = (sub == null) ? root.id() : sub.id();
                 BudgetRepository.Budget existing = budgetRepo.getByUniqueKeyOrNull(userUid, m, cur, categoryId);
                 if (existing == null) {

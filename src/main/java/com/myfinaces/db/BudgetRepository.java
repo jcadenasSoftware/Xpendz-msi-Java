@@ -14,6 +14,8 @@ import java.util.UUID;
 
 public final class BudgetRepository {
 
+    public static final String BASE_BUDGET_MONTH = "__BASE__";
+
     private final SqliteDatabase db;
 
     public BudgetRepository(SqliteDatabase db) {
@@ -108,6 +110,9 @@ public final class BudgetRepository {
         if (localById == null) {
             Budget localByKey = getByUniqueKeyOrNull(userUid, remote.month(), remote.currency(), remote.categoryId());
             if (localByKey != null && !localByKey.id().equals(remote.id())) {
+                if (localByKey.updatedAtEpochSec() >= remote.updatedAtEpochSec()) {
+                    return;
+                }
                 delete(userUid, localByKey.id());
             }
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
@@ -124,6 +129,10 @@ public final class BudgetRepository {
                 ps.setLong(8, remote.updatedAtEpochSec());
                 ps.executeUpdate();
             }
+            return;
+        }
+
+        if (localById.updatedAtEpochSec() >= remote.updatedAtEpochSec()) {
             return;
         }
 
@@ -320,10 +329,10 @@ public final class BudgetRepository {
     }
 
     public List<BudgetProgress> listProgressByMonthAndCurrency(String userUid, String month, String currency) throws SQLException {
-        List<Budget> budgets = listByMonthAndCurrency(userUid, month, currency);
+        List<Budget> budgets = listByMonthAndCurrency(userUid, BASE_BUDGET_MONTH, currency);
         List<BudgetProgress> out = new ArrayList<>();
         for (Budget b : budgets) {
-            long spent = computeSpentExpenseCentsForCategoryTree(userUid, b.categoryId(), b.month(), b.currency());
+            long spent = computeSpentExpenseCentsForCategoryTree(userUid, b.categoryId(), month, b.currency());
             out.add(new BudgetProgress(b, spent));
         }
         return out;

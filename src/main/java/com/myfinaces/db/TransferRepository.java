@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 public final class TransferRepository {
@@ -42,6 +43,64 @@ public final class TransferRepository {
         long createdAtEpochSec,
         long updatedAtEpochSec
     ) {
+    }
+
+    public record MonthlyInOutTotal(
+        int month,
+        long inAmountCents,
+        long outAmountCents
+    ) {
+    }
+
+    public List<MonthlyInOutTotal> listMonthlyInOutTotalsForAccounts(
+        String userUid,
+        int year,
+        Set<String> accountIds
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(accountIds, "accountIds");
+
+        int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
+        if (accountIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> ids = new ArrayList<>(accountIds);
+        String placeholders = String.join(",", java.util.Collections.nCopies(ids.size(), "?"));
+
+        String sql =
+            "SELECT CAST(strftime('%m', tr.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) AS month, " +
+                "COALESCE(SUM(CASE WHEN tr.to_account_id IN (" + placeholders + ") THEN tr.amount_cents ELSE 0 END), 0) AS in_cents, " +
+                "COALESCE(SUM(CASE WHEN tr.from_account_id IN (" + placeholders + ") THEN tr.amount_cents ELSE 0 END), 0) AS out_cents " +
+                "FROM transfers tr " +
+                "WHERE tr.user_uid = ? " +
+                "  AND CAST(strftime('%Y', tr.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) = ? " +
+                "GROUP BY month " +
+                "ORDER BY month ASC";
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            int idx = 1;
+            for (String id : ids) {
+                ps.setString(idx++, id);
+            }
+            for (String id : ids) {
+                ps.setString(idx++, id);
+            }
+            ps.setString(idx++, userUid);
+            ps.setInt(idx++, y);
+
+            List<MonthlyInOutTotal> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new MonthlyInOutTotal(
+                        rs.getInt("month"),
+                        rs.getLong("in_cents"),
+                        rs.getLong("out_cents")
+                    ));
+                }
+            }
+            return out;
+        }
     }
 
     public String create(

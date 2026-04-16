@@ -12,13 +12,16 @@ import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -32,6 +35,83 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class DashboardCategoriesDialog {
 
     private DashboardCategoriesDialog() {
+    }
+
+    private record RootCategoryDraft(String name, String kind) {
+    }
+
+    private static java.util.Optional<RootCategoryDraft> showRootCategoryDialog(
+        boolean darkTheme,
+        String title,
+        String initialName,
+        String initialKind
+    ) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(title);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        UiDialogs.applyAppTheme(dialog, darkTheme);
+        dialog.getDialogPane().setMinWidth(560);
+        dialog.getDialogPane().setPrefWidth(560);
+
+        TextField name = new TextField(initialName == null ? "" : initialName);
+        ChoiceBox<String> kind = new ChoiceBox<>();
+        kind.getItems().addAll("INCOME", "EXPENSE");
+        kind.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                if (object == null) {
+                    return "";
+                }
+                if ("INCOME".equalsIgnoreCase(object)) {
+                    return "Ingreso";
+                }
+                if ("EXPENSE".equalsIgnoreCase(object)) {
+                    return "Egreso";
+                }
+                return object;
+            }
+
+            @Override
+            public String fromString(String string) {
+                return null;
+            }
+        });
+        if (initialKind != null && !initialKind.isBlank()) {
+            kind.getSelectionModel().select(initialKind);
+        }
+
+        GridPane grid = new GridPane();
+        grid.setHgap(12);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(14));
+        grid.setPrefWidth(520);
+
+        Label lName = new Label("Nombre");
+        lName.getStyleClass().add("account-name");
+        grid.add(lName, 0, 0);
+        grid.add(name, 1, 0);
+
+        Label lKind = new Label("Tipo");
+        lKind.getStyleClass().add("account-name");
+        grid.add(lKind, 0, 1);
+        grid.add(kind, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+        dialog.setResultConverter(btn -> btn);
+        var result = dialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return java.util.Optional.empty();
+        }
+
+        String n = name.getText() == null ? "" : name.getText().trim();
+        if (n.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        if (kind.getValue() == null || kind.getValue().isBlank()) {
+            return java.util.Optional.empty();
+        }
+
+        return java.util.Optional.of(new RootCategoryDraft(n, kind.getValue()));
     }
 
     public static void showCategoriesDialog(AuthSession session, CategoryRepository categoryRepo, boolean darkTheme) {
@@ -272,34 +352,24 @@ public final class DashboardCategoriesDialog {
         newRoot.getStyleClass().add("btn-primary");
         newRoot.setOnAction(e -> {
             clearError.run();
-            TextInputDialog d = new TextInputDialog();
-            d.setTitle("Nueva categoría");
-            d.setHeaderText(null);
-            d.setGraphic(null);
-            d.setContentText("Nombre");
-            UiDialogs.applyAppTheme(d, darkTheme);
-            d.getDialogPane().setMinWidth(560);
-            d.getDialogPane().setPrefWidth(560);
-            d.showAndWait().ifPresent(name -> {
-                String n = name == null ? "" : name.trim();
-                if (n.isBlank()) {
-                    return;
-                }
+            var draft = showRootCategoryDialog(darkTheme, "Nueva categoría", null, null);
+            if (draft.isEmpty()) {
+                return;
+            }
+            try {
+                CategoryRepository.Category created = categoryRepo.create(userUid, draft.get().name(), null, draft.get().kind());
                 try {
-                    CategoryRepository.Category created = categoryRepo.create(userUid, n, null);
-                    try {
-                        AppConfig cfg = AppConfig.loadDefault();
-                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                        sync.syncCategory(session, created);
-                    } catch (Exception ignored) {
-                    }
-                    refreshRoots.run();
-                    roots.getSelectionModel().select(created);
+                    AppConfig cfg = AppConfig.loadDefault();
+                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                    sync.syncCategory(session, created);
                 } catch (Exception ignored) {
-                    error.setText(ignored.getMessage() == null ? "No se pudo crear la categoría." : ignored.getMessage());
-                    showError.run();
                 }
-            });
+                refreshRoots.run();
+                roots.getSelectionModel().select(created);
+            } catch (Exception ignored) {
+                error.setText(ignored.getMessage() == null ? "No se pudo crear la categoría." : ignored.getMessage());
+                showError.run();
+            }
         });
 
         Button editRoot = new Button("Editar");
@@ -311,42 +381,32 @@ public final class DashboardCategoriesDialog {
             if (selected == null) {
                 return;
             }
-            TextInputDialog d = new TextInputDialog(selected.name());
-            d.setTitle("Editar categoría");
-            d.setHeaderText(null);
-            d.setGraphic(null);
-            d.setContentText("Nombre");
-            UiDialogs.applyAppTheme(d, darkTheme);
-            d.getDialogPane().setMinWidth(560);
-            d.getDialogPane().setPrefWidth(560);
-            d.showAndWait().ifPresent(name -> {
-                String n = name == null ? "" : name.trim();
-                if (n.isBlank()) {
-                    return;
-                }
+            var draft = showRootCategoryDialog(darkTheme, "Editar categoría", selected.name(), selected.kind());
+            if (draft.isEmpty()) {
+                return;
+            }
+            try {
+                categoryRepo.update(userUid, selected.id(), draft.get().name(), draft.get().kind());
                 try {
-                    categoryRepo.rename(userUid, selected.id(), n);
-                    try {
-                        CategoryRepository.Category updated = categoryRepo.getById(userUid, selected.id());
-                        if (updated != null) {
-                            AppConfig cfg = AppConfig.loadDefault();
-                            FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                            sync.syncCategory(session, updated);
-                        }
-                    } catch (Exception ignored) {
-                    }
-                    refreshRoots.run();
-                    for (CategoryRepository.Category c : roots.getItems()) {
-                        if (selected.id().equals(c.id())) {
-                            roots.getSelectionModel().select(c);
-                            break;
-                        }
+                    CategoryRepository.Category updated = categoryRepo.getById(userUid, selected.id());
+                    if (updated != null) {
+                        AppConfig cfg = AppConfig.loadDefault();
+                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                        sync.syncCategory(session, updated);
                     }
                 } catch (Exception ignored) {
-                    error.setText(ignored.getMessage() == null ? "No se pudo editar la categoría." : ignored.getMessage());
-                    showError.run();
                 }
-            });
+                refreshRoots.run();
+                for (CategoryRepository.Category c : roots.getItems()) {
+                    if (selected.id().equals(c.id())) {
+                        roots.getSelectionModel().select(c);
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {
+                error.setText(ignored.getMessage() == null ? "No se pudo editar la categoría." : ignored.getMessage());
+                showError.run();
+            }
         });
 
         Button deleteRoot = new Button("Eliminar");
@@ -411,7 +471,7 @@ public final class DashboardCategoriesDialog {
                     return;
                 }
                 try {
-                    CategoryRepository.Category created = categoryRepo.create(userUid, n, parent.id());
+                    CategoryRepository.Category created = categoryRepo.create(userUid, n, parent.id(), parent.kind());
                     try {
                         AppConfig cfg = AppConfig.loadDefault();
                         FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());

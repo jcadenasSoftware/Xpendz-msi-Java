@@ -2,7 +2,9 @@ package com.myfinaces.ui;
 
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
+import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransactionRepository;
+import com.myfinaces.db.TransferRepository;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -17,9 +19,12 @@ import javafx.scene.chart.XYChart;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -37,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class DashboardChartsDialog {
 
@@ -48,6 +54,8 @@ public final class DashboardChartsDialog {
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
+        GoalRepository goalRepo,
+        TransferRepository transferRepo,
         boolean darkTheme
     ) {
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -129,7 +137,8 @@ public final class DashboardChartsDialog {
         ChoiceBox<String> view = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
         ChoiceBox<CategoryRepository.Category> rootCategory = new ChoiceBox<>();
-        ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
+        MenuButton subCategory = new MenuButton("(Todas las subcategorías)");
+        Set<String> selectedSubIds = new HashSet<>();
         ChoiceBox<String> month = new ChoiceBox<>();
         ChoiceBox<String> chartType = new ChoiceBox<>();
 
@@ -142,7 +151,7 @@ public final class DashboardChartsDialog {
         kind.getItems().addAll("Gastos", "Ingresos");
         kind.getSelectionModel().select("Gastos");
 
-        view.getItems().addAll("Categorías", "Subcategorías");
+        view.getItems().addAll("Categorías", "Subcategorías", "Metas");
         view.getSelectionModel().select("Categorías");
 
         month.getItems().addAll(
@@ -185,7 +194,13 @@ public final class DashboardChartsDialog {
 
         try {
             rootCategory.getItems().add(null);
-            rootCategory.getItems().addAll(categoryRepo.listRoots(userUid));
+            String kindLabel = kind.getValue();
+            String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+            for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
+                if (r != null && r.kind() != null && r.kind().equalsIgnoreCase(k)) {
+                    rootCategory.getItems().add(r);
+                }
+            }
             rootCategory.getSelectionModel().selectFirst();
         } catch (Exception ignored) {
         }
@@ -201,35 +216,143 @@ public final class DashboardChartsDialog {
             }
         });
 
-        subCategory.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(CategoryRepository.Category object) {
-                return object == null ? "(Todas las subcategorías)" : object.name();
-            }
-
-            @Override
-            public CategoryRepository.Category fromString(String string) {
-                return null;
-            }
-        });
-
-        Runnable refreshSubcatsCharts = () -> {
-            subCategory.getItems().clear();
-            subCategory.getItems().add(null);
-
-            boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
-            CategoryRepository.Category root = rootCategory.getValue();
-            if (!bySub || root == null) {
-                subCategory.setDisable(true);
-                subCategory.getSelectionModel().selectFirst();
-                return;
-            }
-            subCategory.setDisable(false);
+        Runnable refreshRootCategories = () -> {
             try {
-                subCategory.getItems().addAll(categoryRepo.listChildren(userUid, root.id()));
+                CategoryRepository.Category selected = rootCategory.getValue();
+                rootCategory.getItems().clear();
+                rootCategory.getItems().add(null);
+
+                String kindLabel = kind.getValue();
+                String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+                for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
+                    if (r != null && r.kind() != null && r.kind().equalsIgnoreCase(k)) {
+                        rootCategory.getItems().add(r);
+                    }
+                }
+
+                if (selected == null) {
+                    rootCategory.getSelectionModel().selectFirst();
+                    return;
+                }
+                for (CategoryRepository.Category r : rootCategory.getItems()) {
+                    if (r != null && selected.id().equals(r.id())) {
+                        rootCategory.getSelectionModel().select(r);
+                        return;
+                    }
+                }
+                rootCategory.getSelectionModel().selectFirst();
             } catch (Exception ignored) {
             }
-            subCategory.getSelectionModel().selectFirst();
+        };
+
+        AtomicReference<Runnable> refreshAccountsForChartsRef = new AtomicReference<>(null);
+        AtomicReference<Runnable> refreshChartRef = new AtomicReference<>(null);
+
+        Runnable refreshSubcatsCharts = () -> {
+            boolean goalsView = "Metas".equalsIgnoreCase(view.getValue());
+            boolean bySub = !goalsView && "Subcategorías".equalsIgnoreCase(view.getValue());
+            CategoryRepository.Category root = rootCategory.getValue();
+
+            subCategory.getItems().clear();
+            selectedSubIds.clear();
+            subCategory.setText("(Todas las subcategorías)");
+
+            if (goalsView) {
+                rootCategory.setDisable(true);
+                subCategory.setDisable(true);
+                account.setDisable(true);
+                kind.setDisable(true);
+                return;
+            }
+
+            rootCategory.setDisable(false);
+            account.setDisable(false);
+            kind.setDisable(false);
+
+            if (!bySub || root == null) {
+                subCategory.setDisable(true);
+                return;
+            }
+
+            subCategory.setDisable(false);
+
+            MenuItem all = new MenuItem("(Todas las subcategorías)");
+            all.setOnAction(ev -> {
+                selectedSubIds.clear();
+                subCategory.setText("(Todas las subcategorías)");
+                for (MenuItem mi : subCategory.getItems()) {
+                    if (mi instanceof CheckMenuItem cmi) {
+                        cmi.setSelected(false);
+                    }
+                }
+                Runnable ra = refreshAccountsForChartsRef.get();
+                if (ra != null) {
+                    ra.run();
+                }
+                Runnable rc = refreshChartRef.get();
+                if (rc != null) {
+                    rc.run();
+                }
+            });
+            subCategory.getItems().add(all);
+
+            try {
+                List<CategoryRepository.Category> children = categoryRepo.listChildren(userUid, root.id());
+                children.sort((c1, c2) -> c1.name().compareToIgnoreCase(c2.name()));
+                for (CategoryRepository.Category c : children) {
+                    CheckMenuItem item = new CheckMenuItem(c.name());
+                    item.setStyle("-fx-font-weight: bold;");
+                    item.setOnAction(ev -> {
+                        if (item.isSelected()) {
+                            selectedSubIds.add(c.id());
+                        } else {
+                            selectedSubIds.remove(c.id());
+                        }
+                        if (selectedSubIds.isEmpty()) {
+                            subCategory.setText("(Todas las subcategorías)");
+                        } else {
+                            subCategory.setText(selectedSubIds.size() + " seleccionadas");
+                        }
+
+                        Runnable ra = refreshAccountsForChartsRef.get();
+                        if (ra != null) {
+                            ra.run();
+                        }
+                        Runnable rc = refreshChartRef.get();
+                        if (rc != null) {
+                            rc.run();
+                        }
+                    });
+                    subCategory.getItems().add(item);
+                }
+
+                CheckMenuItem noneItem = new CheckMenuItem("(Sin subcategoría)");
+                noneItem.setStyle("-fx-font-weight: bold;");
+                String noneId = root.id() + ":NONE";
+                noneItem.setOnAction(ev -> {
+                    if (noneItem.isSelected()) {
+                        selectedSubIds.add(noneId);
+                    } else {
+                        selectedSubIds.remove(noneId);
+                    }
+                    if (selectedSubIds.isEmpty()) {
+                        subCategory.setText("(Todas las subcategorías)");
+                    } else {
+                        subCategory.setText(selectedSubIds.size() + " seleccionadas");
+                    }
+
+                    Runnable ra = refreshAccountsForChartsRef.get();
+                    if (ra != null) {
+                        ra.run();
+                    }
+                    Runnable rc = refreshChartRef.get();
+                    if (rc != null) {
+                        rc.run();
+                    }
+                });
+                subCategory.getItems().add(noneItem);
+            } catch (Exception ignored) {
+            }
         };
         refreshSubcatsCharts.run();
 
@@ -237,11 +360,18 @@ public final class DashboardChartsDialog {
             try {
                 AccountRepository.Account selected = account.getValue();
 
+                boolean goalsView = "Metas".equalsIgnoreCase(view.getValue());
+                if (goalsView) {
+                    account.getItems().clear();
+                    account.getItems().add(null);
+                    account.getSelectionModel().selectFirst();
+                    return;
+                }
+
                 account.getItems().clear();
                 account.getItems().add(null);
 
                 boolean bySub = "Subcategorías".equalsIgnoreCase(view.getValue());
-                CategoryRepository.Category sub = subCategory.getValue();
                 Integer y = year.getValue();
                 String kindLabel = kind.getValue();
                 String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
@@ -253,15 +383,21 @@ public final class DashboardChartsDialog {
                     allAccounts = List.of();
                 }
 
-                if (bySub && sub != null) {
-                    List<String> ids;
-                    try {
-                        ids = txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, sub.id());
-                    } catch (Exception ignored) {
-                        ids = List.of();
+                if (bySub && !selectedSubIds.isEmpty()) {
+                    Set<String> idSet = new HashSet<>();
+                    for (String subId : selectedSubIds) {
+                        try {
+                            String actualCategoryId = subId;
+                            if (subId != null && subId.endsWith(":NONE")) {
+                                int idx = subId.indexOf(':');
+                                if (idx > 0) {
+                                    actualCategoryId = subId.substring(0, idx);
+                                }
+                            }
+                            idSet.addAll(txRepo.listAccountIdsUsedInCategory(userUid, y == null ? currentYear : y, k, actualCategoryId));
+                        } catch (Exception ignored) {
+                        }
                     }
-
-                    Set<String> idSet = new HashSet<>(ids);
                     for (AccountRepository.Account a : allAccounts) {
                         if (a != null && idSet.contains(a.id())) {
                             account.getItems().add(a);
@@ -285,6 +421,7 @@ public final class DashboardChartsDialog {
             } catch (Exception ignored) {
             }
         };
+        refreshAccountsForChartsRef.set(refreshAccountsForCharts);
 
         Label fYear = new Label("Año");
         fYear.getStyleClass().add("text-secondary");
@@ -336,35 +473,129 @@ public final class DashboardChartsDialog {
         });
 
         BorderPane chartPane = new BorderPane();
-        chartPane.getStyleClass().addAll("card", "content-card");
-        chartPane.setPadding(new Insets(10));
-        VBox.setVgrow(chartPane, Priority.ALWAYS);
 
         Runnable refreshChart = () -> {
-            String currencyCode = "COP";
+            chartPane.setCenter(null);
+            Integer y = year.getValue();
+            int selectedYear = y == null ? currentYear : y;
             String kindLabel = kind.getValue();
             String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
             boolean bySubcategory = "Subcategorías".equalsIgnoreCase(view.getValue());
             AccountRepository.Account a = account.getValue();
             String accountId = a == null ? null : a.id();
-            int y = year.getValue() == null ? currentYear : year.getValue();
+            String currencyCode = "COP";
 
-            int monthIdx;
-            String mLabel = month.getValue();
-            if (mLabel == null || "TOTAL".equalsIgnoreCase(mLabel)) {
-                monthIdx = 0;
-            } else {
-                monthIdx = Math.max(1, month.getSelectionModel().getSelectedIndex());
+            if ("Metas".equalsIgnoreCase(view.getValue())) {
+                try {
+                    if (goalRepo == null || transferRepo == null) {
+                        chartPane.setCenter(new Label("Sin datos"));
+                        return;
+                    }
+                    List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid);
+                    if (goals.isEmpty()) {
+                        chartPane.setCenter(new Label("Sin metas"));
+                        return;
+                    }
+
+                    Set<String> goalAccountIds = new HashSet<>();
+                    for (GoalRepository.Goal g : goals) {
+                        if (g != null && g.accountId() != null && !g.accountId().isBlank()) {
+                            goalAccountIds.add(g.accountId());
+                        }
+                    }
+
+                    long[] inMonths = new long[13];
+                    long[] outMonths = new long[13];
+                    for (TransferRepository.MonthlyInOutTotal row : transferRepo.listMonthlyInOutTotalsForAccounts(userUid, selectedYear, goalAccountIds)) {
+                        int m = row.month();
+                        if (m >= 1 && m <= 12) {
+                            inMonths[m] = row.inAmountCents();
+                            outMonths[m] = row.outAmountCents();
+                        }
+                    }
+
+                    int mi = month.getSelectionModel().getSelectedIndex();
+                    long inValue;
+                    long outValue;
+                    if (mi == 0) {
+                        long inT = 0;
+                        long outT = 0;
+                        for (int m = 1; m <= 12; m++) {
+                            inT += inMonths[m];
+                            outT += outMonths[m];
+                        }
+                        inValue = inT;
+                        outValue = outT;
+                    } else {
+                        int m = (mi >= 1 && mi <= 12) ? mi : 0;
+                        inValue = m == 0 ? 0 : inMonths[m];
+                        outValue = m == 0 ? 0 : outMonths[m];
+                    }
+
+                    String ct = chartType.getValue();
+                    boolean pie = "Torta".equalsIgnoreCase(ct);
+                    if (pie) {
+                        ObservableList<PieChart.Data> data = FXCollections.observableArrayList();
+                        data.add(new PieChart.Data("Aportes", Math.abs(inValue) / 100.0));
+                        data.add(new PieChart.Data("Retiros", Math.abs(outValue) / 100.0));
+                        PieChart chart = new PieChart(data);
+                        chart.setLegendVisible(true);
+                        chart.setLabelsVisible(true);
+                        chartPane.setCenter(chart);
+                        Platform.runLater(() -> {
+                            for (PieChart.Data d : data) {
+                                try {
+                                    String label = d.getName();
+                                    long cents = "Aportes".equalsIgnoreCase(label) ? inValue : outValue;
+                                    Tooltip.install(d.getNode(), new Tooltip(label + ": " + DashboardFormatters.formatMoney(cents, currencyCode)));
+                                } catch (Exception ignored) {
+                                }
+                            }
+                        });
+                        return;
+                    }
+
+                    CategoryAxis xAxis = new CategoryAxis();
+                    NumberAxis yAxis = new NumberAxis();
+                    yAxis.setForceZeroInRange(true);
+                    BarChart<String, Number> chart = new BarChart<>(xAxis, yAxis);
+                    chart.setLegendVisible(false);
+                    chart.setAnimated(false);
+                    XYChart.Series<String, Number> series = new XYChart.Series<>();
+                    series.getData().add(new XYChart.Data<>("Aportes", Math.abs(inValue) / 100.0));
+                    series.getData().add(new XYChart.Data<>("Retiros", Math.abs(outValue) / 100.0));
+                    chart.getData().setAll(List.of(series));
+                    chartPane.setCenter(chart);
+
+                    Platform.runLater(() -> {
+                        for (XYChart.Data<String, Number> d : series.getData()) {
+                            try {
+                                String label = String.valueOf(d.getXValue());
+                                long cents = "Aportes".equalsIgnoreCase(label) ? inValue : outValue;
+                                Tooltip.install(d.getNode(), new Tooltip(label + ": " + DashboardFormatters.formatMoney(cents, currencyCode)));
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    });
+                    return;
+                } catch (Exception ignored) {
+                    chartPane.setCenter(new Label("Sin datos"));
+                    return;
+                }
             }
 
+            // Existing logic for Categorías/Subcategorías continues below
             CategoryRepository.Category rootFilter = rootCategory.getValue();
-            CategoryRepository.Category subFilter = subCategory.getValue();
+            Set<String> subFilterIds = bySubcategory ? new HashSet<>(selectedSubIds) : Set.of();
 
             Map<String, String> nameById = new HashMap<>();
             Map<String, long[]> centsById = new HashMap<>();
 
             if (bySubcategory) {
-                if (accountId == null && subFilter != null) {
+                boolean singleSubSelected = subFilterIds.size() == 1;
+                String singleSubId = singleSubSelected ? subFilterIds.iterator().next() : null;
+
+                if (accountId == null && singleSubSelected) {
                     try {
                         List<TransactionRepository.MonthlyCategoryDetailAccountTotal> rows =
                             txRepo.listMonthlyTotalsBySubcategoryAndAccount(userUid, y, k);
@@ -372,7 +603,7 @@ public final class DashboardChartsDialog {
                             if (rootFilter != null && !rootFilter.id().equals(row.rootCategoryId())) {
                                 continue;
                             }
-                            if (!subFilter.id().equals(row.categoryId())) {
+                            if (!singleSubId.equals(row.categoryId())) {
                                 continue;
                             }
 
@@ -389,40 +620,41 @@ public final class DashboardChartsDialog {
                     } catch (Exception ignored) {
                     }
                 } else {
-                try {
-                    List<CategoryRepository.Category> roots = categoryRepo.listRoots(userUid);
-                    for (CategoryRepository.Category r : roots) {
-                        if (rootFilter != null && !rootFilter.id().equals(r.id())) {
-                            continue;
-                        }
-                        try {
-                            for (CategoryRepository.Category c : categoryRepo.listChildren(userUid, r.id())) {
-                                nameById.put(c.id(), c.name());
+                    try {
+                        List<CategoryRepository.Category> roots = categoryRepo.listRoots(userUid);
+                        for (CategoryRepository.Category r : roots) {
+                            if (rootFilter != null && !rootFilter.id().equals(r.id())) {
+                                continue;
                             }
-                        } catch (Exception ignored) {
+                            try {
+                                for (CategoryRepository.Category c : categoryRepo.listChildren(userUid, r.id())) {
+                                    nameById.put(c.id(), c.name());
+                                }
+                            } catch (Exception ignored) {
+                            }
+                            nameById.putIfAbsent(r.id() + ":NONE", "(Sin subcategoría)");
                         }
+                    } catch (Exception ignored) {
                     }
-                } catch (Exception ignored) {
-                }
 
-                try {
-                    List<TransactionRepository.MonthlyCategoryDetailTotal> rows = txRepo.listMonthlyTotalsBySubcategory(userUid, accountId, y, k);
-                    for (TransactionRepository.MonthlyCategoryDetailTotal row : rows) {
-                        if (rootFilter != null && !rootFilter.id().equals(row.rootCategoryId())) {
-                            continue;
+                    try {
+                        List<TransactionRepository.MonthlyCategoryDetailTotal> rows = txRepo.listMonthlyTotalsBySubcategory(userUid, accountId, y, k);
+                        for (TransactionRepository.MonthlyCategoryDetailTotal row : rows) {
+                            if (rootFilter != null && !rootFilter.id().equals(row.rootCategoryId())) {
+                                continue;
+                            }
+                            if (!subFilterIds.isEmpty() && !subFilterIds.contains(row.categoryId())) {
+                                continue;
+                            }
+                            long[] monthsArr = centsById.computeIfAbsent(row.categoryId(), __ -> new long[13]);
+                            int m = row.month();
+                            if (m >= 1 && m <= 12) {
+                                monthsArr[m] = row.totalAmountCents();
+                            }
+                            nameById.putIfAbsent(row.categoryId(), row.categoryName());
                         }
-                        if (subFilter != null && !subFilter.id().equals(row.categoryId())) {
-                            continue;
-                        }
-                        long[] monthsArr = centsById.computeIfAbsent(row.categoryId(), __ -> new long[13]);
-                        int m = row.month();
-                        if (m >= 1 && m <= 12) {
-                            monthsArr[m] = row.totalAmountCents();
-                        }
-                        nameById.putIfAbsent(row.categoryId(), row.categoryName());
+                    } catch (Exception ignored) {
                     }
-                } catch (Exception ignored) {
-                }
                 }
             } else {
                 try {
@@ -456,6 +688,7 @@ public final class DashboardChartsDialog {
             for (Map.Entry<String, long[]> e : centsById.entrySet()) {
                 long[] monthsArr = e.getValue();
                 long value;
+                int monthIdx = month.getSelectionModel().getSelectedIndex();
                 if (monthIdx == 0) {
                     long t = 0;
                     for (int m = 1; m <= 12; m++) {
@@ -551,9 +784,15 @@ public final class DashboardChartsDialog {
                 }
             });
         };
+        refreshChartRef.set(refreshChart);
 
         year.valueProperty().addListener((obs, o, n) -> refreshChart.run());
-        kind.valueProperty().addListener((obs, o, n) -> refreshChart.run());
+        kind.valueProperty().addListener((obs, o, n) -> {
+            refreshRootCategories.run();
+            refreshSubcatsCharts.run();
+            refreshAccountsForCharts.run();
+            refreshChart.run();
+        });
         view.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsCharts.run();
             refreshAccountsForCharts.run();
@@ -562,10 +801,6 @@ public final class DashboardChartsDialog {
         account.valueProperty().addListener((obs, o, n) -> refreshChart.run());
         rootCategory.valueProperty().addListener((obs, o, n) -> {
             refreshSubcatsCharts.run();
-            refreshAccountsForCharts.run();
-            refreshChart.run();
-        });
-        subCategory.valueProperty().addListener((obs, o, n) -> {
             refreshAccountsForCharts.run();
             refreshChart.run();
         });

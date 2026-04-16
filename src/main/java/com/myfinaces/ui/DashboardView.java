@@ -194,7 +194,7 @@ public final class DashboardView {
         summary.getStyleClass().add("nav-button");
         summary.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(summary, new FontIcon("fas-clipboard-list"));
-        summary.setOnAction(e -> showSummaryDialog(session.uid(), txRepo, accountRepo, categoryRepo, darkTheme.get()));
+        summary.setOnAction(e -> showSummaryDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, darkTheme.get()));
 
         Button goals = new Button("Metas");
         goals.getStyleClass().add("btn-primary");
@@ -223,7 +223,7 @@ public final class DashboardView {
         charts.getStyleClass().add("nav-button");
         charts.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(charts, new FontIcon("fas-chart-pie"));
-        charts.setOnAction(e -> showChartsDialog(session.uid(), txRepo, accountRepo, categoryRepo, darkTheme.get()));
+        charts.setOnAction(e -> showChartsDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, transferRepo, darkTheme.get()));
 
         Button transfers = new Button("Transferencias");
         transfers.getStyleClass().add("btn-primary");
@@ -350,16 +350,46 @@ public final class DashboardView {
             }, "final-sync-before-close").start();
         };
 
-        logout.setOnAction(e -> flushAndThen.accept(() -> {
-            shutdownSyncScheduler.run();
-            listener.onLogout();
-        }));
+        logout.setOnAction(e -> {
+            Alert confirm = buildAlert(
+                AlertType.CONFIRMATION,
+                "Cerrar sesión",
+                "¿Cerrar sesión?",
+                "Se guardarán tus cambios antes de cerrar sesión.",
+                darkTheme.get(),
+                "fas-sign-out-alt"
+            );
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                flushAndThen.accept(() -> {
+                    shutdownSyncScheduler.run();
+                    listener.onLogout();
+                });
+            });
+        });
 
-        exit.setOnAction(e -> flushAndThen.accept(() -> {
-            shutdownSyncScheduler.run();
-            Platform.exit();
-            System.exit(0);
-        }));
+        exit.setOnAction(e -> {
+            Alert confirm = buildAlert(
+                AlertType.CONFIRMATION,
+                "Salir",
+                "¿Salir de la aplicación?",
+                "Se guardarán tus cambios antes de salir.",
+                darkTheme.get(),
+                "fas-power-off"
+            );
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                flushAndThen.accept(() -> {
+                    shutdownSyncScheduler.run();
+                    Platform.exit();
+                    System.exit(0);
+                });
+            });
+        });
 
         Button toggleTheme = new Button();
         toggleTheme.getStyleClass().add("btn-secondary");
@@ -430,9 +460,11 @@ public final class DashboardView {
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
+        GoalRepository goalRepo,
+        TransferRepository transferRepo,
         boolean darkTheme
     ) {
-        DashboardChartsDialog.showChartsDialog(userUid, txRepo, accountRepo, categoryRepo, darkTheme);
+        DashboardChartsDialog.showChartsDialog(userUid, txRepo, accountRepo, categoryRepo, goalRepo, transferRepo, darkTheme);
     }
 
     private static void showSummaryDialog(
@@ -440,12 +472,17 @@ public final class DashboardView {
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
+        GoalRepository goalRepo,
         boolean darkTheme
     ) {
-        DashboardSummaryDialog.showSummaryDialog(userUid, txRepo, accountRepo, categoryRepo, darkTheme);
+        DashboardSummaryDialog.showSummaryDialog(userUid, txRepo, accountRepo, categoryRepo, goalRepo, darkTheme);
     }
 
     private static Alert buildAlert(AlertType type, String title, String header, String content, boolean darkTheme) {
+        return buildAlert(type, title, header, content, darkTheme, null);
+    }
+
+    private static Alert buildAlert(AlertType type, String title, String header, String content, boolean darkTheme, String iconLiteral) {
         Alert a = new Alert(type);
         a.setTitle(title);
 
@@ -464,21 +501,26 @@ public final class DashboardView {
             icon = new FontIcon("fas-info-circle");
             iconClass = "text-secondary";
         }
-        icon.setIconSize(22);
+        if (iconLiteral != null && !iconLiteral.isBlank()) {
+            icon.setIconLiteral(iconLiteral);
+        }
+        icon.setIconSize(26);
         icon.getStyleClass().add(iconClass);
 
         Label headerLabel = new Label(header == null ? "" : header);
         headerLabel.getStyleClass().add("account-name");
+        headerLabel.setWrapText(true);
 
-        HBox headerBox = new HBox(10, icon, headerLabel);
+        HBox headerBox = new HBox(12, icon, headerLabel);
         headerBox.setAlignment(Pos.CENTER_LEFT);
 
         Label contentLabel = new Label(content == null ? "" : content);
+        contentLabel.getStyleClass().add("text-secondary");
         contentLabel.setWrapText(true);
         contentLabel.setMaxWidth(520);
 
-        VBox body = new VBox(10, headerBox, contentLabel);
-        body.setPadding(new Insets(4, 0, 0, 0));
+        VBox body = new VBox(12, headerBox, contentLabel);
+        body.setPadding(new Insets(14));
 
         a.setHeaderText(null);
         a.setContentText(null);

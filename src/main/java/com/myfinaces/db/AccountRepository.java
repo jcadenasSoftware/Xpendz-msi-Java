@@ -29,13 +29,40 @@ public final class AccountRepository {
     ) {
     }
 
+    public static String normalizeType(String type) {
+        String t = type == null ? "" : type.trim().toUpperCase(java.util.Locale.ROOT);
+        if (t.isBlank()) {
+            return "BANK";
+        }
+        if (
+            "BANK".equals(t)
+                || "CASH".equals(t)
+                || "SAVINGS".equals(t)
+                || "VIRTUAL_WALLET".equals(t)
+                || "DIGITAL_ACCOUNT".equals(t)
+                || "CREDIT".equals(t)
+        ) {
+            return t;
+        }
+        if ("CREDIT_CARD".equals(t)) {
+            return "CREDIT";
+        }
+        if ("INVESTMENT".equals(t)) {
+            return "SAVINGS";
+        }
+        if ("OTHER".equals(t)) {
+            return "BANK";
+        }
+        return "BANK";
+    }
+
     public Account create(String userUid, String name, String type, String currency) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(name, "name");
 
         String id = UUID.randomUUID().toString();
         long now = Instant.now().getEpochSecond();
-        String t = (type == null || type.isBlank()) ? "BANK" : type;
+        String t = normalizeType(type);
         String cur = (currency == null || currency.isBlank()) ? "COP" : currency;
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
@@ -108,29 +135,89 @@ public final class AccountRepository {
         }
     }
 
+    public Account updateNameAndType(String userUid, String accountId, String newName, String newType) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(accountId, "accountId");
+        Objects.requireNonNull(newName, "newName");
+
+        String n = newName.trim();
+        if (n.isBlank()) {
+            throw new IllegalArgumentException("name");
+        }
+
+        String t = normalizeType(newType);
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE accounts SET name = ?, type = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, n);
+            ps.setString(2, t);
+            ps.setLong(3, now);
+            ps.setString(4, userUid);
+            ps.setString(5, accountId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                throw new IllegalArgumentException("account");
+            }
+        }
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM accounts WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, accountId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new IllegalArgumentException("account");
+                }
+                return new Account(
+                    rs.getString("id"),
+                    rs.getString("user_uid"),
+                    rs.getString("name"),
+                    rs.getString("type"),
+                    rs.getString("currency"),
+                    rs.getLong("created_at_epoch_sec"),
+                    rs.getLong("updated_at_epoch_sec")
+                );
+            }
+        }
+    }
+
     public void upsertFromRemote(String userUid, Account remote) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(remote, "remote");
 
-        Account local = getById(userUid, remote.id());
+        Account normalized = new Account(
+            remote.id(),
+            remote.userUid(),
+            remote.name(),
+            normalizeType(remote.type()),
+            remote.currency(),
+            remote.createdAtEpochSec(),
+            remote.updatedAtEpochSec()
+        );
+
+        Account local = getById(userUid, normalized.id());
         if (local == null) {
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
                 "INSERT INTO accounts (id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)"
             )) {
-                ps.setString(1, remote.id());
+                ps.setString(1, normalized.id());
                 ps.setString(2, userUid);
-                ps.setString(3, remote.name());
-                ps.setString(4, remote.type());
-                ps.setString(5, remote.currency());
-                ps.setLong(6, remote.createdAtEpochSec());
-                ps.setLong(7, remote.updatedAtEpochSec());
+                ps.setString(3, normalized.name());
+                ps.setString(4, normalized.type());
+                ps.setString(5, normalized.currency());
+                ps.setLong(6, normalized.createdAtEpochSec());
+                ps.setLong(7, normalized.updatedAtEpochSec());
                 ps.executeUpdate();
             }
             return;
         }
 
-        if (remote.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
+        if (normalized.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
             return;
         }
 
@@ -138,13 +225,13 @@ public final class AccountRepository {
             "UPDATE accounts SET name = ?, type = ?, currency = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
             "WHERE user_uid = ? AND id = ?"
         )) {
-            ps.setString(1, remote.name());
-            ps.setString(2, remote.type());
-            ps.setString(3, remote.currency());
-            ps.setLong(4, remote.createdAtEpochSec());
-            ps.setLong(5, remote.updatedAtEpochSec());
+            ps.setString(1, normalized.name());
+            ps.setString(2, normalized.type());
+            ps.setString(3, normalized.currency());
+            ps.setLong(4, normalized.createdAtEpochSec());
+            ps.setLong(5, normalized.updatedAtEpochSec());
             ps.setString(6, userUid);
-            ps.setString(7, remote.id());
+            ps.setString(7, normalized.id());
             ps.executeUpdate();
         }
     }

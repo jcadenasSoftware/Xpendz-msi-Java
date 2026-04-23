@@ -1,0 +1,420 @@
+@startuml Xpendz - Diagrama de Clases
+
+skinparam classAttributeIconSize 0
+skinparam classFontSize 12
+skinparam packageFontSize 14
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam classBackgroundColor #FFFFFF
+skinparam classBorderColor #333333
+skinparam classArrowColor #555555
+skinparam classArrowFontSize 10
+skinparam packageBackgroundColor #E8E8E8
+skinparam packageBorderColor #666666
+skinparam packageStyle rectangle
+
+' Colores por paquete
+skinparam package<<com.myfinaces>> {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+}
+skinparam package<<com.myfinaces.auth>> {
+    BackgroundColor #FFF3E0
+    BorderColor #EF6C00
+}
+skinparam package<<com.myfinaces.config>> {
+    BackgroundColor #F5F5F5
+    BorderColor #616161
+}
+skinparam package<<com.myfinaces.db>> {
+    BackgroundColor #E8F5E9
+    BorderColor #2E7D32
+}
+skinparam package<<com.myfinaces.sync>> {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+}
+skinparam package<<com.myfinaces.ui>> {
+    BackgroundColor #F3E5F5
+    BorderColor #6A1B9A
+}
+
+' ==================== PAQUETE PRINCIPAL ====================
+package "com.myfinaces" <<com.myfinaces>> {
+    class MyFinances {
+        + start(Stage)
+        + main(String[])
+    }
+    MyFinances --|> javafx.application.Application
+
+    class AppVersion {
+        + {static} getVersion(): String
+        + {static} withVersion(String): String
+    }
+}
+
+' ==================== AUTH ====================
+package "com.myfinaces.auth" <<com.myfinaces.auth>> {
+    class AuthSession <<record>> {
+        + uid: String
+        + email: String
+        + displayName: String
+        + idToken: String
+        + refreshToken: String
+        + expiresAtEpochSec: long
+    }
+
+    class FirebaseAuthService {
+        - http: HttpClient
+        - apiKey: String
+        + signUpWithEmailPassword(String, String): AuthSession
+        + signInWithEmailPassword(String, String): AuthSession
+        + signInWithGoogleIdToken(String): AuthSession
+        + signInWithGoogleAccessToken(String): AuthSession
+        + refresh(AuthSession): AuthSession
+    }
+
+    class GooglePkceAuthService {
+        - http: HttpClient
+        - oauthClientId: String
+        - oauthClientSecret: String
+        - port: int
+        + authenticate(): GoogleTokens
+    }
+
+    class GoogleDeviceAuthService {
+        - http: HttpClient
+        - oauthClientId: String
+        - oauthClientSecret: String
+        + authenticate(): GoogleTokens
+    }
+
+    class GoogleTokens <<record>> {
+        + idToken: String
+        + accessToken: String
+        + expiresAtEpochSec: long
+    }
+
+    GooglePkceAuthService ..> AuthSession
+    GoogleDeviceAuthService ..> AuthSession
+    FirebaseAuthService ..> AuthSession
+}
+
+' ==================== CONFIG ====================
+package "com.myfinaces.config" <<com.myfinaces.config>> {
+    class AppConfig {
+        - firebaseApiKey: String
+        - firebaseProjectId: String
+        - googleOAuthClientId: String
+        - googleOAuthClientSecret: String
+        + {static} loadDefault(): AppConfig
+    }
+}
+
+' ==================== DB / DATA ACCESS ====================
+package "com.myfinaces.db" <<com.myfinaces.db>> {
+    class SqliteDatabase {
+        - jdbcUrl: String
+        + openConnection(): Connection
+        + {static} defaultDatabase(): SqliteDatabase
+    }
+
+    class AppSchema {
+        + {static} init(SqliteDatabase)
+        - {static} columnExists(Connection, String, String): boolean
+    }
+
+    class TransactionKind <<enum>> {
+        INCOME
+        EXPENSE
+        LOAN_LENT_OUT
+        LOAN_BORROWED_IN
+        LOAN_REPAYMENT_PRINCIPAL_IN
+        LOAN_REPAYMENT_PRINCIPAL_OUT
+        + {static} affectsCashIn(TransactionKind): boolean
+        + {static} affectsCashOut(TransactionKind): boolean
+    }
+
+    class AccountRepository {
+        - db: SqliteDatabase
+        + Account <<record>>
+        + create(...): Account
+        + list(...): List<Account>
+        + getById(...): Account
+        + updateNameAndType(...)
+        + upsertFromRemote(...)
+        + delete(...)
+        + computeBalanceCents(...): long
+        + {static} normalizeType(String): String
+    }
+
+    class CategoryRepository {
+        - db: SqliteDatabase
+        + Category <<record>>
+        + create(...): Category
+        + listRoots(...): List<Category>
+        + listChildren(...): List<Category>
+        + getById(...): Category
+        + upsertFromRemote(...)
+        + delete(...)
+    }
+
+    class TransactionRepository {
+        - db: SqliteDatabase
+        + TransactionRow <<record>>
+        + TransactionSyncRow <<record>>
+        + MonthlyCategoryTotal <<record>>
+        + MonthlyCategoryDetailTotal <<record>>
+        + MonthlyCategoryDetailAccountTotal <<record>>
+        + create(...): String
+        + listRecent(...): List<TransactionRow>
+        + listFiltered(...): List<TransactionRow>
+        + update(...)
+        + delete(...)
+        + upsertFromRemote(...)
+        + listPendingForSync(...)
+    }
+
+    class TransferRepository {
+        - db: SqliteDatabase
+        + TransferRow <<record>>
+        + TransferSyncRow <<record>>
+        + MonthlyInOutTotal <<record>>
+        + create(...): String
+        + listFiltered(...): List<TransferRow>
+        + update(...)
+        + delete(...)
+        + upsertFromRemote(...)
+    }
+
+    class GoalRepository {
+        - db: SqliteDatabase
+        + Goal <<record>>
+        + getByIdOrNull(...)
+        + list(...)
+        + create(...)
+        + update(...)
+        + delete(...)
+    }
+
+    class LoanRepository {
+        - db: SqliteDatabase
+        + Loan <<record>>
+        + create(...)
+        + list(...)
+        + update(...)
+        + delete(...)
+    }
+
+    class LoanPaymentRepository {
+        - db: SqliteDatabase
+        + LoanPayment <<record>>
+        + create(...)
+        + list(...)
+        + getByIdOrNull(...)
+    }
+
+    class BudgetRepository {
+        - db: SqliteDatabase
+        + Budget <<record>>
+        + BudgetProgress <<record>>
+        + getByUniqueKeyOrNull(...)
+        + list(...)
+        + upsert(...)
+        + delete(...)
+    }
+
+    class SessionRepository {
+        - db: SqliteDatabase
+        + init()
+        + save(AuthSession)
+        + load(): Optional<AuthSession>
+        + clear()
+    }
+
+    class UserRepository {
+        - db: SqliteDatabase
+        + upsert(String uid, String email)
+    }
+
+    AccountRepository --> SqliteDatabase
+    CategoryRepository --> SqliteDatabase
+    TransactionRepository --> SqliteDatabase
+    TransferRepository --> SqliteDatabase
+    GoalRepository --> SqliteDatabase
+    LoanRepository --> SqliteDatabase
+    LoanPaymentRepository --> SqliteDatabase
+    BudgetRepository --> SqliteDatabase
+    SessionRepository --> SqliteDatabase
+    UserRepository --> SqliteDatabase
+    SessionRepository ..> AuthSession
+    AppSchema ..> SqliteDatabase
+}
+
+' ==================== SYNC ====================
+package "com.myfinaces.sync" <<com.myfinaces.sync>> {
+    class FirestoreSyncService {
+        - http: HttpClient
+        - projectId: String
+        + syncAccounts(...)
+        + syncCategories(...)
+        + syncTransactions(...)
+        + syncTransfers(...)
+        + syncGoals(...)
+        + syncBudgets(...)
+        + syncLoans(...)
+        + pullCategories(...)
+        + deleteGoal(...)
+    }
+
+    class DeviceId {
+        - cached: String
+        + {static} get(): String
+    }
+
+    FirestoreSyncService ..> AuthSession
+}
+
+' ==================== UI / PRESENTATION ====================
+package "com.myfinaces.ui" <<com.myfinaces.ui>> {
+    class LoginView {
+        + {static} create(...): Parent
+        + Listener <<interface>>
+    }
+
+    class DashboardView {
+        + {static} create(...): Parent
+        + Listener <<interface>>
+    }
+
+    class DashboardSidebarPane {
+        + {static} build(...): ScrollPane
+    }
+
+    class DashboardHeaderPane {
+        + {static} build(...): HBox
+    }
+
+    class DashboardBalancesPane {
+        + {static} build(...): Parts
+        + Parts <<record>>
+    }
+
+    class DashboardSyncCoordinator {
+        + {static} setup(...): SyncActions
+        + SyncActions <<record>>
+    }
+
+    class DashboardFormatters {
+        + {static} formatMoney(long, String): String
+        + {static} formatUserDecimal(long): String
+        + {static} parseAmount(String): BigDecimal
+        + {static} currencySymbol(String): String
+    }
+
+    class DashboardAccountsFeature {
+        + {static} showCreateAccountDialog(boolean): Optional<NewAccount>
+        + {static} showEditAccountDialog(...): Optional<EditAccountResult>
+    }
+
+    class DashboardTransactionsDialog {
+        + {static} buildTransactionsPane(...): Node
+        + {static} showCreateTransactionDialog(...)
+        + {static} showEditTransactionDialog(...)
+    }
+
+    class DashboardTransfersDialog {
+        + {static} showCreateTransferDialog(...)
+        + {static} showEditTransferDialog(...)
+    }
+
+    class DashboardCategoriesDialog {
+        + {static} showCategoryManager(...)
+    }
+
+    class DashboardBudgetDialog {
+        + {static} showBudgetManager(...)
+    }
+
+    class DashboardGoalsDialog {
+        + {static} showGoalsManager(...)
+        + NewGoal <<record>>
+        + GoalTransfer <<record>>
+    }
+
+    class DashboardLoansDialog {
+        + {static} showLoansDialog(...)
+    }
+
+    class DashboardChartsDialog {
+        + {static} showChartsDialog(...)
+    }
+
+    class DashboardSummaryDialog {
+        + {static} showSummaryDialog(...)
+    }
+
+    class UiDialogs {
+        + {static} attachAppIcon(Dialog)
+        + {static} attachAppIcon(Alert)
+        + {static} attachAppIcon(DialogPane)
+        + {static} applyTheme(DialogPane, boolean)
+    }
+
+    DashboardView ..> LoginView
+    DashboardView ..> DashboardSidebarPane
+    DashboardView ..> DashboardHeaderPane
+    DashboardView ..> DashboardBalancesPane
+    DashboardView ..> DashboardSyncCoordinator
+    DashboardView ..> DashboardAccountsFeature
+    DashboardView ..> DashboardTransactionsDialog
+    DashboardView ..> DashboardTransfersDialog
+    DashboardView ..> DashboardCategoriesDialog
+    DashboardView ..> DashboardBudgetDialog
+    DashboardView ..> DashboardGoalsDialog
+    DashboardView ..> DashboardLoansDialog
+    DashboardView ..> DashboardChartsDialog
+    DashboardView ..> DashboardSummaryDialog
+    DashboardView ..> UiDialogs
+}
+
+' ==================== DEPENDENCIAS GLOBALES ====================
+MyFinances ..> AppConfig
+MyFinances ..> SqliteDatabase
+MyFinances ..> AppSchema
+MyFinances ..> AccountRepository
+MyFinances ..> CategoryRepository
+MyFinances ..> TransactionRepository
+MyFinances ..> TransferRepository
+MyFinances ..> GoalRepository
+MyFinances ..> LoanRepository
+MyFinances ..> LoanPaymentRepository
+MyFinances ..> BudgetRepository
+MyFinances ..> SessionRepository
+MyFinances ..> UserRepository
+MyFinances ..> FirebaseAuthService
+MyFinances ..> LoginView
+MyFinances ..> DashboardView
+
+DashboardSyncCoordinator ..> FirestoreSyncService
+DashboardSyncCoordinator ..> AppConfig
+
+FirestoreSyncService ..> AccountRepository
+FirestoreSyncService ..> CategoryRepository
+FirestoreSyncService ..> TransactionRepository
+FirestoreSyncService ..> TransferRepository
+FirestoreSyncService ..> GoalRepository
+FirestoreSyncService ..> BudgetRepository
+FirestoreSyncService ..> LoanRepository
+FirestoreSyncService ..> LoanPaymentRepository
+
+LoginView ..> AuthSession
+LoginView ..> FirebaseAuthService
+LoginView ..> GooglePkceAuthService
+LoginView ..> SessionRepository
+
+DashboardView ..> AuthSession
+DashboardView ..> FirestoreSyncService
+DashboardView ..> AppConfig
+
+@enduml

@@ -1,0 +1,920 @@
+<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" height="1260px" preserveAspectRatio="none" style="width:4646px;height:1260px;background:#FEFEFE;" version="1.1" viewBox="0 0 4646 1260" width="4646px" zoomAndPan="magnify">
+    <defs/>
+    <g>
+        <rect fill="#FEFEFE" height="1260" style="stroke:none;stroke-width:1.0;" width="4646" x="0" y="0"/>
+        <!--cluster com-->
+        <g id="cluster_com">
+            <rect fill="#E8E8E8" height="1247" rx="2.5" ry="2.5" style="stroke:#666666;stroke-width:1.5;" width="4633" x="7" y="7"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="29" x="2309" y="23.5332">com</text>
+        </g>
+        <!--cluster myfinaces-->
+        <g id="cluster_myfinaces">
+            <rect fill="#E3F2FD" height="1179" rx="2.5" ry="2.5" style="stroke:#1565C0;stroke-width:1.5;" width="4585" x="31" y="51"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="109" x="2269" y="67.5332">«com.myfinaces»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="70" x="2288.5" y="85.1426">myfinaces</text>
+        </g>
+        <!--cluster javafx-->
+        <g id="cluster_javafx">
+            <rect fill="#E8E8E8" height="168" rx="2.5" ry="2.5" style="stroke:#666666;stroke-width:1.5;" width="172" x="139" y="372"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="42" x="204" y="388.5332">javafx</text>
+        </g>
+        <!--cluster application-->
+        <g id="cluster_application">
+            <rect fill="#E8E8E8" height="100" rx="2.5" ry="2.5" style="stroke:#666666;stroke-width:1.5;" width="124" x="163" y="416"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="77" x="186.5" y="432.5332">application</text>
+        </g>
+        <!--cluster auth-->
+        <g id="cluster_auth">
+            <rect fill="#FFF3E0" height="516" rx="2.5" ry="2.5" style="stroke:#EF6C00;stroke-width:1.5;" width="1098" x="3177" y="690"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="141" x="3655.5" y="706.5332">«com.myfinaces.auth»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="31" x="3710.5" y="724.1426">auth</text>
+        </g>
+        <!--cluster config-->
+        <g id="cluster_config">
+            <rect fill="#F5F5F5" height="206" rx="2.5" ry="2.5" style="stroke:#616161;stroke-width:1.5;" width="254" x="4315" y="707.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="151" x="4366.5" y="724.0332">«com.myfinaces.config»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="44" x="4420" y="741.6426">config</text>
+        </g>
+        <!--cluster db-->
+        <g id="cluster_db">
+            <rect fill="#E8F5E9" height="538.5" rx="2.5" ry="2.5" style="stroke:#2E7D32;stroke-width:1.5;" width="3069" x="68" y="637"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="129" x="1538" y="653.5332">«com.myfinaces.db»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="18" x="1593.5" y="671.1426">db</text>
+        </g>
+        <!--cluster sync-->
+        <g id="cluster_sync">
+            <rect fill="#FFFDE7" height="312" rx="2.5" ry="2.5" style="stroke:#F9A825;stroke-width:1.5;" width="329" x="644" y="301"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="142" x="737.5" y="317.5332">«com.myfinaces.sync»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="32" x="792.5" y="335.1426">sync</text>
+        </g>
+        <!--cluster ui-->
+        <g id="cluster_ui">
+            <rect fill="#F3E5F5" height="438" rx="2.5" ry="2.5" style="stroke:#6A1B9A;stroke-width:1.5;" width="3492" x="1050" y="113"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-style="italic" lengthAdjust="spacing" textLength="124" x="2734" y="129.5332">«com.myfinaces.ui»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="13" x="2789.5" y="147.1426">ui</text>
+        </g>
+        <!--class MyFinances-->
+        <g id="elem_MyFinances">
+            <rect codeLine="43" fill="#FFFFFF" height="83.2188" id="MyFinances" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="105" x="423.5" y="184.5"/>
+            <ellipse cx="442.1" cy="200.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M444.8656,196.375 Q445.0219,196.1563 445.2094,196.0469 Q445.3969,195.9375 445.6156,195.9375 Q445.9906,195.9375 446.225,196.2031 Q446.4594,196.4531 446.4594,197.0625 L446.4594,198.5156 Q446.4594,199.125 446.225,199.3906 Q445.9906,199.6563 445.6156,199.6563 Q445.2719,199.6563 445.0688,199.4531 Q444.8656,199.2656 444.7563,198.75 Q444.7094,198.3906 444.5219,198.2031 Q444.1938,197.8281 443.5844,197.6094 Q442.975,197.3906 442.35,197.3906 Q441.5844,197.3906 440.9438,197.7188 Q440.3188,198.0469 439.8188,198.7969 Q439.3344,199.5469 439.3344,200.5781 L439.3344,201.6719 Q439.3344,202.9063 440.225,203.7344 Q441.1156,204.5469 442.7094,204.5469 Q443.6469,204.5469 444.3031,204.2969 Q444.6938,204.1406 445.1156,203.7031 Q445.3813,203.4375 445.5219,203.3594 Q445.6781,203.2813 445.8813,203.2813 Q446.2094,203.2813 446.4594,203.5469 Q446.725,203.7969 446.725,204.1406 Q446.725,204.4844 446.3813,204.8906 Q445.8813,205.4688 445.0844,205.7969 Q444.0063,206.25 442.7094,206.25 Q441.1938,206.25 439.9906,205.625 Q439.0063,205.125 438.3188,204.0625 Q437.6313,202.9844 437.6313,201.7031 L437.6313,200.5469 Q437.6313,199.2188 438.2406,198.0781 Q438.8656,196.9219 439.9594,196.3125 Q441.0531,195.6875 442.2875,195.6875 Q443.0219,195.6875 443.6625,195.8594 Q444.3188,196.0156 444.8656,196.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="65" x="456.9" y="205.4102">MyFinances</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="424.5" x2="527.5" y1="216.5" y2="216.5"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="424.5" x2="527.5" y1="224.5" y2="224.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="83" x="429.5" y="243.0332">+start(Stage)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="93" x="429.5" y="260.6426">+main(String[])</text>
+        </g>
+        <!--class AppVersion-->
+        <g id="elem_AppVersion">
+            <rect codeLine="49" fill="#FFFFFF" height="83.2188" id="AppVersion" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="184" x="126" y="184.5"/>
+            <ellipse cx="182.25" cy="200.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M185.0156,196.375 Q185.1719,196.1563 185.3594,196.0469 Q185.5469,195.9375 185.7656,195.9375 Q186.1406,195.9375 186.375,196.2031 Q186.6094,196.4531 186.6094,197.0625 L186.6094,198.5156 Q186.6094,199.125 186.375,199.3906 Q186.1406,199.6563 185.7656,199.6563 Q185.4219,199.6563 185.2188,199.4531 Q185.0156,199.2656 184.9063,198.75 Q184.8594,198.3906 184.6719,198.2031 Q184.3438,197.8281 183.7344,197.6094 Q183.125,197.3906 182.5,197.3906 Q181.7344,197.3906 181.0938,197.7188 Q180.4688,198.0469 179.9688,198.7969 Q179.4844,199.5469 179.4844,200.5781 L179.4844,201.6719 Q179.4844,202.9063 180.375,203.7344 Q181.2656,204.5469 182.8594,204.5469 Q183.7969,204.5469 184.4531,204.2969 Q184.8438,204.1406 185.2656,203.7031 Q185.5313,203.4375 185.6719,203.3594 Q185.8281,203.2813 186.0313,203.2813 Q186.3594,203.2813 186.6094,203.5469 Q186.875,203.7969 186.875,204.1406 Q186.875,204.4844 186.5313,204.8906 Q186.0313,205.4688 185.2344,205.7969 Q184.1563,206.25 182.8594,206.25 Q181.3438,206.25 180.1406,205.625 Q179.1563,205.125 178.4688,204.0625 Q177.7813,202.9844 177.7813,201.7031 L177.7813,200.5469 Q177.7813,199.2188 178.3906,198.0781 Q179.0156,196.9219 180.1094,196.3125 Q181.2031,195.6875 182.4375,195.6875 Q183.1719,195.6875 183.8125,195.8594 Q184.4688,196.0156 185.0156,196.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="63" x="202.75" y="205.4102">AppVersion</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="127" x2="309" y1="216.5" y2="216.5"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="127" x2="309" y1="224.5" y2="224.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="131" x="132" y="243.0332">+getVersion(): String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="172" x="132" y="260.6426">+withVersion(String): String</text>
+        </g>
+        <!--class Application-->
+        <g id="elem_Application">
+            <rect fill="#FFFFFF" height="48" id="Application" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="92" x="179" y="452"/>
+            <ellipse cx="194" cy="468" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M196.7656,463.875 Q196.9219,463.6563 197.1094,463.5469 Q197.2969,463.4375 197.5156,463.4375 Q197.8906,463.4375 198.125,463.7031 Q198.3594,463.9531 198.3594,464.5625 L198.3594,466.0156 Q198.3594,466.625 198.125,466.8906 Q197.8906,467.1563 197.5156,467.1563 Q197.1719,467.1563 196.9688,466.9531 Q196.7656,466.7656 196.6563,466.25 Q196.6094,465.8906 196.4219,465.7031 Q196.0938,465.3281 195.4844,465.1094 Q194.875,464.8906 194.25,464.8906 Q193.4844,464.8906 192.8438,465.2188 Q192.2188,465.5469 191.7188,466.2969 Q191.2344,467.0469 191.2344,468.0781 L191.2344,469.1719 Q191.2344,470.4063 192.125,471.2344 Q193.0156,472.0469 194.6094,472.0469 Q195.5469,472.0469 196.2031,471.7969 Q196.5938,471.6406 197.0156,471.2031 Q197.2813,470.9375 197.4219,470.8594 Q197.5781,470.7813 197.7813,470.7813 Q198.1094,470.7813 198.3594,471.0469 Q198.625,471.2969 198.625,471.6406 Q198.625,471.9844 198.2813,472.3906 Q197.7813,472.9688 196.9844,473.2969 Q195.9063,473.75 194.6094,473.75 Q193.0938,473.75 191.8906,473.125 Q190.9063,472.625 190.2188,471.5625 Q189.5313,470.4844 189.5313,469.2031 L189.5313,468.0469 Q189.5313,466.7188 190.1406,465.5781 Q190.7656,464.4219 191.8594,463.8125 Q192.9531,463.1875 194.1875,463.1875 Q194.9219,463.1875 195.5625,463.3594 Q196.2188,463.5156 196.7656,463.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="60" x="208" y="472.9102">Application</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="180" x2="270" y1="484" y2="484"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="180" x2="270" y1="492" y2="492"/>
+        </g>
+        <!--class AuthSession-->
+        <g id="elem_AuthSession">
+            <rect codeLine="57" fill="#FFFFFF" height="161.8438" id="AuthSession" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="177" x="3821.5" y="1028"/>
+            <ellipse cx="3870.75" cy="1048.0938" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3873.5156,1043.9688 Q3873.6719,1043.75 3873.8594,1043.6406 Q3874.0469,1043.5313 3874.2656,1043.5313 Q3874.6406,1043.5313 3874.875,1043.7969 Q3875.1094,1044.0469 3875.1094,1044.6563 L3875.1094,1046.1094 Q3875.1094,1046.7188 3874.875,1046.9844 Q3874.6406,1047.25 3874.2656,1047.25 Q3873.9219,1047.25 3873.7188,1047.0469 Q3873.5156,1046.8594 3873.4063,1046.3438 Q3873.3594,1045.9844 3873.1719,1045.7969 Q3872.8438,1045.4219 3872.2344,1045.2031 Q3871.625,1044.9844 3871,1044.9844 Q3870.2344,1044.9844 3869.5938,1045.3125 Q3868.9688,1045.6406 3868.4688,1046.3906 Q3867.9844,1047.1406 3867.9844,1048.1719 L3867.9844,1049.2656 Q3867.9844,1050.5 3868.875,1051.3281 Q3869.7656,1052.1406 3871.3594,1052.1406 Q3872.2969,1052.1406 3872.9531,1051.8906 Q3873.3438,1051.7344 3873.7656,1051.2969 Q3874.0313,1051.0313 3874.1719,1050.9531 Q3874.3281,1050.875 3874.5313,1050.875 Q3874.8594,1050.875 3875.1094,1051.1406 Q3875.375,1051.3906 3875.375,1051.7344 Q3875.375,1052.0781 3875.0313,1052.4844 Q3874.5313,1053.0625 3873.7344,1053.3906 Q3872.6563,1053.8438 3871.3594,1053.8438 Q3869.8438,1053.8438 3868.6406,1053.2188 Q3867.6563,1052.7188 3866.9688,1051.6563 Q3866.2813,1050.5781 3866.2813,1049.2969 L3866.2813,1048.1406 Q3866.2813,1046.8125 3866.8906,1045.6719 Q3867.5156,1044.5156 3868.6094,1043.9063 Q3869.7031,1043.2813 3870.9375,1043.2813 Q3871.6719,1043.2813 3872.3125,1043.4531 Q3872.9688,1043.6094 3873.5156,1043.9688 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="49" x="3901.75" y="1045.457">«record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="70" x="3891.25" y="1060.5508">AuthSession</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3822.5" x2="3997.5" y1="1068.1875" y2="1068.1875"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="72" x="3827.5" y="1086.7207">+uid: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="86" x="3827.5" y="1104.3301">+email: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="133" x="3827.5" y="1121.9395">+displayName: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="104" x="3827.5" y="1139.5488">+idToken: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="138" x="3827.5" y="1157.1582">+refreshToken: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="165" x="3827.5" y="1174.7676">+expiresAtEpochSec: long</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3822.5" x2="3997.5" y1="1181.8438" y2="1181.8438"/>
+        </g>
+        <!--class FirebaseAuthService-->
+        <g id="elem_FirebaseAuthService">
+            <rect codeLine="66" fill="#FFFFFF" height="171.2656" id="FirebaseAuthService" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="365" x="3405.5" y="744"/>
+            <ellipse cx="3527.25" cy="760" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3530.0156,755.875 Q3530.1719,755.6563 3530.3594,755.5469 Q3530.5469,755.4375 3530.7656,755.4375 Q3531.1406,755.4375 3531.375,755.7031 Q3531.6094,755.9531 3531.6094,756.5625 L3531.6094,758.0156 Q3531.6094,758.625 3531.375,758.8906 Q3531.1406,759.1563 3530.7656,759.1563 Q3530.4219,759.1563 3530.2188,758.9531 Q3530.0156,758.7656 3529.9063,758.25 Q3529.8594,757.8906 3529.6719,757.7031 Q3529.3438,757.3281 3528.7344,757.1094 Q3528.125,756.8906 3527.5,756.8906 Q3526.7344,756.8906 3526.0938,757.2188 Q3525.4688,757.5469 3524.9688,758.2969 Q3524.4844,759.0469 3524.4844,760.0781 L3524.4844,761.1719 Q3524.4844,762.4063 3525.375,763.2344 Q3526.2656,764.0469 3527.8594,764.0469 Q3528.7969,764.0469 3529.4531,763.7969 Q3529.8438,763.6406 3530.2656,763.2031 Q3530.5313,762.9375 3530.6719,762.8594 Q3530.8281,762.7813 3531.0313,762.7813 Q3531.3594,762.7813 3531.6094,763.0469 Q3531.875,763.2969 3531.875,763.6406 Q3531.875,763.9844 3531.5313,764.3906 Q3531.0313,764.9688 3530.2344,765.2969 Q3529.1563,765.75 3527.8594,765.75 Q3526.3438,765.75 3525.1406,765.125 Q3524.1563,764.625 3523.4688,763.5625 Q3522.7813,762.4844 3522.7813,761.2031 L3522.7813,760.0469 Q3522.7813,758.7188 3523.3906,757.5781 Q3524.0156,756.4219 3525.1094,755.8125 Q3526.2031,755.1875 3527.4375,755.1875 Q3528.1719,755.1875 3528.8125,755.3594 Q3529.4688,755.5156 3530.0156,755.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="113" x="3547.75" y="764.9102">FirebaseAuthService</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3406.5" x2="3769.5" y1="776" y2="776"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="98" x="3411.5" y="794.5332">-http: HttpClient</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="93" x="3411.5" y="812.1426">-apiKey: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3406.5" x2="3769.5" y1="819.2188" y2="819.2188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="353" x="3411.5" y="837.752">+signUpWithEmailPassword(String, String): AuthSession</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="347" x="3411.5" y="855.3613">+signInWithEmailPassword(String, String): AuthSession</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="304" x="3411.5" y="872.9707">+signInWithGoogleIdToken(String): AuthSession</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="338" x="3411.5" y="890.5801">+signInWithGoogleAccessToken(String): AuthSession</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="229" x="3411.5" y="908.1895">+refresh(AuthSession): AuthSession</text>
+        </g>
+        <!--class GooglePkceAuthService-->
+        <g id="elem_GooglePkceAuthService">
+            <rect codeLine="76" fill="#FFFFFF" height="136.0469" id="GooglePkceAuthService" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="209" x="4049.5" y="761.5"/>
+            <ellipse cx="4085.2" cy="777.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M4087.9656,773.375 Q4088.1219,773.1563 4088.3094,773.0469 Q4088.4969,772.9375 4088.7156,772.9375 Q4089.0906,772.9375 4089.325,773.2031 Q4089.5594,773.4531 4089.5594,774.0625 L4089.5594,775.5156 Q4089.5594,776.125 4089.325,776.3906 Q4089.0906,776.6563 4088.7156,776.6563 Q4088.3719,776.6563 4088.1688,776.4531 Q4087.9656,776.2656 4087.8563,775.75 Q4087.8094,775.3906 4087.6219,775.2031 Q4087.2938,774.8281 4086.6844,774.6094 Q4086.075,774.3906 4085.45,774.3906 Q4084.6844,774.3906 4084.0438,774.7188 Q4083.4188,775.0469 4082.9188,775.7969 Q4082.4344,776.5469 4082.4344,777.5781 L4082.4344,778.6719 Q4082.4344,779.9063 4083.325,780.7344 Q4084.2156,781.5469 4085.8094,781.5469 Q4086.7469,781.5469 4087.4031,781.2969 Q4087.7938,781.1406 4088.2156,780.7031 Q4088.4813,780.4375 4088.6219,780.3594 Q4088.7781,780.2813 4088.9813,780.2813 Q4089.3094,780.2813 4089.5594,780.5469 Q4089.825,780.7969 4089.825,781.1406 Q4089.825,781.4844 4089.4813,781.8906 Q4088.9813,782.4688 4088.1844,782.7969 Q4087.1063,783.25 4085.8094,783.25 Q4084.2938,783.25 4083.0906,782.625 Q4082.1063,782.125 4081.4188,781.0625 Q4080.7313,779.9844 4080.7313,778.7031 L4080.7313,777.5469 Q4080.7313,776.2188 4081.3406,775.0781 Q4081.9656,773.9219 4083.0594,773.3125 Q4084.1531,772.6875 4085.3875,772.6875 Q4086.1219,772.6875 4086.7625,772.8594 Q4087.4188,773.0156 4087.9656,773.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="131" x="4103.8" y="782.4102">GooglePkceAuthService</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4050.5" x2="4257.5" y1="793.5" y2="793.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="98" x="4055.5" y="812.0332">-http: HttpClient</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="133" x="4055.5" y="829.6426">-oauthClientId: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="163" x="4055.5" y="847.252">-oauthClientSecret: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="53" x="4055.5" y="864.8613">-port: int</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4050.5" x2="4257.5" y1="871.9375" y2="871.9375"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="197" x="4055.5" y="890.4707">+authenticate(): GoogleTokens</text>
+        </g>
+        <!--class GoogleDeviceAuthService-->
+        <g id="elem_GoogleDeviceAuthService">
+            <rect codeLine="84" fill="#FFFFFF" height="118.4375" id="GoogleDeviceAuthService" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="209" x="3805.5" y="770.5"/>
+            <ellipse cx="3836.7" cy="786.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3839.4656,782.375 Q3839.6219,782.1563 3839.8094,782.0469 Q3839.9969,781.9375 3840.2156,781.9375 Q3840.5906,781.9375 3840.825,782.2031 Q3841.0594,782.4531 3841.0594,783.0625 L3841.0594,784.5156 Q3841.0594,785.125 3840.825,785.3906 Q3840.5906,785.6563 3840.2156,785.6563 Q3839.8719,785.6563 3839.6688,785.4531 Q3839.4656,785.2656 3839.3563,784.75 Q3839.3094,784.3906 3839.1219,784.2031 Q3838.7938,783.8281 3838.1844,783.6094 Q3837.575,783.3906 3836.95,783.3906 Q3836.1844,783.3906 3835.5438,783.7188 Q3834.9188,784.0469 3834.4188,784.7969 Q3833.9344,785.5469 3833.9344,786.5781 L3833.9344,787.6719 Q3833.9344,788.9063 3834.825,789.7344 Q3835.7156,790.5469 3837.3094,790.5469 Q3838.2469,790.5469 3838.9031,790.2969 Q3839.2938,790.1406 3839.7156,789.7031 Q3839.9813,789.4375 3840.1219,789.3594 Q3840.2781,789.2813 3840.4813,789.2813 Q3840.8094,789.2813 3841.0594,789.5469 Q3841.325,789.7969 3841.325,790.1406 Q3841.325,790.4844 3840.9813,790.8906 Q3840.4813,791.4688 3839.6844,791.7969 Q3838.6063,792.25 3837.3094,792.25 Q3835.7938,792.25 3834.5906,791.625 Q3833.6063,791.125 3832.9188,790.0625 Q3832.2313,788.9844 3832.2313,787.7031 L3832.2313,786.5469 Q3832.2313,785.2188 3832.8406,784.0781 Q3833.4656,782.9219 3834.5594,782.3125 Q3835.6531,781.6875 3836.8875,781.6875 Q3837.6219,781.6875 3838.2625,781.8594 Q3838.9188,782.0156 3839.4656,782.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="141" x="3854.3" y="791.4102">GoogleDeviceAuthService</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3806.5" x2="4013.5" y1="802.5" y2="802.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="98" x="3811.5" y="821.0332">-http: HttpClient</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="133" x="3811.5" y="838.6426">-oauthClientId: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="163" x="3811.5" y="856.252">-oauthClientSecret: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3806.5" x2="4013.5" y1="863.3281" y2="863.3281"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="197" x="3811.5" y="881.8613">+authenticate(): GoogleTokens</text>
+        </g>
+        <!--class GoogleTokens-->
+        <g id="elem_GoogleTokens">
+            <rect codeLine="91" fill="#FFFFFF" height="109.0156" id="GoogleTokens" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="177" x="3193.5" y="775"/>
+            <ellipse cx="3237.3" cy="795.0938" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3240.0656,790.9688 Q3240.2219,790.75 3240.4094,790.6406 Q3240.5969,790.5313 3240.8156,790.5313 Q3241.1906,790.5313 3241.425,790.7969 Q3241.6594,791.0469 3241.6594,791.6563 L3241.6594,793.1094 Q3241.6594,793.7188 3241.425,793.9844 Q3241.1906,794.25 3240.8156,794.25 Q3240.4719,794.25 3240.2688,794.0469 Q3240.0656,793.8594 3239.9563,793.3438 Q3239.9094,792.9844 3239.7219,792.7969 Q3239.3938,792.4219 3238.7844,792.2031 Q3238.175,791.9844 3237.55,791.9844 Q3236.7844,791.9844 3236.1438,792.3125 Q3235.5188,792.6406 3235.0188,793.3906 Q3234.5344,794.1406 3234.5344,795.1719 L3234.5344,796.2656 Q3234.5344,797.5 3235.425,798.3281 Q3236.3156,799.1406 3237.9094,799.1406 Q3238.8469,799.1406 3239.5031,798.8906 Q3239.8938,798.7344 3240.3156,798.2969 Q3240.5813,798.0313 3240.7219,797.9531 Q3240.8781,797.875 3241.0813,797.875 Q3241.4094,797.875 3241.6594,798.1406 Q3241.925,798.3906 3241.925,798.7344 Q3241.925,799.0781 3241.5813,799.4844 Q3241.0813,800.0625 3240.2844,800.3906 Q3239.2063,800.8438 3237.9094,800.8438 Q3236.3938,800.8438 3235.1906,800.2188 Q3234.2063,799.7188 3233.5188,798.6563 Q3232.8313,797.5781 3232.8313,796.2969 L3232.8313,795.1406 Q3232.8313,793.8125 3233.4406,792.6719 Q3234.0656,791.5156 3235.1594,790.9063 Q3236.2531,790.2813 3237.4875,790.2813 Q3238.2219,790.2813 3238.8625,790.4531 Q3239.5188,790.6094 3240.0656,790.9688 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="49" x="3273.7" y="792.457">«record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="81" x="3257.7" y="807.5508">GoogleTokens</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3194.5" x2="3369.5" y1="815.1875" y2="815.1875"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="104" x="3199.5" y="833.7207">+idToken: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="137" x="3199.5" y="851.3301">+accessToken: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="165" x="3199.5" y="868.9395">+expiresAtEpochSec: long</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3194.5" x2="3369.5" y1="876.0156" y2="876.0156"/>
+        </g>
+        <!--class AppConfig-->
+        <g id="elem_AppConfig">
+            <rect codeLine="104" fill="#FFFFFF" height="136.0469" id="AppConfig" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="222" x="4331" y="761.5"/>
+            <ellipse cx="4409.25" cy="777.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M4412.0156,773.375 Q4412.1719,773.1563 4412.3594,773.0469 Q4412.5469,772.9375 4412.7656,772.9375 Q4413.1406,772.9375 4413.375,773.2031 Q4413.6094,773.4531 4413.6094,774.0625 L4413.6094,775.5156 Q4413.6094,776.125 4413.375,776.3906 Q4413.1406,776.6563 4412.7656,776.6563 Q4412.4219,776.6563 4412.2188,776.4531 Q4412.0156,776.2656 4411.9063,775.75 Q4411.8594,775.3906 4411.6719,775.2031 Q4411.3438,774.8281 4410.7344,774.6094 Q4410.125,774.3906 4409.5,774.3906 Q4408.7344,774.3906 4408.0938,774.7188 Q4407.4688,775.0469 4406.9688,775.7969 Q4406.4844,776.5469 4406.4844,777.5781 L4406.4844,778.6719 Q4406.4844,779.9063 4407.375,780.7344 Q4408.2656,781.5469 4409.8594,781.5469 Q4410.7969,781.5469 4411.4531,781.2969 Q4411.8438,781.1406 4412.2656,780.7031 Q4412.5313,780.4375 4412.6719,780.3594 Q4412.8281,780.2813 4413.0313,780.2813 Q4413.3594,780.2813 4413.6094,780.5469 Q4413.875,780.7969 4413.875,781.1406 Q4413.875,781.4844 4413.5313,781.8906 Q4413.0313,782.4688 4412.2344,782.7969 Q4411.1563,783.25 4409.8594,783.25 Q4408.3438,783.25 4407.1406,782.625 Q4406.1563,782.125 4405.4688,781.0625 Q4404.7813,779.9844 4404.7813,778.7031 L4404.7813,777.5469 Q4404.7813,776.2188 4405.3906,775.0781 Q4406.0156,773.9219 4407.1094,773.3125 Q4408.2031,772.6875 4409.4375,772.6875 Q4410.1719,772.6875 4410.8125,772.8594 Q4411.4688,773.0156 4412.0156,773.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="57" x="4429.75" y="782.4102">AppConfig</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4332" x2="4552" y1="793.5" y2="793.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="145" x="4337" y="812.0332">-firebaseApiKey: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="156" x="4337" y="829.6426">-firebaseProjectId: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="180" x="4337" y="847.252">-googleOAuthClientId: String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="210" x="4337" y="864.8613">-googleOAuthClientSecret: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4332" x2="4552" y1="871.9375" y2="871.9375"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="164" x="4337" y="890.4707">+loadDefault(): AppConfig</text>
+        </g>
+        <!--class SqliteDatabase-->
+        <g id="elem_SqliteDatabase">
+            <rect codeLine="115" fill="#FFFFFF" height="100.8281" id="SqliteDatabase" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="238" x="1221" y="1058.5"/>
+            <ellipse cx="1293.25" cy="1074.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1296.0156,1070.375 Q1296.1719,1070.1563 1296.3594,1070.0469 Q1296.5469,1069.9375 1296.7656,1069.9375 Q1297.1406,1069.9375 1297.375,1070.2031 Q1297.6094,1070.4531 1297.6094,1071.0625 L1297.6094,1072.5156 Q1297.6094,1073.125 1297.375,1073.3906 Q1297.1406,1073.6563 1296.7656,1073.6563 Q1296.4219,1073.6563 1296.2188,1073.4531 Q1296.0156,1073.2656 1295.9063,1072.75 Q1295.8594,1072.3906 1295.6719,1072.2031 Q1295.3438,1071.8281 1294.7344,1071.6094 Q1294.125,1071.3906 1293.5,1071.3906 Q1292.7344,1071.3906 1292.0938,1071.7188 Q1291.4688,1072.0469 1290.9688,1072.7969 Q1290.4844,1073.5469 1290.4844,1074.5781 L1290.4844,1075.6719 Q1290.4844,1076.9063 1291.375,1077.7344 Q1292.2656,1078.5469 1293.8594,1078.5469 Q1294.7969,1078.5469 1295.4531,1078.2969 Q1295.8438,1078.1406 1296.2656,1077.7031 Q1296.5313,1077.4375 1296.6719,1077.3594 Q1296.8281,1077.2813 1297.0313,1077.2813 Q1297.3594,1077.2813 1297.6094,1077.5469 Q1297.875,1077.7969 1297.875,1078.1406 Q1297.875,1078.4844 1297.5313,1078.8906 Q1297.0313,1079.4688 1296.2344,1079.7969 Q1295.1563,1080.25 1293.8594,1080.25 Q1292.3438,1080.25 1291.1406,1079.625 Q1290.1563,1079.125 1289.4688,1078.0625 Q1288.7813,1076.9844 1288.7813,1075.7031 L1288.7813,1074.5469 Q1288.7813,1073.2188 1289.3906,1072.0781 Q1290.0156,1070.9219 1291.1094,1070.3125 Q1292.2031,1069.6875 1293.4375,1069.6875 Q1294.1719,1069.6875 1294.8125,1069.8594 Q1295.4688,1070.0156 1296.0156,1070.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="85" x="1313.75" y="1079.4102">SqliteDatabase</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1222" x2="1458" y1="1090.5" y2="1090.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="93" x="1227" y="1109.0332">-jdbcUrl: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1222" x2="1458" y1="1116.1094" y2="1116.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="202" x="1227" y="1134.6426">+openConnection(): Connection</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="226" x="1227" y="1152.252">+defaultDatabase(): SqliteDatabase</text>
+        </g>
+        <!--class AppSchema-->
+        <g id="elem_AppSchema">
+            <rect codeLine="121" fill="#FFFFFF" height="83.2188" id="AppSchema" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="329" x="551.5" y="788"/>
+            <ellipse cx="678.25" cy="804" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M681.0156,799.875 Q681.1719,799.6563 681.3594,799.5469 Q681.5469,799.4375 681.7656,799.4375 Q682.1406,799.4375 682.375,799.7031 Q682.6094,799.9531 682.6094,800.5625 L682.6094,802.0156 Q682.6094,802.625 682.375,802.8906 Q682.1406,803.1563 681.7656,803.1563 Q681.4219,803.1563 681.2188,802.9531 Q681.0156,802.7656 680.9063,802.25 Q680.8594,801.8906 680.6719,801.7031 Q680.3438,801.3281 679.7344,801.1094 Q679.125,800.8906 678.5,800.8906 Q677.7344,800.8906 677.0938,801.2188 Q676.4688,801.5469 675.9688,802.2969 Q675.4844,803.0469 675.4844,804.0781 L675.4844,805.1719 Q675.4844,806.4063 676.375,807.2344 Q677.2656,808.0469 678.8594,808.0469 Q679.7969,808.0469 680.4531,807.7969 Q680.8438,807.6406 681.2656,807.2031 Q681.5313,806.9375 681.6719,806.8594 Q681.8281,806.7813 682.0313,806.7813 Q682.3594,806.7813 682.6094,807.0469 Q682.875,807.2969 682.875,807.6406 Q682.875,807.9844 682.5313,808.3906 Q682.0313,808.9688 681.2344,809.2969 Q680.1563,809.75 678.8594,809.75 Q677.3438,809.75 676.1406,809.125 Q675.1563,808.625 674.4688,807.5625 Q673.7813,806.4844 673.7813,805.2031 L673.7813,804.0469 Q673.7813,802.7188 674.3906,801.5781 Q675.0156,800.4219 676.1094,799.8125 Q677.2031,799.1875 678.4375,799.1875 Q679.1719,799.1875 679.8125,799.3594 Q680.4688,799.5156 681.0156,799.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="67" x="698.75" y="808.9102">AppSchema</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="552.5" x2="879.5" y1="820" y2="820"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="552.5" x2="879.5" y1="828" y2="828"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="132" x="557.5" y="846.5332">+init(SqliteDatabase)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="317" x="557.5" y="864.1426">-columnExists(Connection, String, String): boolean</text>
+        </g>
+        <!--class TransactionKind-->
+        <g id="elem_TransactionKind">
+            <rect codeLine="126" fill="#FFFFFF" height="197.0625" id="TransactionKind" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="290" x="2582" y="731"/>
+            <ellipse cx="2677.75" cy="751.0938" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2680.5156,746.9688 Q2680.6719,746.75 2680.8594,746.6406 Q2681.0469,746.5313 2681.2656,746.5313 Q2681.6406,746.5313 2681.875,746.7969 Q2682.1094,747.0469 2682.1094,747.6563 L2682.1094,749.1094 Q2682.1094,749.7188 2681.875,749.9844 Q2681.6406,750.25 2681.2656,750.25 Q2680.9219,750.25 2680.7188,750.0469 Q2680.5156,749.8594 2680.4063,749.3438 Q2680.3594,748.9844 2680.1719,748.7969 Q2679.8438,748.4219 2679.2344,748.2031 Q2678.625,747.9844 2678,747.9844 Q2677.2344,747.9844 2676.5938,748.3125 Q2675.9688,748.6406 2675.4688,749.3906 Q2674.9844,750.1406 2674.9844,751.1719 L2674.9844,752.2656 Q2674.9844,753.5 2675.875,754.3281 Q2676.7656,755.1406 2678.3594,755.1406 Q2679.2969,755.1406 2679.9531,754.8906 Q2680.3438,754.7344 2680.7656,754.2969 Q2681.0313,754.0313 2681.1719,753.9531 Q2681.3281,753.875 2681.5313,753.875 Q2681.8594,753.875 2682.1094,754.1406 Q2682.375,754.3906 2682.375,754.7344 Q2682.375,755.0781 2682.0313,755.4844 Q2681.5313,756.0625 2680.7344,756.3906 Q2679.6563,756.8438 2678.3594,756.8438 Q2676.8438,756.8438 2675.6406,756.2188 Q2674.6563,755.7188 2673.9688,754.6563 Q2673.2813,753.5781 2673.2813,752.2969 L2673.2813,751.1406 Q2673.2813,749.8125 2673.8906,748.6719 Q2674.5156,747.5156 2675.6094,746.9063 Q2676.7031,746.2813 2677.9375,746.2813 Q2678.6719,746.2813 2679.3125,746.4531 Q2679.9688,746.6094 2680.5156,746.9688 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacing" textLength="46" x="2720.25" y="748.457">«enum»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="90" x="2698.25" y="763.5508">TransactionKind</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2583" x2="2871" y1="771.1875" y2="771.1875"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="53" x="2588" y="789.7207">INCOME</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="62" x="2588" y="807.3301">EXPENSE</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="117" x="2588" y="824.9395">LOAN_LENT_OUT</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="148" x="2588" y="842.5488">LOAN_BORROWED_IN</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="227" x="2588" y="860.1582">LOAN_REPAYMENT_PRINCIPAL_IN</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="244" x="2588" y="877.7676">LOAN_REPAYMENT_PRINCIPAL_OUT</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2583" x2="2871" y1="884.8438" y2="884.8438"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="266" x="2588" y="903.377">+affectsCashIn(TransactionKind): boolean</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="278" x="2588" y="920.9863">+affectsCashOut(TransactionKind): boolean</text>
+        </g>
+        <!--class AccountRepository-->
+        <g id="elem_AccountRepository">
+            <rect codeLine="137" fill="#FFFFFF" height="224.0938" id="AccountRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="219" x="1733.5" y="717.5"/>
+            <ellipse cx="1787.75" cy="733.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1790.5156,729.375 Q1790.6719,729.1563 1790.8594,729.0469 Q1791.0469,728.9375 1791.2656,728.9375 Q1791.6406,728.9375 1791.875,729.2031 Q1792.1094,729.4531 1792.1094,730.0625 L1792.1094,731.5156 Q1792.1094,732.125 1791.875,732.3906 Q1791.6406,732.6563 1791.2656,732.6563 Q1790.9219,732.6563 1790.7188,732.4531 Q1790.5156,732.2656 1790.4063,731.75 Q1790.3594,731.3906 1790.1719,731.2031 Q1789.8438,730.8281 1789.2344,730.6094 Q1788.625,730.3906 1788,730.3906 Q1787.2344,730.3906 1786.5938,730.7188 Q1785.9688,731.0469 1785.4688,731.7969 Q1784.9844,732.5469 1784.9844,733.5781 L1784.9844,734.6719 Q1784.9844,735.9063 1785.875,736.7344 Q1786.7656,737.5469 1788.3594,737.5469 Q1789.2969,737.5469 1789.9531,737.2969 Q1790.3438,737.1406 1790.7656,736.7031 Q1791.0313,736.4375 1791.1719,736.3594 Q1791.3281,736.2813 1791.5313,736.2813 Q1791.8594,736.2813 1792.1094,736.5469 Q1792.375,736.7969 1792.375,737.1406 Q1792.375,737.4844 1792.0313,737.8906 Q1791.5313,738.4688 1790.7344,738.7969 Q1789.6563,739.25 1788.3594,739.25 Q1786.8438,739.25 1785.6406,738.625 Q1784.6563,738.125 1783.9688,737.0625 Q1783.2813,735.9844 1783.2813,734.7031 L1783.2813,733.5469 Q1783.2813,732.2188 1783.8906,731.0781 Q1784.5156,729.9219 1785.6094,729.3125 Q1786.7031,728.6875 1787.9375,728.6875 Q1788.6719,728.6875 1789.3125,728.8594 Q1789.9688,729.0156 1790.5156,729.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="102" x="1808.25" y="738.4102">AccountRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1734.5" x2="1951.5" y1="749.5" y2="749.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="1739.5" y="768.0332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="120" x="1739.5" y="785.6426">+Account «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1734.5" x2="1951.5" y1="792.7188" y2="792.7188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="129" x="1739.5" y="811.252">+create(...): Account</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="144" x="1739.5" y="828.8613">+list(...): List&lt;Account&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="136" x="1739.5" y="846.4707">+getById(...): Account</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="167" x="1739.5" y="864.0801">+updateNameAndType(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="152" x="1739.5" y="881.6895">+upsertFromRemote(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="1739.5" y="899.2988">+delete(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="207" x="1739.5" y="916.9082">+computeBalanceCents(...): long</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="192" x="1739.5" y="934.5176">+normalizeType(String): String</text>
+        </g>
+        <!--class CategoryRepository-->
+        <g id="elem_CategoryRepository">
+            <rect codeLine="150" fill="#FFFFFF" height="188.875" id="CategoryRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="216" x="1988" y="735"/>
+            <ellipse cx="2037.75" cy="751" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2040.5156,746.875 Q2040.6719,746.6563 2040.8594,746.5469 Q2041.0469,746.4375 2041.2656,746.4375 Q2041.6406,746.4375 2041.875,746.7031 Q2042.1094,746.9531 2042.1094,747.5625 L2042.1094,749.0156 Q2042.1094,749.625 2041.875,749.8906 Q2041.6406,750.1563 2041.2656,750.1563 Q2040.9219,750.1563 2040.7188,749.9531 Q2040.5156,749.7656 2040.4063,749.25 Q2040.3594,748.8906 2040.1719,748.7031 Q2039.8438,748.3281 2039.2344,748.1094 Q2038.625,747.8906 2038,747.8906 Q2037.2344,747.8906 2036.5938,748.2188 Q2035.9688,748.5469 2035.4688,749.2969 Q2034.9844,750.0469 2034.9844,751.0781 L2034.9844,752.1719 Q2034.9844,753.4063 2035.875,754.2344 Q2036.7656,755.0469 2038.3594,755.0469 Q2039.2969,755.0469 2039.9531,754.7969 Q2040.3438,754.6406 2040.7656,754.2031 Q2041.0313,753.9375 2041.1719,753.8594 Q2041.3281,753.7813 2041.5313,753.7813 Q2041.8594,753.7813 2042.1094,754.0469 Q2042.375,754.2969 2042.375,754.6406 Q2042.375,754.9844 2042.0313,755.3906 Q2041.5313,755.9688 2040.7344,756.2969 Q2039.6563,756.75 2038.3594,756.75 Q2036.8438,756.75 2035.6406,756.125 Q2034.6563,755.625 2033.9688,754.5625 Q2033.2813,753.4844 2033.2813,752.2031 L2033.2813,751.0469 Q2033.2813,749.7188 2033.8906,748.5781 Q2034.5156,747.4219 2035.6094,746.8125 Q2036.7031,746.1875 2037.9375,746.1875 Q2038.6719,746.1875 2039.3125,746.3594 Q2039.9688,746.5156 2040.5156,746.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="108" x="2058.25" y="755.9102">CategoryRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1989" x2="2203" y1="767" y2="767"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="1994" y="785.5332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="127" x="1994" y="803.1426">+Category «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1989" x2="2203" y1="810.2188" y2="810.2188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="136" x="1994" y="828.752">+create(...): Category</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="188" x="1994" y="846.3613">+listRoots(...): List&lt;Category&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="204" x="1994" y="863.9707">+listChildren(...): List&lt;Category&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="143" x="1994" y="881.5801">+getById(...): Category</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="152" x="1994" y="899.1895">+upsertFromRemote(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="1994" y="916.7988">+delete(...)</text>
+        </g>
+        <!--class TransactionRepository-->
+        <g id="elem_TransactionRepository">
+            <rect codeLine="161" fill="#FFFFFF" height="276.9219" id="TransactionRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="307" x="2239.5" y="691"/>
+            <ellipse cx="2326.75" cy="707" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2329.5156,702.875 Q2329.6719,702.6563 2329.8594,702.5469 Q2330.0469,702.4375 2330.2656,702.4375 Q2330.6406,702.4375 2330.875,702.7031 Q2331.1094,702.9531 2331.1094,703.5625 L2331.1094,705.0156 Q2331.1094,705.625 2330.875,705.8906 Q2330.6406,706.1563 2330.2656,706.1563 Q2329.9219,706.1563 2329.7188,705.9531 Q2329.5156,705.7656 2329.4063,705.25 Q2329.3594,704.8906 2329.1719,704.7031 Q2328.8438,704.3281 2328.2344,704.1094 Q2327.625,703.8906 2327,703.8906 Q2326.2344,703.8906 2325.5938,704.2188 Q2324.9688,704.5469 2324.4688,705.2969 Q2323.9844,706.0469 2323.9844,707.0781 L2323.9844,708.1719 Q2323.9844,709.4063 2324.875,710.2344 Q2325.7656,711.0469 2327.3594,711.0469 Q2328.2969,711.0469 2328.9531,710.7969 Q2329.3438,710.6406 2329.7656,710.2031 Q2330.0313,709.9375 2330.1719,709.8594 Q2330.3281,709.7813 2330.5313,709.7813 Q2330.8594,709.7813 2331.1094,710.0469 Q2331.375,710.2969 2331.375,710.6406 Q2331.375,710.9844 2331.0313,711.3906 Q2330.5313,711.9688 2329.7344,712.2969 Q2328.6563,712.75 2327.3594,712.75 Q2325.8438,712.75 2324.6406,712.125 Q2323.6563,711.625 2322.9688,710.5625 Q2322.2813,709.4844 2322.2813,708.2031 L2322.2813,707.0469 Q2322.2813,705.7188 2322.8906,704.5781 Q2323.5156,703.4219 2324.6094,702.8125 Q2325.7031,702.1875 2326.9375,702.1875 Q2327.6719,702.1875 2328.3125,702.3594 Q2328.9688,702.5156 2329.5156,702.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="124" x="2347.25" y="711.9102">TransactionRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2240.5" x2="2545.5" y1="723" y2="723"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="2245.5" y="741.5332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="171" x="2245.5" y="759.1426">+TransactionRow «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="202" x="2245.5" y="776.752">+TransactionSyncRow «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="208" x="2245.5" y="794.3613">+MonthlyCategoryTotal «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="244" x="2245.5" y="811.9707">+MonthlyCategoryDetailTotal «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="295" x="2245.5" y="829.5801">+MonthlyCategoryDetailAccountTotal «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2240.5" x2="2545.5" y1="836.6563" y2="836.6563"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="115" x="2245.5" y="855.1895">+create(...): String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="240" x="2245.5" y="872.7988">+listRecent(...): List&lt;TransactionRow&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="243" x="2245.5" y="890.4082">+listFiltered(...): List&lt;TransactionRow&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="74" x="2245.5" y="908.0176">+update(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="2245.5" y="925.627">+delete(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="152" x="2245.5" y="943.2363">+upsertFromRemote(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="152" x="2245.5" y="960.8457">+listPendingForSync(...)</text>
+        </g>
+        <!--class TransferRepository-->
+        <g id="elem_TransferRepository">
+            <rect codeLine="177" fill="#FFFFFF" height="206.4844" id="TransferRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="234" x="916" y="726.5"/>
+            <ellipse cx="976.25" cy="742.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M979.0156,738.375 Q979.1719,738.1563 979.3594,738.0469 Q979.5469,737.9375 979.7656,737.9375 Q980.1406,737.9375 980.375,738.2031 Q980.6094,738.4531 980.6094,739.0625 L980.6094,740.5156 Q980.6094,741.125 980.375,741.3906 Q980.1406,741.6563 979.7656,741.6563 Q979.4219,741.6563 979.2188,741.4531 Q979.0156,741.2656 978.9063,740.75 Q978.8594,740.3906 978.6719,740.2031 Q978.3438,739.8281 977.7344,739.6094 Q977.125,739.3906 976.5,739.3906 Q975.7344,739.3906 975.0938,739.7188 Q974.4688,740.0469 973.9688,740.7969 Q973.4844,741.5469 973.4844,742.5781 L973.4844,743.6719 Q973.4844,744.9063 974.375,745.7344 Q975.2656,746.5469 976.8594,746.5469 Q977.7969,746.5469 978.4531,746.2969 Q978.8438,746.1406 979.2656,745.7031 Q979.5313,745.4375 979.6719,745.3594 Q979.8281,745.2813 980.0313,745.2813 Q980.3594,745.2813 980.6094,745.5469 Q980.875,745.7969 980.875,746.1406 Q980.875,746.4844 980.5313,746.8906 Q980.0313,747.4688 979.2344,747.7969 Q978.1563,748.25 976.8594,748.25 Q975.3438,748.25 974.1406,747.625 Q973.1563,747.125 972.4688,746.0625 Q971.7813,744.9844 971.7813,743.7031 L971.7813,742.5469 Q971.7813,741.2188 972.3906,740.0781 Q973.0156,738.9219 974.1094,738.3125 Q975.2031,737.6875 976.4375,737.6875 Q977.1719,737.6875 977.8125,737.8594 Q978.4688,738.0156 979.0156,738.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="105" x="996.75" y="747.4102">TransferRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="917" x2="1149" y1="758.5" y2="758.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="922" y="777.0332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="150" x="922" y="794.6426">+TransferRow «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="181" x="922" y="812.252">+TransferSyncRow «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="184" x="922" y="829.8613">+MonthlyInOutTotal «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="917" x2="1149" y1="836.9375" y2="836.9375"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="115" x="922" y="855.4707">+create(...): String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="222" x="922" y="873.0801">+listFiltered(...): List&lt;TransferRow&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="74" x="922" y="890.6895">+update(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="922" y="908.2988">+delete(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="152" x="922" y="925.9082">+upsertFromRemote(...)</text>
+        </g>
+        <!--class GoalRepository-->
+        <g id="elem_GoalRepository">
+            <rect codeLine="189" fill="#FFFFFF" height="171.2656" id="GoalRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="137" x="1185.5" y="744"/>
+            <ellipse cx="1209.5" cy="760" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1212.2656,755.875 Q1212.4219,755.6563 1212.6094,755.5469 Q1212.7969,755.4375 1213.0156,755.4375 Q1213.3906,755.4375 1213.625,755.7031 Q1213.8594,755.9531 1213.8594,756.5625 L1213.8594,758.0156 Q1213.8594,758.625 1213.625,758.8906 Q1213.3906,759.1563 1213.0156,759.1563 Q1212.6719,759.1563 1212.4688,758.9531 Q1212.2656,758.7656 1212.1563,758.25 Q1212.1094,757.8906 1211.9219,757.7031 Q1211.5938,757.3281 1210.9844,757.1094 Q1210.375,756.8906 1209.75,756.8906 Q1208.9844,756.8906 1208.3438,757.2188 Q1207.7188,757.5469 1207.2188,758.2969 Q1206.7344,759.0469 1206.7344,760.0781 L1206.7344,761.1719 Q1206.7344,762.4063 1207.625,763.2344 Q1208.5156,764.0469 1210.1094,764.0469 Q1211.0469,764.0469 1211.7031,763.7969 Q1212.0938,763.6406 1212.5156,763.2031 Q1212.7813,762.9375 1212.9219,762.8594 Q1213.0781,762.7813 1213.2813,762.7813 Q1213.6094,762.7813 1213.8594,763.0469 Q1214.125,763.2969 1214.125,763.6406 Q1214.125,763.9844 1213.7813,764.3906 Q1213.2813,764.9688 1212.4844,765.2969 Q1211.4063,765.75 1210.1094,765.75 Q1208.5938,765.75 1207.3906,765.125 Q1206.4063,764.625 1205.7188,763.5625 Q1205.0313,762.4844 1205.0313,761.2031 L1205.0313,760.0469 Q1205.0313,758.7188 1205.6406,757.5781 Q1206.2656,756.4219 1207.3594,755.8125 Q1208.4531,755.1875 1209.6875,755.1875 Q1210.4219,755.1875 1211.0625,755.3594 Q1211.7188,755.5156 1212.2656,755.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="85" x="1225.5" y="764.9102">GoalRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1186.5" x2="1321.5" y1="776" y2="776"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="1191.5" y="794.5332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="99" x="1191.5" y="812.1426">+Goal «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1186.5" x2="1321.5" y1="819.2188" y2="819.2188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="116" x="1191.5" y="837.752">+getByIdOrNull(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="47" x="1191.5" y="855.3613">+list(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70" x="1191.5" y="872.9707">+create(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="74" x="1191.5" y="890.5801">+update(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="1191.5" y="908.1895">+delete(...)</text>
+        </g>
+        <!--class LoanRepository-->
+        <g id="elem_LoanRepository">
+            <rect codeLine="199" fill="#FFFFFF" height="153.6563" id="LoanRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="137" x="1357.5" y="752.5"/>
+            <ellipse cx="1380.6" cy="768.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1383.3656,764.375 Q1383.5219,764.1563 1383.7094,764.0469 Q1383.8969,763.9375 1384.1156,763.9375 Q1384.4906,763.9375 1384.725,764.2031 Q1384.9594,764.4531 1384.9594,765.0625 L1384.9594,766.5156 Q1384.9594,767.125 1384.725,767.3906 Q1384.4906,767.6563 1384.1156,767.6563 Q1383.7719,767.6563 1383.5688,767.4531 Q1383.3656,767.2656 1383.2563,766.75 Q1383.2094,766.3906 1383.0219,766.2031 Q1382.6938,765.8281 1382.0844,765.6094 Q1381.475,765.3906 1380.85,765.3906 Q1380.0844,765.3906 1379.4438,765.7188 Q1378.8188,766.0469 1378.3188,766.7969 Q1377.8344,767.5469 1377.8344,768.5781 L1377.8344,769.6719 Q1377.8344,770.9063 1378.725,771.7344 Q1379.6156,772.5469 1381.2094,772.5469 Q1382.1469,772.5469 1382.8031,772.2969 Q1383.1938,772.1406 1383.6156,771.7031 Q1383.8813,771.4375 1384.0219,771.3594 Q1384.1781,771.2813 1384.3813,771.2813 Q1384.7094,771.2813 1384.9594,771.5469 Q1385.225,771.7969 1385.225,772.1406 Q1385.225,772.4844 1384.8813,772.8906 Q1384.3813,773.4688 1383.5844,773.7969 Q1382.5063,774.25 1381.2094,774.25 Q1379.6938,774.25 1378.4906,773.625 Q1377.5063,773.125 1376.8188,772.0625 Q1376.1313,770.9844 1376.1313,769.7031 L1376.1313,768.5469 Q1376.1313,767.2188 1376.7406,766.0781 Q1377.3656,764.9219 1378.4594,764.3125 Q1379.5531,763.6875 1380.7875,763.6875 Q1381.5219,763.6875 1382.1625,763.8594 Q1382.8188,764.0156 1383.3656,764.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="87" x="1396.4" y="773.4102">LoanRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1358.5" x2="1493.5" y1="784.5" y2="784.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="1363.5" y="803.0332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="101" x="1363.5" y="820.6426">+Loan «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1358.5" x2="1493.5" y1="827.7188" y2="827.7188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70" x="1363.5" y="846.252">+create(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="47" x="1363.5" y="863.8613">+list(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="74" x="1363.5" y="881.4707">+update(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="1363.5" y="899.0801">+delete(...)</text>
+        </g>
+        <!--class LoanPaymentRepository-->
+        <g id="elem_LoanPaymentRepository">
+            <rect codeLine="208" fill="#FFFFFF" height="136.0469" id="LoanPaymentRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="168" x="1530" y="761.5"/>
+            <ellipse cx="1545.45" cy="777.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1548.2156,773.375 Q1548.3719,773.1563 1548.5594,773.0469 Q1548.7469,772.9375 1548.9656,772.9375 Q1549.3406,772.9375 1549.575,773.2031 Q1549.8094,773.4531 1549.8094,774.0625 L1549.8094,775.5156 Q1549.8094,776.125 1549.575,776.3906 Q1549.3406,776.6563 1548.9656,776.6563 Q1548.6219,776.6563 1548.4188,776.4531 Q1548.2156,776.2656 1548.1063,775.75 Q1548.0594,775.3906 1547.8719,775.2031 Q1547.5438,774.8281 1546.9344,774.6094 Q1546.325,774.3906 1545.7,774.3906 Q1544.9344,774.3906 1544.2938,774.7188 Q1543.6688,775.0469 1543.1688,775.7969 Q1542.6844,776.5469 1542.6844,777.5781 L1542.6844,778.6719 Q1542.6844,779.9063 1543.575,780.7344 Q1544.4656,781.5469 1546.0594,781.5469 Q1546.9969,781.5469 1547.6531,781.2969 Q1548.0438,781.1406 1548.4656,780.7031 Q1548.7313,780.4375 1548.8719,780.3594 Q1549.0281,780.2813 1549.2313,780.2813 Q1549.5594,780.2813 1549.8094,780.5469 Q1550.075,780.7969 1550.075,781.1406 Q1550.075,781.4844 1549.7313,781.8906 Q1549.2313,782.4688 1548.4344,782.7969 Q1547.3563,783.25 1546.0594,783.25 Q1544.5438,783.25 1543.3406,782.625 Q1542.3563,782.125 1541.6688,781.0625 Q1540.9813,779.9844 1540.9813,778.7031 L1540.9813,777.5469 Q1540.9813,776.2188 1541.5906,775.0781 Q1542.2156,773.9219 1543.3094,773.3125 Q1544.4031,772.6875 1545.6375,772.6875 Q1546.3719,772.6875 1547.0125,772.8594 Q1547.6688,773.0156 1548.2156,773.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="135" x="1559.55" y="782.4102">LoanPaymentRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1531" x2="1697" y1="793.5" y2="793.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="1536" y="812.0332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="156" x="1536" y="829.6426">+LoanPayment «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1531" x2="1697" y1="836.7188" y2="836.7188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70" x="1536" y="855.252">+create(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="47" x="1536" y="872.8613">+list(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="116" x="1536" y="890.4707">+getByIdOrNull(...)</text>
+        </g>
+        <!--class BudgetRepository-->
+        <g id="elem_BudgetRepository">
+            <rect codeLine="216" fill="#FFFFFF" height="171.2656" id="BudgetRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="185" x="331.5" y="744"/>
+            <ellipse cx="371.25" cy="760" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M374.0156,755.875 Q374.1719,755.6563 374.3594,755.5469 Q374.5469,755.4375 374.7656,755.4375 Q375.1406,755.4375 375.375,755.7031 Q375.6094,755.9531 375.6094,756.5625 L375.6094,758.0156 Q375.6094,758.625 375.375,758.8906 Q375.1406,759.1563 374.7656,759.1563 Q374.4219,759.1563 374.2188,758.9531 Q374.0156,758.7656 373.9063,758.25 Q373.8594,757.8906 373.6719,757.7031 Q373.3438,757.3281 372.7344,757.1094 Q372.125,756.8906 371.5,756.8906 Q370.7344,756.8906 370.0938,757.2188 Q369.4688,757.5469 368.9688,758.2969 Q368.4844,759.0469 368.4844,760.0781 L368.4844,761.1719 Q368.4844,762.4063 369.375,763.2344 Q370.2656,764.0469 371.8594,764.0469 Q372.7969,764.0469 373.4531,763.7969 Q373.8438,763.6406 374.2656,763.2031 Q374.5313,762.9375 374.6719,762.8594 Q374.8281,762.7813 375.0313,762.7813 Q375.3594,762.7813 375.6094,763.0469 Q375.875,763.2969 375.875,763.6406 Q375.875,763.9844 375.5313,764.3906 Q375.0313,764.9688 374.2344,765.2969 Q373.1563,765.75 371.8594,765.75 Q370.3438,765.75 369.1406,765.125 Q368.1563,764.625 367.4688,763.5625 Q366.7813,762.4844 366.7813,761.2031 L366.7813,760.0469 Q366.7813,758.7188 367.3906,757.5781 Q368.0156,756.4219 369.1094,755.8125 Q370.2031,755.1875 371.4375,755.1875 Q372.1719,755.1875 372.8125,755.3594 Q373.4688,755.5156 374.0156,755.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="98" x="390.75" y="764.9102">BudgetRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="332.5" x2="515.5" y1="776" y2="776"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="337.5" y="794.5332">-db: SqliteDatabase</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="114" x="337.5" y="812.1426">+Budget «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="171" x="337.5" y="829.752">+BudgetProgress «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="332.5" x2="515.5" y1="836.8281" y2="836.8281"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="173" x="337.5" y="855.3613">+getByUniqueKeyOrNull(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="47" x="337.5" y="872.9707">+list(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="70" x="337.5" y="890.5801">+upsert(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="69" x="337.5" y="908.1895">+delete(...)</text>
+        </g>
+        <!--class SessionRepository-->
+        <g id="elem_SessionRepository">
+            <rect codeLine="226" fill="#FFFFFF" height="136.0469" id="SessionRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="213" x="2907.5" y="761.5"/>
+            <ellipse cx="2957.25" cy="777.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2960.0156,773.375 Q2960.1719,773.1563 2960.3594,773.0469 Q2960.5469,772.9375 2960.7656,772.9375 Q2961.1406,772.9375 2961.375,773.2031 Q2961.6094,773.4531 2961.6094,774.0625 L2961.6094,775.5156 Q2961.6094,776.125 2961.375,776.3906 Q2961.1406,776.6563 2960.7656,776.6563 Q2960.4219,776.6563 2960.2188,776.4531 Q2960.0156,776.2656 2959.9063,775.75 Q2959.8594,775.3906 2959.6719,775.2031 Q2959.3438,774.8281 2958.7344,774.6094 Q2958.125,774.3906 2957.5,774.3906 Q2956.7344,774.3906 2956.0938,774.7188 Q2955.4688,775.0469 2954.9688,775.7969 Q2954.4844,776.5469 2954.4844,777.5781 L2954.4844,778.6719 Q2954.4844,779.9063 2955.375,780.7344 Q2956.2656,781.5469 2957.8594,781.5469 Q2958.7969,781.5469 2959.4531,781.2969 Q2959.8438,781.1406 2960.2656,780.7031 Q2960.5313,780.4375 2960.6719,780.3594 Q2960.8281,780.2813 2961.0313,780.2813 Q2961.3594,780.2813 2961.6094,780.5469 Q2961.875,780.7969 2961.875,781.1406 Q2961.875,781.4844 2961.5313,781.8906 Q2961.0313,782.4688 2960.2344,782.7969 Q2959.1563,783.25 2957.8594,783.25 Q2956.3438,783.25 2955.1406,782.625 Q2954.1563,782.125 2953.4688,781.0625 Q2952.7813,779.9844 2952.7813,778.7031 L2952.7813,777.5469 Q2952.7813,776.2188 2953.3906,775.0781 Q2954.0156,773.9219 2955.1094,773.3125 Q2956.2031,772.6875 2957.4375,772.6875 Q2958.1719,772.6875 2958.8125,772.8594 Q2959.4688,773.0156 2960.0156,773.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="105" x="2977.75" y="782.4102">SessionRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2908.5" x2="3119.5" y1="793.5" y2="793.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="2913.5" y="812.0332">-db: SqliteDatabase</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2908.5" x2="3119.5" y1="819.1094" y2="819.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="36" x="2913.5" y="837.6426">+init()</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="127" x="2913.5" y="855.252">+save(AuthSession)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="201" x="2913.5" y="872.8613">+load(): Optional&lt;AuthSession&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="49" x="2913.5" y="890.4707">+clear()</text>
+        </g>
+        <!--class UserRepository-->
+        <g id="elem_UserRepository">
+            <rect codeLine="234" fill="#FFFFFF" height="83.2188" id="UserRepository" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="212" x="84" y="788"/>
+            <ellipse cx="142.75" cy="804" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M145.5156,799.875 Q145.6719,799.6563 145.8594,799.5469 Q146.0469,799.4375 146.2656,799.4375 Q146.6406,799.4375 146.875,799.7031 Q147.1094,799.9531 147.1094,800.5625 L147.1094,802.0156 Q147.1094,802.625 146.875,802.8906 Q146.6406,803.1563 146.2656,803.1563 Q145.9219,803.1563 145.7188,802.9531 Q145.5156,802.7656 145.4063,802.25 Q145.3594,801.8906 145.1719,801.7031 Q144.8438,801.3281 144.2344,801.1094 Q143.625,800.8906 143,800.8906 Q142.2344,800.8906 141.5938,801.2188 Q140.9688,801.5469 140.4688,802.2969 Q139.9844,803.0469 139.9844,804.0781 L139.9844,805.1719 Q139.9844,806.4063 140.875,807.2344 Q141.7656,808.0469 143.3594,808.0469 Q144.2969,808.0469 144.9531,807.7969 Q145.3438,807.6406 145.7656,807.2031 Q146.0313,806.9375 146.1719,806.8594 Q146.3281,806.7813 146.5313,806.7813 Q146.8594,806.7813 147.1094,807.0469 Q147.375,807.2969 147.375,807.6406 Q147.375,807.9844 147.0313,808.3906 Q146.5313,808.9688 145.7344,809.2969 Q144.6563,809.75 143.3594,809.75 Q141.8438,809.75 140.6406,809.125 Q139.6563,808.625 138.9688,807.5625 Q138.2813,806.4844 138.2813,805.2031 L138.2813,804.0469 Q138.2813,802.7188 138.8906,801.5781 Q139.5156,800.4219 140.6094,799.8125 Q141.7031,799.1875 142.9375,799.1875 Q143.6719,799.1875 144.3125,799.3594 Q144.9688,799.5156 145.5156,799.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="86" x="163.25" y="808.9102">UserRepository</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="85" x2="295" y1="820" y2="820"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="90" y="838.5332">-db: SqliteDatabase</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="85" x2="295" y1="845.6094" y2="845.6094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="200" x="90" y="864.1426">+upsert(String uid, String email)</text>
+        </g>
+        <!--class FirestoreSyncService-->
+        <g id="elem_FirestoreSyncService">
+            <rect codeLine="255" fill="#FFFFFF" height="241.7031" id="FirestoreSyncService" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="153" x="803.5" y="355"/>
+            <ellipse cx="821.2" cy="371" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M823.9656,366.875 Q824.1219,366.6563 824.3094,366.5469 Q824.4969,366.4375 824.7156,366.4375 Q825.0906,366.4375 825.325,366.7031 Q825.5594,366.9531 825.5594,367.5625 L825.5594,369.0156 Q825.5594,369.625 825.325,369.8906 Q825.0906,370.1563 824.7156,370.1563 Q824.3719,370.1563 824.1688,369.9531 Q823.9656,369.7656 823.8563,369.25 Q823.8094,368.8906 823.6219,368.7031 Q823.2938,368.3281 822.6844,368.1094 Q822.075,367.8906 821.45,367.8906 Q820.6844,367.8906 820.0438,368.2188 Q819.4188,368.5469 818.9188,369.2969 Q818.4344,370.0469 818.4344,371.0781 L818.4344,372.1719 Q818.4344,373.4063 819.325,374.2344 Q820.2156,375.0469 821.8094,375.0469 Q822.7469,375.0469 823.4031,374.7969 Q823.7938,374.6406 824.2156,374.2031 Q824.4813,373.9375 824.6219,373.8594 Q824.7781,373.7813 824.9813,373.7813 Q825.3094,373.7813 825.5594,374.0469 Q825.825,374.2969 825.825,374.6406 Q825.825,374.9844 825.4813,375.3906 Q824.9813,375.9688 824.1844,376.2969 Q823.1063,376.75 821.8094,376.75 Q820.2938,376.75 819.0906,376.125 Q818.1063,375.625 817.4188,374.5625 Q816.7313,373.4844 816.7313,372.2031 L816.7313,371.0469 Q816.7313,369.7188 817.3406,368.5781 Q817.9656,367.4219 819.0594,366.8125 Q820.1531,366.1875 821.3875,366.1875 Q822.1219,366.1875 822.7625,366.3594 Q823.4188,366.5156 823.9656,366.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="115" x="835.8" y="375.9102">FirestoreSyncService</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="804.5" x2="955.5" y1="387" y2="387"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="98" x="809.5" y="405.5332">-http: HttpClient</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="104" x="809.5" y="423.1426">-projectId: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="804.5" x2="955.5" y1="430.2188" y2="430.2188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="117" x="809.5" y="448.752">+syncAccounts(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="128" x="809.5" y="466.3613">+syncCategories(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="141" x="809.5" y="483.9707">+syncTransactions(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="120" x="809.5" y="501.5801">+syncTransfers(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="96" x="809.5" y="519.1895">+syncGoals(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="111" x="809.5" y="536.7988">+syncBudgets(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="98" x="809.5" y="554.4082">+syncLoans(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="121" x="809.5" y="572.0176">+pullCategories(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="99" x="809.5" y="589.627">+deleteGoal(...)</text>
+        </g>
+        <!--class DeviceId-->
+        <g id="elem_DeviceId">
+            <rect codeLine="269" fill="#FFFFFF" height="83.2188" id="DeviceId" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="108" x="660" y="434.5"/>
+            <ellipse cx="688.05" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M690.8156,446.375 Q690.9719,446.1563 691.1594,446.0469 Q691.3469,445.9375 691.5656,445.9375 Q691.9406,445.9375 692.175,446.2031 Q692.4094,446.4531 692.4094,447.0625 L692.4094,448.5156 Q692.4094,449.125 692.175,449.3906 Q691.9406,449.6563 691.5656,449.6563 Q691.2219,449.6563 691.0188,449.4531 Q690.8156,449.2656 690.7063,448.75 Q690.6594,448.3906 690.4719,448.2031 Q690.1438,447.8281 689.5344,447.6094 Q688.925,447.3906 688.3,447.3906 Q687.5344,447.3906 686.8938,447.7188 Q686.2688,448.0469 685.7688,448.7969 Q685.2844,449.5469 685.2844,450.5781 L685.2844,451.6719 Q685.2844,452.9063 686.175,453.7344 Q687.0656,454.5469 688.6594,454.5469 Q689.5969,454.5469 690.2531,454.2969 Q690.6438,454.1406 691.0656,453.7031 Q691.3313,453.4375 691.4719,453.3594 Q691.6281,453.2813 691.8313,453.2813 Q692.1594,453.2813 692.4094,453.5469 Q692.675,453.7969 692.675,454.1406 Q692.675,454.4844 692.3313,454.8906 Q691.8313,455.4688 691.0344,455.7969 Q689.9563,456.25 688.6594,456.25 Q687.1438,456.25 685.9406,455.625 Q684.9563,455.125 684.2688,454.0625 Q683.5813,452.9844 683.5813,451.7031 L683.5813,450.5469 Q683.5813,449.2188 684.1906,448.0781 Q684.8156,446.9219 685.9094,446.3125 Q687.0031,445.6875 688.2375,445.6875 Q688.9719,445.6875 689.6125,445.8594 Q690.2688,446.0156 690.8156,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="47" x="704.95" y="455.4102">DeviceId</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="661" x2="767" y1="466.5" y2="466.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="96" x="666" y="485.0332">-cached: String</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="661" x2="767" y1="492.1094" y2="492.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="83" x="666" y="510.6426">+get(): String</text>
+        </g>
+        <!--class LoginView-->
+        <g id="elem_LoginView">
+            <rect codeLine="279" fill="#FFFFFF" height="83.2188" id="LoginView" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="146" x="1066" y="434.5"/>
+            <ellipse cx="1106.65" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1109.4156,446.375 Q1109.5719,446.1563 1109.7594,446.0469 Q1109.9469,445.9375 1110.1656,445.9375 Q1110.5406,445.9375 1110.775,446.2031 Q1111.0094,446.4531 1111.0094,447.0625 L1111.0094,448.5156 Q1111.0094,449.125 1110.775,449.3906 Q1110.5406,449.6563 1110.1656,449.6563 Q1109.8219,449.6563 1109.6188,449.4531 Q1109.4156,449.2656 1109.3063,448.75 Q1109.2594,448.3906 1109.0719,448.2031 Q1108.7438,447.8281 1108.1344,447.6094 Q1107.525,447.3906 1106.9,447.3906 Q1106.1344,447.3906 1105.4938,447.7188 Q1104.8688,448.0469 1104.3688,448.7969 Q1103.8844,449.5469 1103.8844,450.5781 L1103.8844,451.6719 Q1103.8844,452.9063 1104.775,453.7344 Q1105.6656,454.5469 1107.2594,454.5469 Q1108.1969,454.5469 1108.8531,454.2969 Q1109.2438,454.1406 1109.6656,453.7031 Q1109.9313,453.4375 1110.0719,453.3594 Q1110.2281,453.2813 1110.4313,453.2813 Q1110.7594,453.2813 1111.0094,453.5469 Q1111.275,453.7969 1111.275,454.1406 Q1111.275,454.4844 1110.9313,454.8906 Q1110.4313,455.4688 1109.6344,455.7969 Q1108.5563,456.25 1107.2594,456.25 Q1105.7438,456.25 1104.5406,455.625 Q1103.5563,455.125 1102.8688,454.0625 Q1102.1813,452.9844 1102.1813,451.7031 L1102.1813,450.5469 Q1102.1813,449.2188 1102.7906,448.0781 Q1103.4156,446.9219 1104.5094,446.3125 Q1105.6031,445.6875 1106.8375,445.6875 Q1107.5719,445.6875 1108.2125,445.8594 Q1108.8688,446.0156 1109.4156,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="57" x="1126.35" y="455.4102">LoginView</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1067" x2="1211" y1="466.5" y2="466.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="134" x="1072" y="485.0332">+Listener «interface»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1067" x2="1211" y1="492.1094" y2="492.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="120" x="1072" y="510.6426">+create(...): Parent</text>
+        </g>
+        <!--class DashboardView-->
+        <g id="elem_DashboardView">
+            <rect codeLine="284" fill="#FFFFFF" height="83.2188" id="DashboardView" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="146" x="2814" y="184.5"/>
+            <ellipse cx="2840.7" cy="200.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2843.4656,196.375 Q2843.6219,196.1563 2843.8094,196.0469 Q2843.9969,195.9375 2844.2156,195.9375 Q2844.5906,195.9375 2844.825,196.2031 Q2845.0594,196.4531 2845.0594,197.0625 L2845.0594,198.5156 Q2845.0594,199.125 2844.825,199.3906 Q2844.5906,199.6563 2844.2156,199.6563 Q2843.8719,199.6563 2843.6688,199.4531 Q2843.4656,199.2656 2843.3563,198.75 Q2843.3094,198.3906 2843.1219,198.2031 Q2842.7938,197.8281 2842.1844,197.6094 Q2841.575,197.3906 2840.95,197.3906 Q2840.1844,197.3906 2839.5438,197.7188 Q2838.9188,198.0469 2838.4188,198.7969 Q2837.9344,199.5469 2837.9344,200.5781 L2837.9344,201.6719 Q2837.9344,202.9063 2838.825,203.7344 Q2839.7156,204.5469 2841.3094,204.5469 Q2842.2469,204.5469 2842.9031,204.2969 Q2843.2938,204.1406 2843.7156,203.7031 Q2843.9813,203.4375 2844.1219,203.3594 Q2844.2781,203.2813 2844.4813,203.2813 Q2844.8094,203.2813 2845.0594,203.5469 Q2845.325,203.7969 2845.325,204.1406 Q2845.325,204.4844 2844.9813,204.8906 Q2844.4813,205.4688 2843.6844,205.7969 Q2842.6063,206.25 2841.3094,206.25 Q2839.7938,206.25 2838.5906,205.625 Q2837.6063,205.125 2836.9188,204.0625 Q2836.2313,202.9844 2836.2313,201.7031 L2836.2313,200.5469 Q2836.2313,199.2188 2836.8406,198.0781 Q2837.4656,196.9219 2838.5594,196.3125 Q2839.6531,195.6875 2840.8875,195.6875 Q2841.6219,195.6875 2842.2625,195.8594 Q2842.9188,196.0156 2843.4656,196.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="88" x="2857.3" y="205.4102">DashboardView</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2815" x2="2959" y1="216.5" y2="216.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="134" x="2820" y="235.0332">+Listener «interface»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2815" x2="2959" y1="242.1094" y2="242.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="120" x="2820" y="260.6426">+create(...): Parent</text>
+        </g>
+        <!--class DashboardSidebarPane-->
+        <g id="elem_DashboardSidebarPane">
+            <rect codeLine="289" fill="#FFFFFF" height="65.6094" id="DashboardSidebarPane" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="166" x="1247" y="443"/>
+            <ellipse cx="1262" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1264.7656,454.875 Q1264.9219,454.6563 1265.1094,454.5469 Q1265.2969,454.4375 1265.5156,454.4375 Q1265.8906,454.4375 1266.125,454.7031 Q1266.3594,454.9531 1266.3594,455.5625 L1266.3594,457.0156 Q1266.3594,457.625 1266.125,457.8906 Q1265.8906,458.1563 1265.5156,458.1563 Q1265.1719,458.1563 1264.9688,457.9531 Q1264.7656,457.7656 1264.6563,457.25 Q1264.6094,456.8906 1264.4219,456.7031 Q1264.0938,456.3281 1263.4844,456.1094 Q1262.875,455.8906 1262.25,455.8906 Q1261.4844,455.8906 1260.8438,456.2188 Q1260.2188,456.5469 1259.7188,457.2969 Q1259.2344,458.0469 1259.2344,459.0781 L1259.2344,460.1719 Q1259.2344,461.4063 1260.125,462.2344 Q1261.0156,463.0469 1262.6094,463.0469 Q1263.5469,463.0469 1264.2031,462.7969 Q1264.5938,462.6406 1265.0156,462.2031 Q1265.2813,461.9375 1265.4219,461.8594 Q1265.5781,461.7813 1265.7813,461.7813 Q1266.1094,461.7813 1266.3594,462.0469 Q1266.625,462.2969 1266.625,462.6406 Q1266.625,462.9844 1266.2813,463.3906 Q1265.7813,463.9688 1264.9844,464.2969 Q1263.9063,464.75 1262.6094,464.75 Q1261.0938,464.75 1259.8906,464.125 Q1258.9063,463.625 1258.2188,462.5625 Q1257.5313,461.4844 1257.5313,460.2031 L1257.5313,459.0469 Q1257.5313,457.7188 1258.1406,456.5781 Q1258.7656,455.4219 1259.8594,454.8125 Q1260.9531,454.1875 1262.1875,454.1875 Q1262.9219,454.1875 1263.5625,454.3594 Q1264.2188,454.5156 1264.7656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="134" x="1276" y="463.9102">DashboardSidebarPane</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1248" x2="1412" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1248" x2="1412" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="136" x="1253" y="501.5332">+build(...): ScrollPane</text>
+        </g>
+        <!--class DashboardHeaderPane-->
+        <g id="elem_DashboardHeaderPane">
+            <rect codeLine="293" fill="#FFFFFF" height="65.6094" id="DashboardHeaderPane" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="164" x="1448" y="443"/>
+            <ellipse cx="1463" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1465.7656,454.875 Q1465.9219,454.6563 1466.1094,454.5469 Q1466.2969,454.4375 1466.5156,454.4375 Q1466.8906,454.4375 1467.125,454.7031 Q1467.3594,454.9531 1467.3594,455.5625 L1467.3594,457.0156 Q1467.3594,457.625 1467.125,457.8906 Q1466.8906,458.1563 1466.5156,458.1563 Q1466.1719,458.1563 1465.9688,457.9531 Q1465.7656,457.7656 1465.6563,457.25 Q1465.6094,456.8906 1465.4219,456.7031 Q1465.0938,456.3281 1464.4844,456.1094 Q1463.875,455.8906 1463.25,455.8906 Q1462.4844,455.8906 1461.8438,456.2188 Q1461.2188,456.5469 1460.7188,457.2969 Q1460.2344,458.0469 1460.2344,459.0781 L1460.2344,460.1719 Q1460.2344,461.4063 1461.125,462.2344 Q1462.0156,463.0469 1463.6094,463.0469 Q1464.5469,463.0469 1465.2031,462.7969 Q1465.5938,462.6406 1466.0156,462.2031 Q1466.2813,461.9375 1466.4219,461.8594 Q1466.5781,461.7813 1466.7813,461.7813 Q1467.1094,461.7813 1467.3594,462.0469 Q1467.625,462.2969 1467.625,462.6406 Q1467.625,462.9844 1467.2813,463.3906 Q1466.7813,463.9688 1465.9844,464.2969 Q1464.9063,464.75 1463.6094,464.75 Q1462.0938,464.75 1460.8906,464.125 Q1459.9063,463.625 1459.2188,462.5625 Q1458.5313,461.4844 1458.5313,460.2031 L1458.5313,459.0469 Q1458.5313,457.7188 1459.1406,456.5781 Q1459.7656,455.4219 1460.8594,454.8125 Q1461.9531,454.1875 1463.1875,454.1875 Q1463.9219,454.1875 1464.5625,454.3594 Q1465.2188,454.5156 1465.7656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="132" x="1477" y="463.9102">DashboardHeaderPane</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1449" x2="1611" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1449" x2="1611" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="100" x="1454" y="501.5332">+build(...): HBox</text>
+        </g>
+        <!--class DashboardBalancesPane-->
+        <g id="elem_DashboardBalancesPane">
+            <rect codeLine="297" fill="#FFFFFF" height="83.2188" id="DashboardBalancesPane" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="175" x="1647.5" y="434.5"/>
+            <ellipse cx="1662.5" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1665.2656,446.375 Q1665.4219,446.1563 1665.6094,446.0469 Q1665.7969,445.9375 1666.0156,445.9375 Q1666.3906,445.9375 1666.625,446.2031 Q1666.8594,446.4531 1666.8594,447.0625 L1666.8594,448.5156 Q1666.8594,449.125 1666.625,449.3906 Q1666.3906,449.6563 1666.0156,449.6563 Q1665.6719,449.6563 1665.4688,449.4531 Q1665.2656,449.2656 1665.1563,448.75 Q1665.1094,448.3906 1664.9219,448.2031 Q1664.5938,447.8281 1663.9844,447.6094 Q1663.375,447.3906 1662.75,447.3906 Q1661.9844,447.3906 1661.3438,447.7188 Q1660.7188,448.0469 1660.2188,448.7969 Q1659.7344,449.5469 1659.7344,450.5781 L1659.7344,451.6719 Q1659.7344,452.9063 1660.625,453.7344 Q1661.5156,454.5469 1663.1094,454.5469 Q1664.0469,454.5469 1664.7031,454.2969 Q1665.0938,454.1406 1665.5156,453.7031 Q1665.7813,453.4375 1665.9219,453.3594 Q1666.0781,453.2813 1666.2813,453.2813 Q1666.6094,453.2813 1666.8594,453.5469 Q1667.125,453.7969 1667.125,454.1406 Q1667.125,454.4844 1666.7813,454.8906 Q1666.2813,455.4688 1665.4844,455.7969 Q1664.4063,456.25 1663.1094,456.25 Q1661.5938,456.25 1660.3906,455.625 Q1659.4063,455.125 1658.7188,454.0625 Q1658.0313,452.9844 1658.0313,451.7031 L1658.0313,450.5469 Q1658.0313,449.2188 1658.6406,448.0781 Q1659.2656,446.9219 1660.3594,446.3125 Q1661.4531,445.6875 1662.6875,445.6875 Q1663.4219,445.6875 1664.0625,445.8594 Q1664.7188,446.0156 1665.2656,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="143" x="1676.5" y="455.4102">DashboardBalancesPane</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1648.5" x2="1821.5" y1="466.5" y2="466.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="102" x="1653.5" y="485.0332">+Parts «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1648.5" x2="1821.5" y1="492.1094" y2="492.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="101" x="1653.5" y="510.6426">+build(...): Parts</text>
+        </g>
+        <!--class DashboardSyncCoordinator-->
+        <g id="elem_DashboardSyncCoordinator">
+            <rect codeLine="302" fill="#FFFFFF" height="83.2188" id="DashboardSyncCoordinator" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="185" x="1857.5" y="434.5"/>
+            <ellipse cx="1872.5" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1875.2656,446.375 Q1875.4219,446.1563 1875.6094,446.0469 Q1875.7969,445.9375 1876.0156,445.9375 Q1876.3906,445.9375 1876.625,446.2031 Q1876.8594,446.4531 1876.8594,447.0625 L1876.8594,448.5156 Q1876.8594,449.125 1876.625,449.3906 Q1876.3906,449.6563 1876.0156,449.6563 Q1875.6719,449.6563 1875.4688,449.4531 Q1875.2656,449.2656 1875.1563,448.75 Q1875.1094,448.3906 1874.9219,448.2031 Q1874.5938,447.8281 1873.9844,447.6094 Q1873.375,447.3906 1872.75,447.3906 Q1871.9844,447.3906 1871.3438,447.7188 Q1870.7188,448.0469 1870.2188,448.7969 Q1869.7344,449.5469 1869.7344,450.5781 L1869.7344,451.6719 Q1869.7344,452.9063 1870.625,453.7344 Q1871.5156,454.5469 1873.1094,454.5469 Q1874.0469,454.5469 1874.7031,454.2969 Q1875.0938,454.1406 1875.5156,453.7031 Q1875.7813,453.4375 1875.9219,453.3594 Q1876.0781,453.2813 1876.2813,453.2813 Q1876.6094,453.2813 1876.8594,453.5469 Q1877.125,453.7969 1877.125,454.1406 Q1877.125,454.4844 1876.7813,454.8906 Q1876.2813,455.4688 1875.4844,455.7969 Q1874.4063,456.25 1873.1094,456.25 Q1871.5938,456.25 1870.3906,455.625 Q1869.4063,455.125 1868.7188,454.0625 Q1868.0313,452.9844 1868.0313,451.7031 L1868.0313,450.5469 Q1868.0313,449.2188 1868.6406,448.0781 Q1869.2656,446.9219 1870.3594,446.3125 Q1871.4531,445.6875 1872.6875,445.6875 Q1873.4219,445.6875 1874.0625,445.8594 Q1874.7188,446.0156 1875.2656,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="153" x="1886.5" y="455.4102">DashboardSyncCoordinator</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1858.5" x2="2041.5" y1="466.5" y2="466.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="146" x="1863.5" y="485.0332">+SyncActions «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1858.5" x2="2041.5" y1="492.1094" y2="492.1094"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="150" x="1863.5" y="510.6426">+setup(...): SyncActions</text>
+        </g>
+        <!--class DashboardFormatters-->
+        <g id="elem_DashboardFormatters">
+            <rect codeLine="307" fill="#FFFFFF" height="118.4375" id="DashboardFormatters" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="229" x="1808.5" y="167"/>
+            <ellipse cx="1857.75" cy="183" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M1860.5156,178.875 Q1860.6719,178.6563 1860.8594,178.5469 Q1861.0469,178.4375 1861.2656,178.4375 Q1861.6406,178.4375 1861.875,178.7031 Q1862.1094,178.9531 1862.1094,179.5625 L1862.1094,181.0156 Q1862.1094,181.625 1861.875,181.8906 Q1861.6406,182.1563 1861.2656,182.1563 Q1860.9219,182.1563 1860.7188,181.9531 Q1860.5156,181.7656 1860.4063,181.25 Q1860.3594,180.8906 1860.1719,180.7031 Q1859.8438,180.3281 1859.2344,180.1094 Q1858.625,179.8906 1858,179.8906 Q1857.2344,179.8906 1856.5938,180.2188 Q1855.9688,180.5469 1855.4688,181.2969 Q1854.9844,182.0469 1854.9844,183.0781 L1854.9844,184.1719 Q1854.9844,185.4063 1855.875,186.2344 Q1856.7656,187.0469 1858.3594,187.0469 Q1859.2969,187.0469 1859.9531,186.7969 Q1860.3438,186.6406 1860.7656,186.2031 Q1861.0313,185.9375 1861.1719,185.8594 Q1861.3281,185.7813 1861.5313,185.7813 Q1861.8594,185.7813 1862.1094,186.0469 Q1862.375,186.2969 1862.375,186.6406 Q1862.375,186.9844 1862.0313,187.3906 Q1861.5313,187.9688 1860.7344,188.2969 Q1859.6563,188.75 1858.3594,188.75 Q1856.8438,188.75 1855.6406,188.125 Q1854.6563,187.625 1853.9688,186.5625 Q1853.2813,185.4844 1853.2813,184.2031 L1853.2813,183.0469 Q1853.2813,181.7188 1853.8906,180.5781 Q1854.5156,179.4219 1855.6094,178.8125 Q1856.7031,178.1875 1857.9375,178.1875 Q1858.6719,178.1875 1859.3125,178.3594 Q1859.9688,178.5156 1860.5156,178.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="122" x="1878.25" y="187.9102">DashboardFormatters</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1809.5" x2="2036.5" y1="199" y2="199"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="1809.5" x2="2036.5" y1="207" y2="207"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="217" x="1814.5" y="225.5332">+formatMoney(long, String): String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="209" x="1814.5" y="243.1426">+formatUserDecimal(long): String</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="217" x="1814.5" y="260.752">+parseAmount(String): BigDecimal</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="201" x="1814.5" y="278.3613">+currencySymbol(String): String</text>
+        </g>
+        <!--class DashboardAccountsFeature-->
+        <g id="elem_DashboardAccountsFeature">
+            <rect codeLine="314" fill="#FFFFFF" height="83.2188" id="DashboardAccountsFeature" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="401" x="2077.5" y="434.5"/>
+            <ellipse cx="2196.75" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2199.5156,446.375 Q2199.6719,446.1563 2199.8594,446.0469 Q2200.0469,445.9375 2200.2656,445.9375 Q2200.6406,445.9375 2200.875,446.2031 Q2201.1094,446.4531 2201.1094,447.0625 L2201.1094,448.5156 Q2201.1094,449.125 2200.875,449.3906 Q2200.6406,449.6563 2200.2656,449.6563 Q2199.9219,449.6563 2199.7188,449.4531 Q2199.5156,449.2656 2199.4063,448.75 Q2199.3594,448.3906 2199.1719,448.2031 Q2198.8438,447.8281 2198.2344,447.6094 Q2197.625,447.3906 2197,447.3906 Q2196.2344,447.3906 2195.5938,447.7188 Q2194.9688,448.0469 2194.4688,448.7969 Q2193.9844,449.5469 2193.9844,450.5781 L2193.9844,451.6719 Q2193.9844,452.9063 2194.875,453.7344 Q2195.7656,454.5469 2197.3594,454.5469 Q2198.2969,454.5469 2198.9531,454.2969 Q2199.3438,454.1406 2199.7656,453.7031 Q2200.0313,453.4375 2200.1719,453.3594 Q2200.3281,453.2813 2200.5313,453.2813 Q2200.8594,453.2813 2201.1094,453.5469 Q2201.375,453.7969 2201.375,454.1406 Q2201.375,454.4844 2201.0313,454.8906 Q2200.5313,455.4688 2199.7344,455.7969 Q2198.6563,456.25 2197.3594,456.25 Q2195.8438,456.25 2194.6406,455.625 Q2193.6563,455.125 2192.9688,454.0625 Q2192.2813,452.9844 2192.2813,451.7031 L2192.2813,450.5469 Q2192.2813,449.2188 2192.8906,448.0781 Q2193.5156,446.9219 2194.6094,446.3125 Q2195.7031,445.6875 2196.9375,445.6875 Q2197.6719,445.6875 2198.3125,445.8594 Q2198.9688,446.0156 2199.5156,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="154" x="2217.25" y="455.4102">DashboardAccountsFeature</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2078.5" x2="2477.5" y1="466.5" y2="466.5"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2078.5" x2="2477.5" y1="474.5" y2="474.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="389" x="2083.5" y="493.0332">+showCreateAccountDialog(boolean): Optional&lt;NewAccount&gt;</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="369" x="2083.5" y="510.6426">+showEditAccountDialog(...): Optional&lt;EditAccountResult&gt;</text>
+        </g>
+        <!--class DashboardTransactionsDialog-->
+        <g id="elem_DashboardTransactionsDialog">
+            <rect codeLine="319" fill="#FFFFFF" height="100.8281" id="DashboardTransactionsDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="232" x="2514" y="425.5"/>
+            <ellipse cx="2542.5" cy="441.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2545.2656,437.375 Q2545.4219,437.1563 2545.6094,437.0469 Q2545.7969,436.9375 2546.0156,436.9375 Q2546.3906,436.9375 2546.625,437.2031 Q2546.8594,437.4531 2546.8594,438.0625 L2546.8594,439.5156 Q2546.8594,440.125 2546.625,440.3906 Q2546.3906,440.6563 2546.0156,440.6563 Q2545.6719,440.6563 2545.4688,440.4531 Q2545.2656,440.2656 2545.1563,439.75 Q2545.1094,439.3906 2544.9219,439.2031 Q2544.5938,438.8281 2543.9844,438.6094 Q2543.375,438.3906 2542.75,438.3906 Q2541.9844,438.3906 2541.3438,438.7188 Q2540.7188,439.0469 2540.2188,439.7969 Q2539.7344,440.5469 2539.7344,441.5781 L2539.7344,442.6719 Q2539.7344,443.9063 2540.625,444.7344 Q2541.5156,445.5469 2543.1094,445.5469 Q2544.0469,445.5469 2544.7031,445.2969 Q2545.0938,445.1406 2545.5156,444.7031 Q2545.7813,444.4375 2545.9219,444.3594 Q2546.0781,444.2813 2546.2813,444.2813 Q2546.6094,444.2813 2546.8594,444.5469 Q2547.125,444.7969 2547.125,445.1406 Q2547.125,445.4844 2546.7813,445.8906 Q2546.2813,446.4688 2545.4844,446.7969 Q2544.4063,447.25 2543.1094,447.25 Q2541.5938,447.25 2540.3906,446.625 Q2539.4063,446.125 2538.7188,445.0625 Q2538.0313,443.9844 2538.0313,442.7031 L2538.0313,441.5469 Q2538.0313,440.2188 2538.6406,439.0781 Q2539.2656,437.9219 2540.3594,437.3125 Q2541.4531,436.6875 2542.6875,436.6875 Q2543.4219,436.6875 2544.0625,436.8594 Q2544.7188,437.0156 2545.2656,437.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="170" x="2559.5" y="446.4102">DashboardTransactionsDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2515" x2="2745" y1="457.5" y2="457.5"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2515" x2="2745" y1="465.5" y2="465.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="216" x="2520" y="484.0332">+buildTransactionsPane(...): Node</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="220" x="2520" y="501.6426">+showCreateTransactionDialog(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="201" x="2520" y="519.252">+showEditTransactionDialog(...)</text>
+        </g>
+        <!--class DashboardTransfersDialog-->
+        <g id="elem_DashboardTransfersDialog">
+            <rect codeLine="325" fill="#FFFFFF" height="83.2188" id="DashboardTransfersDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="211" x="2781.5" y="434.5"/>
+            <ellipse cx="2809.1" cy="450.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M2811.8656,446.375 Q2812.0219,446.1563 2812.2094,446.0469 Q2812.3969,445.9375 2812.6156,445.9375 Q2812.9906,445.9375 2813.225,446.2031 Q2813.4594,446.4531 2813.4594,447.0625 L2813.4594,448.5156 Q2813.4594,449.125 2813.225,449.3906 Q2812.9906,449.6563 2812.6156,449.6563 Q2812.2719,449.6563 2812.0688,449.4531 Q2811.8656,449.2656 2811.7563,448.75 Q2811.7094,448.3906 2811.5219,448.2031 Q2811.1938,447.8281 2810.5844,447.6094 Q2809.975,447.3906 2809.35,447.3906 Q2808.5844,447.3906 2807.9438,447.7188 Q2807.3188,448.0469 2806.8188,448.7969 Q2806.3344,449.5469 2806.3344,450.5781 L2806.3344,451.6719 Q2806.3344,452.9063 2807.225,453.7344 Q2808.1156,454.5469 2809.7094,454.5469 Q2810.6469,454.5469 2811.3031,454.2969 Q2811.6938,454.1406 2812.1156,453.7031 Q2812.3813,453.4375 2812.5219,453.3594 Q2812.6781,453.2813 2812.8813,453.2813 Q2813.2094,453.2813 2813.4594,453.5469 Q2813.725,453.7969 2813.725,454.1406 Q2813.725,454.4844 2813.3813,454.8906 Q2812.8813,455.4688 2812.0844,455.7969 Q2811.0063,456.25 2809.7094,456.25 Q2808.1938,456.25 2806.9906,455.625 Q2806.0063,455.125 2805.3188,454.0625 Q2804.6313,452.9844 2804.6313,451.7031 L2804.6313,450.5469 Q2804.6313,449.2188 2805.2406,448.0781 Q2805.8656,446.9219 2806.9594,446.3125 Q2808.0531,445.6875 2809.2875,445.6875 Q2810.0219,445.6875 2810.6625,445.8594 Q2811.3188,446.0156 2811.8656,446.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="151" x="2825.9" y="455.4102">DashboardTransfersDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2782.5" x2="2991.5" y1="466.5" y2="466.5"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="2782.5" x2="2991.5" y1="474.5" y2="474.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="199" x="2787.5" y="493.0332">+showCreateTransferDialog(...)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="180" x="2787.5" y="510.6426">+showEditTransferDialog(...)</text>
+        </g>
+        <!--class DashboardCategoriesDialog-->
+        <g id="elem_DashboardCategoriesDialog">
+            <rect codeLine="330" fill="#FFFFFF" height="65.6094" id="DashboardCategoriesDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="191" x="3027.5" y="443"/>
+            <ellipse cx="3042.5" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3045.2656,454.875 Q3045.4219,454.6563 3045.6094,454.5469 Q3045.7969,454.4375 3046.0156,454.4375 Q3046.3906,454.4375 3046.625,454.7031 Q3046.8594,454.9531 3046.8594,455.5625 L3046.8594,457.0156 Q3046.8594,457.625 3046.625,457.8906 Q3046.3906,458.1563 3046.0156,458.1563 Q3045.6719,458.1563 3045.4688,457.9531 Q3045.2656,457.7656 3045.1563,457.25 Q3045.1094,456.8906 3044.9219,456.7031 Q3044.5938,456.3281 3043.9844,456.1094 Q3043.375,455.8906 3042.75,455.8906 Q3041.9844,455.8906 3041.3438,456.2188 Q3040.7188,456.5469 3040.2188,457.2969 Q3039.7344,458.0469 3039.7344,459.0781 L3039.7344,460.1719 Q3039.7344,461.4063 3040.625,462.2344 Q3041.5156,463.0469 3043.1094,463.0469 Q3044.0469,463.0469 3044.7031,462.7969 Q3045.0938,462.6406 3045.5156,462.2031 Q3045.7813,461.9375 3045.9219,461.8594 Q3046.0781,461.7813 3046.2813,461.7813 Q3046.6094,461.7813 3046.8594,462.0469 Q3047.125,462.2969 3047.125,462.6406 Q3047.125,462.9844 3046.7813,463.3906 Q3046.2813,463.9688 3045.4844,464.2969 Q3044.4063,464.75 3043.1094,464.75 Q3041.5938,464.75 3040.3906,464.125 Q3039.4063,463.625 3038.7188,462.5625 Q3038.0313,461.4844 3038.0313,460.2031 L3038.0313,459.0469 Q3038.0313,457.7188 3038.6406,456.5781 Q3039.2656,455.4219 3040.3594,454.8125 Q3041.4531,454.1875 3042.6875,454.1875 Q3043.4219,454.1875 3044.0625,454.3594 Q3044.7188,454.5156 3045.2656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="159" x="3056.5" y="463.9102">DashboardCategoriesDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3028.5" x2="3217.5" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3028.5" x2="3217.5" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="176" x="3033.5" y="501.5332">+showCategoryManager(...)</text>
+        </g>
+        <!--class DashboardBudgetDialog-->
+        <g id="elem_DashboardBudgetDialog">
+            <rect codeLine="334" fill="#FFFFFF" height="65.6094" id="DashboardBudgetDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="175" x="3253.5" y="443"/>
+            <ellipse cx="3271.2" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3273.9656,454.875 Q3274.1219,454.6563 3274.3094,454.5469 Q3274.4969,454.4375 3274.7156,454.4375 Q3275.0906,454.4375 3275.325,454.7031 Q3275.5594,454.9531 3275.5594,455.5625 L3275.5594,457.0156 Q3275.5594,457.625 3275.325,457.8906 Q3275.0906,458.1563 3274.7156,458.1563 Q3274.3719,458.1563 3274.1688,457.9531 Q3273.9656,457.7656 3273.8563,457.25 Q3273.8094,456.8906 3273.6219,456.7031 Q3273.2938,456.3281 3272.6844,456.1094 Q3272.075,455.8906 3271.45,455.8906 Q3270.6844,455.8906 3270.0438,456.2188 Q3269.4188,456.5469 3268.9188,457.2969 Q3268.4344,458.0469 3268.4344,459.0781 L3268.4344,460.1719 Q3268.4344,461.4063 3269.325,462.2344 Q3270.2156,463.0469 3271.8094,463.0469 Q3272.7469,463.0469 3273.4031,462.7969 Q3273.7938,462.6406 3274.2156,462.2031 Q3274.4813,461.9375 3274.6219,461.8594 Q3274.7781,461.7813 3274.9813,461.7813 Q3275.3094,461.7813 3275.5594,462.0469 Q3275.825,462.2969 3275.825,462.6406 Q3275.825,462.9844 3275.4813,463.3906 Q3274.9813,463.9688 3274.1844,464.2969 Q3273.1063,464.75 3271.8094,464.75 Q3270.2938,464.75 3269.0906,464.125 Q3268.1063,463.625 3267.4188,462.5625 Q3266.7313,461.4844 3266.7313,460.2031 L3266.7313,459.0469 Q3266.7313,457.7188 3267.3406,456.5781 Q3267.9656,455.4219 3269.0594,454.8125 Q3270.1531,454.1875 3271.3875,454.1875 Q3272.1219,454.1875 3272.7625,454.3594 Q3273.4188,454.5156 3273.9656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="137" x="3285.8" y="463.9102">DashboardBudgetDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3254.5" x2="3427.5" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3254.5" x2="3427.5" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="163" x="3259.5" y="501.5332">+showBudgetManager(...)</text>
+        </g>
+        <!--class DashboardGoalsDialog-->
+        <g id="elem_DashboardGoalsDialog">
+            <rect codeLine="338" fill="#FFFFFF" height="100.8281" id="DashboardGoalsDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="167" x="3463.5" y="425.5"/>
+            <ellipse cx="3480.3" cy="441.5" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3483.0656,437.375 Q3483.2219,437.1563 3483.4094,437.0469 Q3483.5969,436.9375 3483.8156,436.9375 Q3484.1906,436.9375 3484.425,437.2031 Q3484.6594,437.4531 3484.6594,438.0625 L3484.6594,439.5156 Q3484.6594,440.125 3484.425,440.3906 Q3484.1906,440.6563 3483.8156,440.6563 Q3483.4719,440.6563 3483.2688,440.4531 Q3483.0656,440.2656 3482.9563,439.75 Q3482.9094,439.3906 3482.7219,439.2031 Q3482.3938,438.8281 3481.7844,438.6094 Q3481.175,438.3906 3480.55,438.3906 Q3479.7844,438.3906 3479.1438,438.7188 Q3478.5188,439.0469 3478.0188,439.7969 Q3477.5344,440.5469 3477.5344,441.5781 L3477.5344,442.6719 Q3477.5344,443.9063 3478.425,444.7344 Q3479.3156,445.5469 3480.9094,445.5469 Q3481.8469,445.5469 3482.5031,445.2969 Q3482.8938,445.1406 3483.3156,444.7031 Q3483.5813,444.4375 3483.7219,444.3594 Q3483.8781,444.2813 3484.0813,444.2813 Q3484.4094,444.2813 3484.6594,444.5469 Q3484.925,444.7969 3484.925,445.1406 Q3484.925,445.4844 3484.5813,445.8906 Q3484.0813,446.4688 3483.2844,446.7969 Q3482.2063,447.25 3480.9094,447.25 Q3479.3938,447.25 3478.1906,446.625 Q3477.2063,446.125 3476.5188,445.0625 Q3475.8313,443.9844 3475.8313,442.7031 L3475.8313,441.5469 Q3475.8313,440.2188 3476.4406,439.0781 Q3477.0656,437.9219 3478.1594,437.3125 Q3479.2531,436.6875 3480.4875,436.6875 Q3481.2219,436.6875 3481.8625,436.8594 Q3482.5188,437.0156 3483.0656,437.375 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="131" x="3494.7" y="446.4102">DashboardGoalsDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3464.5" x2="3629.5" y1="457.5" y2="457.5"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="125" x="3469.5" y="476.0332">+NewGoal «record»</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="153" x="3469.5" y="493.6426">+GoalTransfer «record»</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3464.5" x2="3629.5" y1="500.7188" y2="500.7188"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="155" x="3469.5" y="519.252">+showGoalsManager(...)</text>
+        </g>
+        <!--class DashboardLoansDialog-->
+        <g id="elem_DashboardLoansDialog">
+            <rect codeLine="344" fill="#FFFFFF" height="65.6094" id="DashboardLoansDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="165" x="3665.5" y="443"/>
+            <ellipse cx="3680.5" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3683.2656,454.875 Q3683.4219,454.6563 3683.6094,454.5469 Q3683.7969,454.4375 3684.0156,454.4375 Q3684.3906,454.4375 3684.625,454.7031 Q3684.8594,454.9531 3684.8594,455.5625 L3684.8594,457.0156 Q3684.8594,457.625 3684.625,457.8906 Q3684.3906,458.1563 3684.0156,458.1563 Q3683.6719,458.1563 3683.4688,457.9531 Q3683.2656,457.7656 3683.1563,457.25 Q3683.1094,456.8906 3682.9219,456.7031 Q3682.5938,456.3281 3681.9844,456.1094 Q3681.375,455.8906 3680.75,455.8906 Q3679.9844,455.8906 3679.3438,456.2188 Q3678.7188,456.5469 3678.2188,457.2969 Q3677.7344,458.0469 3677.7344,459.0781 L3677.7344,460.1719 Q3677.7344,461.4063 3678.625,462.2344 Q3679.5156,463.0469 3681.1094,463.0469 Q3682.0469,463.0469 3682.7031,462.7969 Q3683.0938,462.6406 3683.5156,462.2031 Q3683.7813,461.9375 3683.9219,461.8594 Q3684.0781,461.7813 3684.2813,461.7813 Q3684.6094,461.7813 3684.8594,462.0469 Q3685.125,462.2969 3685.125,462.6406 Q3685.125,462.9844 3684.7813,463.3906 Q3684.2813,463.9688 3683.4844,464.2969 Q3682.4063,464.75 3681.1094,464.75 Q3679.5938,464.75 3678.3906,464.125 Q3677.4063,463.625 3676.7188,462.5625 Q3676.0313,461.4844 3676.0313,460.2031 L3676.0313,459.0469 Q3676.0313,457.7188 3676.6406,456.5781 Q3677.2656,455.4219 3678.3594,454.8125 Q3679.4531,454.1875 3680.6875,454.1875 Q3681.4219,454.1875 3682.0625,454.3594 Q3682.7188,454.5156 3683.2656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="133" x="3694.5" y="463.9102">DashboardLoansDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3666.5" x2="3829.5" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3666.5" x2="3829.5" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="141" x="3671.5" y="501.5332">+showLoansDialog(...)</text>
+        </g>
+        <!--class DashboardChartsDialog-->
+        <g id="elem_DashboardChartsDialog">
+            <rect codeLine="348" fill="#FFFFFF" height="65.6094" id="DashboardChartsDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="167" x="3865.5" y="443"/>
+            <ellipse cx="3880.5" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M3883.2656,454.875 Q3883.4219,454.6563 3883.6094,454.5469 Q3883.7969,454.4375 3884.0156,454.4375 Q3884.3906,454.4375 3884.625,454.7031 Q3884.8594,454.9531 3884.8594,455.5625 L3884.8594,457.0156 Q3884.8594,457.625 3884.625,457.8906 Q3884.3906,458.1563 3884.0156,458.1563 Q3883.6719,458.1563 3883.4688,457.9531 Q3883.2656,457.7656 3883.1563,457.25 Q3883.1094,456.8906 3882.9219,456.7031 Q3882.5938,456.3281 3881.9844,456.1094 Q3881.375,455.8906 3880.75,455.8906 Q3879.9844,455.8906 3879.3438,456.2188 Q3878.7188,456.5469 3878.2188,457.2969 Q3877.7344,458.0469 3877.7344,459.0781 L3877.7344,460.1719 Q3877.7344,461.4063 3878.625,462.2344 Q3879.5156,463.0469 3881.1094,463.0469 Q3882.0469,463.0469 3882.7031,462.7969 Q3883.0938,462.6406 3883.5156,462.2031 Q3883.7813,461.9375 3883.9219,461.8594 Q3884.0781,461.7813 3884.2813,461.7813 Q3884.6094,461.7813 3884.8594,462.0469 Q3885.125,462.2969 3885.125,462.6406 Q3885.125,462.9844 3884.7813,463.3906 Q3884.2813,463.9688 3883.4844,464.2969 Q3882.4063,464.75 3881.1094,464.75 Q3879.5938,464.75 3878.3906,464.125 Q3877.4063,463.625 3876.7188,462.5625 Q3876.0313,461.4844 3876.0313,460.2031 L3876.0313,459.0469 Q3876.0313,457.7188 3876.6406,456.5781 Q3877.2656,455.4219 3878.3594,454.8125 Q3879.4531,454.1875 3880.6875,454.1875 Q3881.4219,454.1875 3882.0625,454.3594 Q3882.7188,454.5156 3883.2656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="135" x="3894.5" y="463.9102">DashboardChartsDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3866.5" x2="4031.5" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="3866.5" x2="4031.5" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="144" x="3871.5" y="501.5332">+showChartsDialog(...)</text>
+        </g>
+        <!--class DashboardSummaryDialog-->
+        <g id="elem_DashboardSummaryDialog">
+            <rect codeLine="352" fill="#FFFFFF" height="65.6094" id="DashboardSummaryDialog" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="183" x="4067.5" y="443"/>
+            <ellipse cx="4082.5" cy="459" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M4085.2656,454.875 Q4085.4219,454.6563 4085.6094,454.5469 Q4085.7969,454.4375 4086.0156,454.4375 Q4086.3906,454.4375 4086.625,454.7031 Q4086.8594,454.9531 4086.8594,455.5625 L4086.8594,457.0156 Q4086.8594,457.625 4086.625,457.8906 Q4086.3906,458.1563 4086.0156,458.1563 Q4085.6719,458.1563 4085.4688,457.9531 Q4085.2656,457.7656 4085.1563,457.25 Q4085.1094,456.8906 4084.9219,456.7031 Q4084.5938,456.3281 4083.9844,456.1094 Q4083.375,455.8906 4082.75,455.8906 Q4081.9844,455.8906 4081.3438,456.2188 Q4080.7188,456.5469 4080.2188,457.2969 Q4079.7344,458.0469 4079.7344,459.0781 L4079.7344,460.1719 Q4079.7344,461.4063 4080.625,462.2344 Q4081.5156,463.0469 4083.1094,463.0469 Q4084.0469,463.0469 4084.7031,462.7969 Q4085.0938,462.6406 4085.5156,462.2031 Q4085.7813,461.9375 4085.9219,461.8594 Q4086.0781,461.7813 4086.2813,461.7813 Q4086.6094,461.7813 4086.8594,462.0469 Q4087.125,462.2969 4087.125,462.6406 Q4087.125,462.9844 4086.7813,463.3906 Q4086.2813,463.9688 4085.4844,464.2969 Q4084.4063,464.75 4083.1094,464.75 Q4081.5938,464.75 4080.3906,464.125 Q4079.4063,463.625 4078.7188,462.5625 Q4078.0313,461.4844 4078.0313,460.2031 L4078.0313,459.0469 Q4078.0313,457.7188 4078.6406,456.5781 Q4079.2656,455.4219 4080.3594,454.8125 Q4081.4531,454.1875 4082.6875,454.1875 Q4083.4219,454.1875 4084.0625,454.3594 Q4084.7188,454.5156 4085.2656,454.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="151" x="4096.5" y="463.9102">DashboardSummaryDialog</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4068.5" x2="4249.5" y1="475" y2="475"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4068.5" x2="4249.5" y1="483" y2="483"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="161" x="4073.5" y="501.5332">+showSummaryDialog(...)</text>
+        </g>
+        <!--class UiDialogs-->
+        <g id="elem_UiDialogs">
+            <rect codeLine="356" fill="#FFFFFF" height="118.4375" id="UiDialogs" rx="2.5" ry="2.5" style="stroke:#333333;stroke-width:0.5;" width="240" x="4286" y="417"/>
+            <ellipse cx="4374.25" cy="433" fill="#ADD1B2" rx="11" ry="11" style="stroke:#181818;stroke-width:1.0;"/>
+            <path d="M4377.0156,428.875 Q4377.1719,428.6563 4377.3594,428.5469 Q4377.5469,428.4375 4377.7656,428.4375 Q4378.1406,428.4375 4378.375,428.7031 Q4378.6094,428.9531 4378.6094,429.5625 L4378.6094,431.0156 Q4378.6094,431.625 4378.375,431.8906 Q4378.1406,432.1563 4377.7656,432.1563 Q4377.4219,432.1563 4377.2188,431.9531 Q4377.0156,431.7656 4376.9063,431.25 Q4376.8594,430.8906 4376.6719,430.7031 Q4376.3438,430.3281 4375.7344,430.1094 Q4375.125,429.8906 4374.5,429.8906 Q4373.7344,429.8906 4373.0938,430.2188 Q4372.4688,430.5469 4371.9688,431.2969 Q4371.4844,432.0469 4371.4844,433.0781 L4371.4844,434.1719 Q4371.4844,435.4063 4372.375,436.2344 Q4373.2656,437.0469 4374.8594,437.0469 Q4375.7969,437.0469 4376.4531,436.7969 Q4376.8438,436.6406 4377.2656,436.2031 Q4377.5313,435.9375 4377.6719,435.8594 Q4377.8281,435.7813 4378.0313,435.7813 Q4378.3594,435.7813 4378.6094,436.0469 Q4378.875,436.2969 4378.875,436.6406 Q4378.875,436.9844 4378.5313,437.3906 Q4378.0313,437.9688 4377.2344,438.2969 Q4376.1563,438.75 4374.8594,438.75 Q4373.3438,438.75 4372.1406,438.125 Q4371.1563,437.625 4370.4688,436.5625 Q4369.7813,435.4844 4369.7813,434.2031 L4369.7813,433.0469 Q4369.7813,431.7188 4370.3906,430.5781 Q4371.0156,429.4219 4372.1094,428.8125 Q4373.2031,428.1875 4374.4375,428.1875 Q4375.1719,428.1875 4375.8125,428.3594 Q4376.4688,428.5156 4377.0156,428.875 Z " fill="#000000"/>
+            <text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacing" textLength="55" x="4394.75" y="437.9102">UiDialogs</text>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4287" x2="4525" y1="449" y2="449"/>
+            <line style="stroke:#333333;stroke-width:0.5;" x1="4287" x2="4525" y1="457" y2="457"/>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="148" x="4292" y="475.5332">+attachAppIcon(Dialog)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="137" x="4292" y="493.1426">+attachAppIcon(Alert)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="181" x="4292" y="510.752">+attachAppIcon(DialogPane)</text>
+            <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" text-decoration="underline" textLength="228" x="4292" y="528.3613">+applyTheme(DialogPane, boolean)</text>
+        </g>
+        <!--link MyFinances to Application-->
+        <g id="link_MyFinances_Application">
+            <path codeLine="47" d="M446.75,267.56 C446.75,338.65 446.75,476 446.75,476 C446.75,476 354.2,476 289.22,476 " fill="none" id="MyFinances-to-Application" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="none" points="271.22,476,289.22,482,289.22,470,271.22,476" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link GooglePkceAuthService to AuthSession-->
+        <g id="link_GooglePkceAuthService_AuthSession">
+            <path codeLine="97" d="M4049.44,893 C4001.12,893 3954.25,893 3954.25,893 C3954.25,893 3954.25,960.66 3954.25,1021.96 " fill="none" id="GooglePkceAuthService-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3954.25,1027.96,3958.25,1018.96,3954.25,1022.96,3950.25,1018.96,3954.25,1027.96" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link GoogleDeviceAuthService to AuthSession-->
+        <g id="link_GoogleDeviceAuthService_AuthSession">
+            <path codeLine="98" d="M3910,888.77 C3910,929.24 3910,977.35 3910,1021.81 " fill="none" id="GoogleDeviceAuthService-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3910,1027.81,3914,1018.81,3910,1022.81,3906,1018.81,3910,1027.81" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirebaseAuthService to AuthSession-->
+        <g id="link_FirebaseAuthService_AuthSession">
+            <path codeLine="99" d="M3770.55,907 C3822.73,907 3865.75,907 3865.75,907 C3865.75,907 3865.75,965.58 3865.75,1021.71 " fill="none" id="FirebaseAuthService-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3865.75,1027.71,3869.75,1018.71,3865.75,1022.71,3861.75,1018.71,3865.75,1027.71" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link AccountRepository to SqliteDatabase-->
+        <g id="link_AccountRepository_SqliteDatabase">
+            <path codeLine="239" d="M1733.29,937 C1604.5,937 1408.25,937 1408.25,937 C1408.25,937 1408.25,1001.59 1408.25,1052.32 " fill="none" id="AccountRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1408.25,1058.32,1412.25,1049.32,1408.25,1053.32,1404.25,1049.32,1408.25,1058.32" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link CategoryRepository to SqliteDatabase-->
+        <g id="link_CategoryRepository_SqliteDatabase">
+            <path codeLine="240" d="M2096,924.13 C2096,1005.21 2096,1109 2096,1109 C2096,1109 1678.41,1109 1465.37,1109 " fill="none" id="CategoryRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1459.37,1109,1468.37,1113,1464.37,1109,1468.37,1105,1459.37,1109" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link TransactionRepository to SqliteDatabase-->
+        <g id="link_TransactionRepository_SqliteDatabase">
+            <path codeLine="241" d="M2239.39,955 C1968.37,955 1433.62,955 1433.62,955 C1433.62,955 1433.62,1007.29 1433.62,1052.15 " fill="none" id="TransactionRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1433.62,1058.15,1437.62,1049.15,1433.62,1053.15,1429.62,1049.15,1433.62,1058.15" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link TransferRepository to SqliteDatabase-->
+        <g id="link_TransferRepository_SqliteDatabase">
+            <path codeLine="242" d="M1150.09,924 C1203.41,924 1254.83,924 1254.83,924 C1254.83,924 1254.83,997.67 1254.83,1052.45 " fill="none" id="TransferRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1254.83,1058.45,1258.83,1049.45,1254.83,1053.45,1250.83,1049.45,1254.83,1058.45" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link GoalRepository to SqliteDatabase-->
+        <g id="link_GoalRepository_SqliteDatabase">
+            <path codeLine="243" d="M1288.67,915.26 C1288.67,962.12 1288.67,1012.54 1288.67,1052.38 " fill="none" id="GoalRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1288.67,1058.38,1292.67,1049.38,1288.67,1053.38,1284.67,1049.38,1288.67,1058.38" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoanRepository to SqliteDatabase-->
+        <g id="link_LoanRepository_SqliteDatabase">
+            <path codeLine="244" d="M1382.88,906.61 C1382.88,954.93 1382.88,1009.83 1382.88,1052.15 " fill="none" id="LoanRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1382.88,1058.15,1386.88,1049.15,1382.88,1053.15,1378.88,1049.15,1382.88,1058.15" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoanPaymentRepository to SqliteDatabase-->
+        <g id="link_LoanPaymentRepository_SqliteDatabase">
+            <path codeLine="245" d="M1614,897.7 C1614,973.09 1614,1084 1614,1084 C1614,1084 1539.22,1084 1465.38,1084 " fill="none" id="LoanPaymentRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1459.38,1084,1468.38,1088,1464.38,1084,1468.38,1080,1459.38,1084" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link BudgetRepository to SqliteDatabase-->
+        <g id="link_BudgetRepository_SqliteDatabase">
+            <path codeLine="246" d="M424,915.09 C424,1000.78 424,1120 424,1120 C424,1120 966.65,1120 1214.72,1120 " fill="none" id="BudgetRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1220.72,1120,1211.72,1116,1215.72,1120,1211.72,1124,1220.72,1120" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link SessionRepository to SqliteDatabase-->
+        <g id="link_SessionRepository_SqliteDatabase">
+            <path codeLine="247" d="M2978.5,897.68 C2978.5,987.72 2978.5,1135 2978.5,1135 C2978.5,1135 1842.2,1135 1465.16,1135 " fill="none" id="SessionRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1459.16,1135,1468.16,1139,1464.16,1135,1468.16,1131,1459.16,1135" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link UserRepository to SqliteDatabase-->
+        <g id="link_UserRepository_SqliteDatabase">
+            <path codeLine="248" d="M190,871.05 C190,955.66 190,1140 190,1140 C190,1140 920.99,1140 1214.99,1140 " fill="none" id="UserRepository-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;"/>
+            <polygon fill="#555555" points="1220.99,1140,1211.99,1136,1215.99,1140,1211.99,1144,1220.99,1140" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link SessionRepository to AuthSession-->
+        <g id="link_SessionRepository_AuthSession">
+            <path codeLine="249" d="M3049.5,897.69 C3049.5,957.84 3049.5,1036 3049.5,1036 C3049.5,1036 3595.3,1036 3815.15,1036 " fill="none" id="SessionRepository-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3821.15,1036,3812.15,1032,3816.15,1036,3812.15,1040,3821.15,1036" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link AppSchema to SqliteDatabase-->
+        <g id="link_AppSchema_SqliteDatabase">
+            <path codeLine="250" d="M716,871.26 C716,942.29 716,1079 716,1079 C716,1079 1033.67,1079 1214.79,1079 " fill="none" id="AppSchema-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1220.79,1079,1211.79,1075,1215.79,1079,1211.79,1083,1220.79,1079" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to AuthSession-->
+        <g id="link_FirestoreSyncService_AuthSession">
+            <path codeLine="274" d="M898.25,597.24 C898.25,765.94 898.25,1051 898.25,1051 C898.25,1051 3318.02,1051 3815.5,1051 " fill="none" id="FirestoreSyncService-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3821.5,1051,3812.5,1047,3816.5,1051,3812.5,1055,3821.5,1051" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to LoginView-->
+        <g id="link_DashboardView_LoginView">
+            <path codeLine="363" d="M2830.22,267.71 C2830.22,283.17 2830.22,297 2830.22,297 C2830.22,297 1163.33,297 1163.33,297 C1163.33,297 1163.33,375.61 1163.33,428.48 " fill="none" id="DashboardView-to-LoginView" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1163.33,434.48,1167.33,425.48,1163.33,429.48,1159.33,425.48,1163.33,434.48" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardSidebarPane-->
+        <g id="link_DashboardView_DashboardSidebarPane">
+            <path codeLine="364" d="M2846.44,267.99 C2846.44,288.57 2846.44,309 2846.44,309 C2846.44,309 1330,309 1330,309 C1330,309 1330,387.87 1330,436.61 " fill="none" id="DashboardView-to-DashboardSidebarPane" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1330,442.61,1334,433.61,1330,437.61,1326,433.61,1330,442.61" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardHeaderPane-->
+        <g id="link_DashboardView_DashboardHeaderPane">
+            <path codeLine="365" d="M2862.67,267.5 C2862.67,292.68 2862.67,320 2862.67,320 C2862.67,320 1530,320 1530,320 C1530,320 1530,391.12 1530,436.92 " fill="none" id="DashboardView-to-DashboardHeaderPane" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1530,442.92,1534,433.92,1530,437.92,1526,433.92,1530,442.92" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardBalancesPane-->
+        <g id="link_DashboardView_DashboardBalancesPane">
+            <path codeLine="366" d="M2878.89,267.59 C2878.89,297.29 2878.89,332 2878.89,332 C2878.89,332 1815.5,332 1815.5,332 C1815.5,332 1815.5,385.82 1815.5,428.35 " fill="none" id="DashboardView-to-DashboardBalancesPane" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1815.5,434.35,1819.5,425.35,1815.5,429.35,1811.5,425.35,1815.5,434.35" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardSyncCoordinator-->
+        <g id="link_DashboardView_DashboardSyncCoordinator">
+            <path codeLine="367" d="M2813.97,213 C2611.87,213 2060,213 2060,213 C2060,213 2060,476 2060,476 C2060,476 2059.12,476 2048.81,476 " fill="none" id="DashboardView-to-DashboardSyncCoordinator" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2042.81,476,2051.81,480,2047.81,476,2051.81,472,2042.81,476" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardAccountsFeature-->
+        <g id="link_DashboardView_DashboardAccountsFeature">
+            <path codeLine="368" d="M2813.84,240 C2652.03,240 2278,240 2278,240 C2278,240 2278,360.6 2278,428.35 " fill="none" id="DashboardView-to-DashboardAccountsFeature" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2278,434.35,2282,425.35,2278,429.35,2274,425.35,2278,434.35" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardTransactionsDialog-->
+        <g id="link_DashboardView_DashboardTransactionsDialog">
+            <path codeLine="369" d="M2911.33,267.69 C2911.33,327.88 2911.33,432 2911.33,432 C2911.33,432 2829.55,432 2752.05,432 " fill="none" id="DashboardView-to-DashboardTransactionsDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2746.05,432,2755.05,436,2751.05,432,2755.05,428,2746.05,432" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardTransfersDialog-->
+        <g id="link_DashboardView_DashboardTransfersDialog">
+            <path codeLine="370" d="M2927.56,267.56 C2927.56,313.8 2927.56,382.06 2927.56,428.34 " fill="none" id="DashboardView-to-DashboardTransfersDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2927.56,434.34,2931.56,425.34,2927.56,429.34,2923.56,425.34,2927.56,434.34" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardCategoriesDialog-->
+        <g id="link_DashboardView_DashboardCategoriesDialog">
+            <path codeLine="371" d="M2960.06,259 C3029.37,259 3123,259 3123,259 C3123,259 3123,375.7 3123,436.57 " fill="none" id="DashboardView-to-DashboardCategoriesDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3123,442.57,3127,433.57,3123,437.57,3119,433.57,3123,442.57" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardBudgetDialog-->
+        <g id="link_DashboardView_DashboardBudgetDialog">
+            <path codeLine="372" d="M2960.2,250 C3088.61,250 3341,250 3341,250 C3341,250 3341,373.79 3341,436.65 " fill="none" id="DashboardView-to-DashboardBudgetDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3341,442.65,3345,433.65,3341,437.65,3337,433.65,3341,442.65" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardGoalsDialog-->
+        <g id="link_DashboardView_DashboardGoalsDialog">
+            <path codeLine="373" d="M2943.78,267.57 C2943.78,326.96 2943.78,429 2943.78,429 C2943.78,429 3291.83,429 3457.44,429 " fill="none" id="DashboardView-to-DashboardGoalsDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3463.44,429,3454.44,425,3458.44,429,3454.44,433,3463.44,429" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardLoansDialog-->
+        <g id="link_DashboardView_DashboardLoansDialog">
+            <path codeLine="374" d="M2960.04,240 C3167.93,240 3748,240 3748,240 C3748,240 3748,371.99 3748,436.94 " fill="none" id="DashboardView-to-DashboardLoansDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3748,442.94,3752,433.94,3748,437.94,3744,433.94,3748,442.94" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardChartsDialog-->
+        <g id="link_DashboardView_DashboardChartsDialog">
+            <path codeLine="375" d="M2960.41,231 C3200.8,231 3949,231 3949,231 C3949,231 3949,370.08 3949,436.96 " fill="none" id="DashboardView-to-DashboardChartsDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3949,442.96,3953,433.96,3949,437.96,3945,433.96,3949,442.96" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to DashboardSummaryDialog-->
+        <g id="link_DashboardView_DashboardSummaryDialog">
+            <path codeLine="376" d="M2960.42,213 C3231.3,213 4159,213 4159,213 C4159,213 4159,366.32 4159,436.96 " fill="none" id="DashboardView-to-DashboardSummaryDialog" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4159,442.96,4163,433.96,4159,437.96,4155,433.96,4159,442.96" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to UiDialogs-->
+        <g id="link_DashboardView_UiDialogs">
+            <path codeLine="377" d="M2960.01,203 C3263.05,203 4406,203 4406,203 C4406,203 4406,330.47 4406,410.76 " fill="none" id="DashboardView-to-UiDialogs" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4406,416.76,4410,407.76,4406,411.76,4402,407.76,4406,416.76" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to AppConfig-->
+        <g id="link_MyFinances_AppConfig">
+            <path codeLine="381" d="M504.88,267.74 C504.88,368.35 504.88,616 504.88,616 C504.88,616 4396,616 4396,616 C4396,616 4396,692.88 4396,755.36 " fill="none" id="MyFinances-to-AppConfig" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4396,761.36,4400,752.36,4396,756.36,4392,752.36,4396,761.36" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to SqliteDatabase-->
+        <g id="link_MyFinances_SqliteDatabase">
+            <path codeLine="382" d="M518.5,267.52 C518.5,441.01 518.5,1099 518.5,1099 C518.5,1099 987.32,1099 1214.99,1099 " fill="none" id="MyFinances-to-SqliteDatabase" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1220.99,1099,1211.99,1095,1215.99,1099,1211.99,1103,1220.99,1099" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to AppSchema-->
+        <g id="link_MyFinances_AppSchema">
+            <path codeLine="383" d="M520.5,267.52 C520.5,403.98 520.5,830 520.5,830 C520.5,830 526.91,830 545.48,830 " fill="none" id="MyFinances-to-AppSchema" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="551.48,830,542.48,826,546.48,830,542.48,834,551.48,830" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to AccountRepository-->
+        <g id="link_MyFinances_AccountRepository">
+            <path codeLine="384" d="M524.5,267.6 C524.5,387.29 524.5,724 524.5,724 C524.5,724 1411.02,724 1727.42,724 " fill="none" id="MyFinances-to-AccountRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1733.42,724,1724.42,720,1728.42,724,1724.42,728,1733.42,724" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to CategoryRepository-->
+        <g id="link_MyFinances_CategoryRepository">
+            <path codeLine="385" d="M526.5,267.65 C526.5,378.62 526.5,673 526.5,673 C526.5,673 2001.62,673 2001.62,673 C2001.62,673 2001.62,695.89 2001.62,728.85 " fill="none" id="MyFinances-to-CategoryRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2001.62,734.85,2005.62,725.85,2001.62,729.85,1997.62,725.85,2001.62,734.85" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to TransactionRepository-->
+        <g id="link_MyFinances_TransactionRepository">
+            <path codeLine="386" d="M470,267.6 C470,384.76 470,709 470,709 C470,709 1777.34,709 2233.29,709 " fill="none" id="MyFinances-to-TransactionRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2239.29,709,2230.29,705,2234.29,709,2230.29,713,2239.29,709" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to TransferRepository-->
+        <g id="link_MyFinances_TransferRepository">
+            <path codeLine="387" d="M522.5,267.74 C522.5,389.54 522.5,736 522.5,736 C522.5,736 759.16,736 909.88,736 " fill="none" id="MyFinances-to-TransferRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="915.88,736,906.88,732,910.88,736,906.88,740,915.88,736" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to GoalRepository-->
+        <g id="link_MyFinances_GoalRepository">
+            <path codeLine="388" d="M528.69,235 C699.88,235 1229.5,235 1229.5,235 C1229.5,235 1229.5,573.05 1229.5,737.69 " fill="none" id="MyFinances-to-GoalRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1229.5,743.69,1233.5,734.69,1229.5,738.69,1225.5,734.69,1229.5,743.69" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to LoanRepository-->
+        <g id="link_MyFinances_LoanRepository">
+            <path codeLine="389" d="M528.68,218 C728.78,218 1430.5,218 1430.5,218 C1430.5,218 1430.5,581.97 1430.5,746.36 " fill="none" id="MyFinances-to-LoanRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1430.5,752.36,1434.5,743.36,1430.5,747.36,1426.5,743.36,1430.5,752.36" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to LoanPaymentRepository-->
+        <g id="link_MyFinances_LoanPaymentRepository">
+            <path codeLine="390" d="M528.57,202 C754.28,202 1629.75,202 1629.75,202 C1629.75,202 1629.75,593.01 1629.75,755.45 " fill="none" id="MyFinances-to-LoanPaymentRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1629.75,761.45,1633.75,752.45,1629.75,756.45,1625.75,752.45,1629.75,761.45" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to BudgetRepository-->
+        <g id="link_MyFinances_BudgetRepository">
+            <path codeLine="391" d="M458.38,267.96 C458.38,366.13 458.38,606.38 458.38,737.77 " fill="none" id="MyFinances-to-BudgetRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="458.38,743.77,462.38,734.77,458.38,738.77,454.38,734.77,458.38,743.77" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to SessionRepository-->
+        <g id="link_MyFinances_SessionRepository">
+            <path codeLine="392" d="M481.62,267.82 C481.62,375.51 481.62,654 481.62,654 C481.62,654 2935.83,654 2935.83,654 C2935.83,654 2935.83,706.06 2935.83,755.4 " fill="none" id="MyFinances-to-SessionRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2935.83,761.4,2939.83,752.4,2935.83,756.4,2931.83,752.4,2935.83,761.4" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to UserRepository-->
+        <g id="link_MyFinances_UserRepository">
+            <path codeLine="393" d="M435.12,267.6 C435.12,301.58 435.12,344 435.12,344 C435.12,344 283.5,344 283.5,344 C283.5,344 283.5,663.92 283.5,781.69 " fill="none" id="MyFinances-to-UserRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="283.5,787.69,287.5,778.69,283.5,782.69,279.5,778.69,283.5,787.69" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to FirebaseAuthService-->
+        <g id="link_MyFinances_FirebaseAuthService">
+            <path codeLine="394" d="M493.25,267.85 C493.25,372.09 493.25,635 493.25,635 C493.25,635 3413.17,635 3413.17,635 C3413.17,635 3413.17,685.72 3413.17,737.91 " fill="none" id="MyFinances-to-FirebaseAuthService" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3413.17,743.91,3417.17,734.91,3413.17,738.91,3409.17,734.91,3413.17,743.91" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to LoginView-->
+        <g id="link_MyFinances_LoginView">
+            <path codeLine="395" d="M528.54,251 C681.31,251 1114.67,251 1114.67,251 C1114.67,251 1114.67,363.46 1114.67,428.47 " fill="none" id="MyFinances-to-LoginView" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1114.67,434.47,1118.67,425.47,1114.67,429.47,1110.67,425.47,1114.67,434.47" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link MyFinances to DashboardView-->
+        <g id="link_MyFinances_DashboardView">
+            <path codeLine="396" d="M476,184.34 C476,166.2 476,149 476,149 C476,149 2887,149 2887,149 C2887,149 2887,160.2 2887,178.34 " fill="none" id="MyFinances-to-DashboardView" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2887,184.34,2891,175.34,2887,179.34,2883,175.34,2887,184.34" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardSyncCoordinator to FirestoreSyncService-->
+        <g id="link_DashboardSyncCoordinator_FirestoreSyncService">
+            <path codeLine="398" d="M1905,517.75 C1905,520.38 1905,522 1905,522 C1905,522 1200.58,522 962.62,522 " fill="none" id="DashboardSyncCoordinator-to-FirestoreSyncService" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="956.62,522,965.62,526,961.62,522,965.62,518,956.62,522" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardSyncCoordinator to AppConfig-->
+        <g id="link_DashboardSyncCoordinator_AppConfig">
+            <path codeLine="399" d="M2028.88,517.53 C2028.88,532.6 2028.88,546 2028.88,546 C2028.88,546 4461,546 4461,546 C4461,546 4461,671.35 4461,755.23 " fill="none" id="DashboardSyncCoordinator-to-AppConfig" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4461,761.23,4465,752.23,4461,756.23,4457,752.23,4461,761.23" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to AccountRepository-->
+        <g id="link_FirestoreSyncService_AccountRepository">
+            <path codeLine="401" d="M936.25,597.06 C936.25,658.79 936.25,721 936.25,721 C936.25,721 1485.76,721 1727.17,721 " fill="none" id="FirestoreSyncService-to-AccountRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1733.17,721,1724.17,717,1728.17,721,1724.17,725,1733.17,721" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to CategoryRepository-->
+        <g id="link_FirestoreSyncService_CategoryRepository">
+            <path codeLine="402" d="M956.69,556 C1211.72,556 2015.25,556 2015.25,556 C2015.25,556 2015.25,649.94 2015.25,728.99 " fill="none" id="FirestoreSyncService-to-CategoryRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2015.25,734.99,2019.25,725.99,2015.25,729.99,2011.25,725.99,2015.25,734.99" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to TransactionRepository-->
+        <g id="link_FirestoreSyncService_TransactionRepository">
+            <path codeLine="403" d="M946.38,597.18 C946.38,649.96 946.38,700 946.38,700 C946.38,700 1860.69,700 2233.21,700 " fill="none" id="FirestoreSyncService-to-TransactionRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2239.21,700,2230.21,696,2234.21,700,2230.21,704,2239.21,700" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to TransferRepository-->
+        <g id="link_FirestoreSyncService_TransferRepository">
+            <path codeLine="404" d="M926.12,597.16 C926.12,639.23 926.12,679.98 926.12,720.45 " fill="none" id="FirestoreSyncService-to-TransferRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="926.12,726.45,930.12,717.45,926.12,721.45,922.12,717.45,926.12,726.45" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to GoalRepository-->
+        <g id="link_FirestoreSyncService_GoalRepository">
+            <path codeLine="405" d="M956.6,587 C1053.16,587 1206.7,587 1206.7,587 C1206.7,587 1206.7,667.9 1206.7,737.66 " fill="none" id="FirestoreSyncService-to-GoalRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1206.7,743.66,1210.7,734.66,1206.7,738.66,1202.7,734.66,1206.7,743.66" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to BudgetRepository-->
+        <g id="link_FirestoreSyncService_BudgetRepository">
+            <path codeLine="406" d="M842,597.31 C842,676.77 842,766 842,766 C842,766 645.63,766 522.51,766 " fill="none" id="FirestoreSyncService-to-BudgetRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="516.51,766,525.51,770,521.51,766,525.51,762,516.51,766" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to LoanRepository-->
+        <g id="link_FirestoreSyncService_LoanRepository">
+            <path codeLine="407" d="M956.74,577 C1098.08,577 1385.25,577 1385.25,577 C1385.25,577 1385.25,672.11 1385.25,746.37 " fill="none" id="FirestoreSyncService-to-LoanRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1385.25,752.37,1389.25,743.37,1385.25,747.37,1381.25,743.37,1385.25,752.37" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link FirestoreSyncService to LoanPaymentRepository-->
+        <g id="link_FirestoreSyncService_LoanPaymentRepository">
+            <path codeLine="408" d="M956.59,566 C1136.5,566 1571,566 1571,566 C1571,566 1571,677.23 1571,755.3 " fill="none" id="FirestoreSyncService-to-LoanPaymentRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="1571,761.3,1575,752.3,1571,756.3,1567,752.3,1571,761.3" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoginView to AuthSession-->
+        <g id="link_LoginView_AuthSession">
+            <path codeLine="410" d="M1167.75,517.77 C1167.75,648.94 1167.75,1044 1167.75,1044 C1167.75,1044 3345.29,1044 3815.48,1044 " fill="none" id="LoginView-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3821.48,1044,3812.48,1040,3816.48,1044,3812.48,1048,3821.48,1044" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoginView to FirebaseAuthService-->
+        <g id="link_LoginView_FirebaseAuthService">
+            <path codeLine="411" d="M1196.1,517.69 C1196.1,525.36 1196.1,531 1196.1,531 C1196.1,531 3420.83,531 3420.83,531 C3420.83,531 3420.83,649.76 3420.83,737.96 " fill="none" id="LoginView-to-FirebaseAuthService" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3420.83,743.96,3424.83,734.96,3420.83,738.96,3416.83,734.96,3420.83,743.96" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoginView to GooglePkceAuthService-->
+        <g id="link_LoginView_GooglePkceAuthService">
+            <path codeLine="412" d="M1201.4,517.76 C1201.4,524.33 1201.4,529 1201.4,529 C1201.4,529 4058.5,529 4058.5,529 C4058.5,529 4058.5,666.65 4058.5,755.31 " fill="none" id="LoginView-to-GooglePkceAuthService" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4058.5,761.31,4062.5,752.31,4058.5,756.31,4054.5,752.31,4058.5,761.31" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link LoginView to SessionRepository-->
+        <g id="link_LoginView_SessionRepository">
+            <path codeLine="413" d="M1190.8,517.73 C1190.8,526.42 1190.8,533 1190.8,533 C1190.8,533 2964.17,533 2964.17,533 C2964.17,533 2964.17,667.94 2964.17,755.48 " fill="none" id="LoginView-to-SessionRepository" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="2964.17,761.48,2968.17,752.48,2964.17,756.48,2960.17,752.48,2964.17,761.48" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to AuthSession-->
+        <g id="link_DashboardView_AuthSession">
+            <path codeLine="415" d="M2960.06,222 C3213.74,222 4041,222 4041,222 C4041,222 4041,1109 4041,1109 C4041,1109 4028.19,1109 4004.83,1109 " fill="none" id="DashboardView-to-AuthSession" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="3998.83,1109,4007.83,1113,4003.83,1109,4007.83,1105,3998.83,1109" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to FirestoreSyncService-->
+        <g id="link_DashboardView_FirestoreSyncService">
+            <path codeLine="416" d="M2895.11,267.62 C2895.11,315.03 2895.11,386 2895.11,386 C2895.11,386 1330.62,386 962.53,386 " fill="none" id="DashboardView-to-FirestoreSyncService" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="956.53,386,965.53,390,961.53,386,965.53,382,956.53,386" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--link DashboardView to AppConfig-->
+        <g id="link_DashboardView_AppConfig">
+            <path codeLine="417" d="M2960.14,194 C3279.95,194 4539.5,194 4539.5,194 C4539.5,194 4539.5,591.55 4539.5,755.49 " fill="none" id="DashboardView-to-AppConfig" style="stroke:#555555;stroke-width:1.0;stroke-dasharray:7.0,7.0;"/>
+            <polygon fill="#555555" points="4539.5,761.49,4543.5,752.49,4539.5,756.49,4535.5,752.49,4539.5,761.49" style="stroke:#555555;stroke-width:1.0;"/>
+        </g>
+        <!--SRC=[nLfjRzj64lwkNq7qFfoCrgvZrsaI-0nG4fK8jIMT9RTN70x1Ybn9cr1SPhcCeslptpjBKjA-afHQt4c0ON6UcPstdPrPAVj8aXGnjF7266MPppaZYvpZKKYJ6ValzYuxcGePqeGNb1TN4Yb5uKUqmWVY3n8n9WdcsnHxbF4rbGWBu5encYTHdyQKUNyR1kAjBzapOCNBW54MOLP1hekN3l4PeyyLugPuMH47CovD6mrjWbVYRG7A-hmiNYPenhSnzXWEEKfMCUvq_kuL73ZpKk1BqQSSSspotTw6T7EnsIv9WaAStTrvltKyU9dQNG-lXeEI9YlqukRbJV-oyxLHz0NA-Tej7m9n7LoQyeFXo_vbA_cGQakogbdXHhpD5Lw-4EysAqIB6l-y6ju4hqtfLy6FW-khDjApRHBM-cSG_6ZA7xxsNrtTj96Vanhfru7TD_wBtciVf4C-_SFoygR-Fv-2UU1D7qVZ_cZgtrjXdKebxnj5fMyyL_eLUyXxs0xXUGA4wh5uVUjb737UdN4GU2OztY2Im5D6ajM__rCIlXP_9J7dvx_VUH_GPxJySe7ID2OXueGc5_xX_uwa03p-6RCCdYeA_0OQS19-zLQOL_JksHklNDk6UoPylGEMA1N-jSR3_jFytJ5EBVQPuLbrzrNMmQCPpWhpRc-XTa3azv3IWfn45himk3gsF8z8biPeEqORRA6IQ4u_uiH2ONW9XMhj8kClAG6wpuEKXg1n-CQBwTvpaa53W2rGXal3s6SIOicQSs_DUVh6UmT_-p712PT8A2K_uQrbyOoiagVq5mXW8AoUmZhFuASgZDzv-t1AtjJOHybVmFwMKgZhezA7tIFP_11I86l5MiMYAr4jMCNjvHhJZ-4fZgSYCSkd8pFN53f4dc5kmS091u-99FTRJx01ZzZKM6pEKid21PdBX04MclzVZ3XDuPBgshpk3OSE-N3QVhE7_EBYpiWKbsTjMDl-rN7kGjcVZ8UZjqULoh9bC8kbrahi3uD-yLp9YkLEPti1EG2cZ7w0zioQ7wl2IHE_FeiCb3ENzWTFJ54qm4kKnrparDw4nbDdqFE-zmR-tFVyVZ-OpOvoQxGmNIhrJgKxPvzYml40SIIye_ZqGxG8dvZjXA4fJi2211nP7Rg7JpRxezBstIh5AQsiQ-uiyD4iNCCHPp_oIKAWzr1ad4cgxt4XZVDD4dmX6S-w1oLt5L-g_0jAOumiTNNEK9AXWkqdaaJWKfpa6sMJGzCrUGZs7uD_JOFnxF3vVkAFtzy7u_dxoTDSVTgRF3vEVWa6xqTZbV0OJFrV7mJFlgThXP5NaFo5bakmFEkZR3rAkff9clLkradE6tZL68OXDBVy4QSq8voohP9UqSAQ1UNg5QjKKoKYR3THdIykBiHcAf4IEOPWLyHx-FUsGiWIe6FiRKUHKqIUHh22wA3y99h3i5iW5K266Hyokdd46yeDUeHZR3w5lPZ2EDv3iUY3-r0xiag5VMNNd9zGja4n3A-54lQcLV9u7xHUWQDFSVcEjuNFTr3DwO-KxWqgFB_3tMd0_fh44OCkg06hXicowh5XS6tiK_mbizDdkzSap0pcIYVkWIPy7Mzt5iufHt4hv01pw6UFnLS9NyEcXDke_qMmSGZvAqTGTOWUyo69EMOuQiTHRi1skwef2SJgKvn4OCEGCX67keHOOdPoDWZUsbG0G9iy62LGQVzKT9pUBbNywrsjjSKeFiM9WizkSLK99coSnx4jm4QfFRZeQ5iLM-ufEgay2Bx6w3KOSQAwKxJTuDFENOdzpohl29cYRI-F07QAeYMdNSUI1ft-2kQdh2QXdXBoASSmCBJFgt8771MIQcOwnSgYpPKNoj1dh5mAoEh2b25Qwqag2YgARoMS4aBerbZNekXJTbhjgtnI5Y9nMRLhgyihAcKbioSyFx-pYRQqCWwa_Hol0wirte7KYfW3fPM76fIvAnrWOrCuS6PUEO1QN5kBirqE7EOoGTN4k0VPsQ_Z_b73gxY6DyTNvNB-SDkOWRfO7An7NXYbpii0s6aWhahMJD_kWbRb9y5MgfIJRZgaePKeCizAA3F3IX8PPX1IA6fkFSkY9HPp5AxokcWKAUuC4OG_ghlj01MxrXd56ghsDqjF8-zxR_eOp63YzUUZoVYeXCg9cKxITp6xqtD5afy9VhRVEYXzrnGnh0oDeid22MQm34cW-rh26jMPexeL9ka5HIpwdoqq8n5U83P52RQljyXX8Dlrao6ZSIomDHBVOHJXbWBVzUYN6b7LD9or4mREu9a4AZxhHxp32sBNKa11z24BxMjbcEVfpXD52IZsi0ILdhPRToXcU0vnoknBBWiwjFvusnNt0DAbb7kJbKoYiWzmI3QmXmLhBKkAM8RzZQXeXvk47bbL0gnvc3F8lN0xssuMD6w-VzZRlAkSGyZZd3dYcgtfSx_8z0e-82YcgsvreIItCcFyRBd6KIG54U6gd3AAUnaIu15dUSphWYONy59SJMxAO976rSfZ6k5wkoL6IUSw2siuQWmH9qsT5Pf603z67GlShilXB6fKfkh-7b02jPmr2IuFnYQX9QgboE8GRf9OW0o19H1IrZtF2ihET-sgI770D-aZWHfZiHQLip4E4gf9uYpVR13RDebKO0wPJwGaEoecL5FeGg0L5JziwfRGisQW7yEOSjPMeDZ8Td2QnjivzC1OGdwtkmPNh56FUj7gx3iC1zrsPZT13uTn4r8-QniLK8_B9hXMyPlWPdrjnN4eP4rmlTOqkaOg8KrOgJOqGQKTsQYnjDSQWoDl8WTuludglc0Cfi5u48px8t_clRsVzFpxmF4je_JxdQ9dtt-9gH6qcT1aA-T7Ww1V3EW0yq90HrWl0gmWvG90HwY3lqvL1tuRrHZqTP0-u1iUr2Tn7Q0Ez3hLylszgUQk2ca49Oiw7MVll5j77-VgEGuvqt7FWaOUEA6MZ71YxRbH3rUpn8dLyiM9CyBkH6evLeipiwrpc6BruLgbs195HLX_OA9Xp6pjcBL8LiAarcVIGSW-VVu0]-->
+    </g>
+</svg>

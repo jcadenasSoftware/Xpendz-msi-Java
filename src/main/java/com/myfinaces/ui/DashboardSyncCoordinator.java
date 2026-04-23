@@ -134,6 +134,25 @@ public final class DashboardSyncCoordinator {
             }
         };
 
+        Runnable pushPending = () -> {
+            System.out.println("[Sync] pushPending start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                sync.syncTransactions(session, txRepo);
+                sync.syncTransfers(session, transferRepo);
+            } catch (Exception ex) {
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pushPending failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED") || msg.contains("429"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pushPending end");
+            }
+        };
+
         Runnable pullLoanPayments = () -> {
             System.out.println("[Sync] pullLoanPayments start");
             try {
@@ -556,6 +575,7 @@ public final class DashboardSyncCoordinator {
                 System.out.println("[Sync] refresh thread start");
                 try {
                     try {
+                        pushPending.run();
                         pullCategories.run();
                         pullAccounts.run();
                         pullGoals.run();

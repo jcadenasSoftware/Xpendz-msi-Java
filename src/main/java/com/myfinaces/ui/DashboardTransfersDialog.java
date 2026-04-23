@@ -51,9 +51,12 @@ public final class DashboardTransfersDialog {
     }
 
     private static String accountTypeLabel(String type) {
-        String t = type == null ? "" : type.trim();
+        String t = AccountRepository.normalizeType(type);
         if ("BANK".equalsIgnoreCase(t)) {
             return "Banco";
+        }
+        if ("CREDIT".equalsIgnoreCase(t)) {
+            return "Crédito";
         }
         if ("CASH".equalsIgnoreCase(t)) {
             return "Efectivo";
@@ -61,14 +64,11 @@ public final class DashboardTransfersDialog {
         if ("SAVINGS".equalsIgnoreCase(t)) {
             return "Ahorro";
         }
-        if ("CREDIT".equalsIgnoreCase(t)) {
-            return "Crédito";
+        if ("VIRTUAL_WALLET".equalsIgnoreCase(t)) {
+            return "Billetera virtual";
         }
-        if ("INVESTMENT".equalsIgnoreCase(t)) {
-            return "Inversión";
-        }
-        if ("OTHER".equalsIgnoreCase(t)) {
-            return "Otra";
+        if ("DIGITAL_ACCOUNT".equalsIgnoreCase(t)) {
+            return "Cuenta digital";
         }
         return t.isBlank() ? "Cuenta" : t;
     }
@@ -613,12 +613,14 @@ public final class DashboardTransfersDialog {
         }
 
         try {
-            long available = accountRepo.computeBalanceCents(userUid, from.getValue().id());
-            if (cents > available) {
-                error.setText("El monto supera el saldo disponible.");
-                error.setVisible(true);
-                error.setManaged(true);
-                return Optional.empty();
+            if (!"CREDIT".equalsIgnoreCase(AccountRepository.normalizeType(from.getValue().type()))) {
+                long available = accountRepo.computeBalanceCents(userUid, from.getValue().id());
+                if (cents > available) {
+                    error.setText("El monto supera el saldo disponible.");
+                    error.setVisible(true);
+                    error.setManaged(true);
+                    return Optional.empty();
+                }
             }
         } catch (Exception ignored) {
         }

@@ -18,6 +18,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import javafx.util.StringConverter;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -46,10 +47,33 @@ public final class DashboardAccountsFeature {
         DELETE
     }
 
-    public record EditAccountResult(EditAccountAction action, String newName) {
+    public record EditAccountResult(EditAccountAction action, String newName, String newType) {
     }
 
     public record NewAccount(String name, String type, String currency) {
+    }
+
+    private static String accountTypeLabel(String type) {
+        String t = AccountRepository.normalizeType(type);
+        if ("BANK".equalsIgnoreCase(t)) {
+            return "Banco";
+        }
+        if ("CREDIT".equalsIgnoreCase(t)) {
+            return "Crédito";
+        }
+        if ("CASH".equalsIgnoreCase(t)) {
+            return "Efectivo";
+        }
+        if ("SAVINGS".equalsIgnoreCase(t)) {
+            return "Ahorro";
+        }
+        if ("VIRTUAL_WALLET".equalsIgnoreCase(t)) {
+            return "Billetera virtual";
+        }
+        if ("DIGITAL_ACCOUNT".equalsIgnoreCase(t)) {
+            return "Cuenta digital";
+        }
+        return t.isBlank() ? "Cuenta" : t;
     }
 
     public static Optional<NewAccount> showCreateAccountDialog(boolean darkTheme) {
@@ -66,7 +90,18 @@ public final class DashboardAccountsFeature {
         name.setPrefWidth(360);
 
         ChoiceBox<String> type = new ChoiceBox<>();
-        type.getItems().addAll("BANK", "CASH", "SAVINGS", "CREDIT", "INVESTMENT", "OTHER");
+        type.getItems().addAll("BANK", "CREDIT", "CASH", "SAVINGS", "VIRTUAL_WALLET", "DIGITAL_ACCOUNT");
+        type.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                return accountTypeLabel(object);
+            }
+
+            @Override
+            public String fromString(String string) {
+                return string;
+            }
+        });
         type.getSelectionModel().selectFirst();
 
         ComboBox<String> currency = new ComboBox<>();
@@ -114,7 +149,7 @@ public final class DashboardAccountsFeature {
             return Optional.empty();
         }
 
-        String t = type.getValue() == null ? "BANK" : type.getValue();
+        String t = AccountRepository.normalizeType(type.getValue());
         String cur = currency.getValue() == null ? "" : currency.getValue().trim();
         if (cur.isBlank()) {
             cur = "COP";
@@ -158,13 +193,25 @@ public final class DashboardAccountsFeature {
         name.setPrefWidth(360);
 
         ChoiceBox<String> type = new ChoiceBox<>();
-        type.getItems().addAll("BANK", "CASH");
-        if (existing != null && existing.type() != null && type.getItems().contains(existing.type())) {
-            type.getSelectionModel().select(existing.type());
+        type.getItems().addAll("BANK", "CASH", "SAVINGS", "VIRTUAL_WALLET", "DIGITAL_ACCOUNT");
+        type.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(String object) {
+                return accountTypeLabel(object);
+            }
+
+            @Override
+            public String fromString(String string) {
+                return string;
+            }
+        });
+        String normalized = AccountRepository.normalizeType(existing == null ? null : existing.type());
+        if (type.getItems().contains(normalized)) {
+            type.getSelectionModel().select(normalized);
         } else {
             type.getSelectionModel().selectFirst();
         }
-        type.setDisable(true);
+        type.setDisable(false);
 
         TextField currency = new TextField(existing == null ? "COP" : existing.currency());
         currency.setPrefWidth(200);
@@ -195,10 +242,10 @@ public final class DashboardAccountsFeature {
             return Optional.empty();
         }
         if (result.get() == deleteBtn) {
-            return Optional.of(new EditAccountResult(EditAccountAction.DELETE, null));
+            return Optional.of(new EditAccountResult(EditAccountAction.DELETE, null, null));
         }
         if (result.get() == summaryBtn) {
-            return Optional.of(new EditAccountResult(EditAccountAction.VIEW_SUMMARY, null));
+            return Optional.of(new EditAccountResult(EditAccountAction.VIEW_SUMMARY, null, null));
         }
         if (result.get() != ButtonType.OK) {
             return Optional.empty();
@@ -208,7 +255,8 @@ public final class DashboardAccountsFeature {
         if (n.isBlank()) {
             return Optional.empty();
         }
-        return Optional.of(new EditAccountResult(EditAccountAction.SAVE, n));
+        String t = AccountRepository.normalizeType(type.getValue());
+        return Optional.of(new EditAccountResult(EditAccountAction.SAVE, n, t));
     }
 
     public static void showAccountSummaryDialog(

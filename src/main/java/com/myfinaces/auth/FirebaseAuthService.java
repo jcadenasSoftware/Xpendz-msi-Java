@@ -80,7 +80,8 @@ public final class FirebaseAuthService {
             email = "(google)";
         }
 
-        return new AuthSession(uid, email, idToken, refreshToken, expiresAt);
+        String displayName = displayNameFromResponse(root, email);
+        return new AuthSession(uid, email, displayName, idToken, refreshToken, expiresAt);
     }
 
     public AuthSession signInWithGoogleAccessToken(String googleAccessToken) throws IOException, InterruptedException {
@@ -129,7 +130,8 @@ public final class FirebaseAuthService {
             email = "(google)";
         }
 
-        return new AuthSession(uid, email, idToken, refreshToken, expiresAt);
+        String displayName = displayNameFromResponse(root, email);
+        return new AuthSession(uid, email, displayName, idToken, refreshToken, expiresAt);
     }
 
     private AuthSession signWithEmailPassword(String method, String email, String password) throws IOException, InterruptedException {
@@ -158,7 +160,37 @@ public final class FirebaseAuthService {
         long expiresIn = root.path("expiresIn").asLong();
         long expiresAt = Instant.now().getEpochSecond() + expiresIn - 30; // margen
 
-        return new AuthSession(uid, email, idToken, refreshToken, expiresAt);
+        String displayName = displayNameFromResponse(root, email);
+        return new AuthSession(uid, email, displayName, idToken, refreshToken, expiresAt);
+    }
+
+    private static String displayNameFromResponse(JsonNode root, String email) {
+        if (root != null) {
+            String displayName = root.path("displayName").asText("");
+            if (!displayName.isBlank()) {
+                return displayName;
+            }
+
+            String rawUserInfo = root.path("rawUserInfo").asText("");
+            if (!rawUserInfo.isBlank()) {
+                try {
+                    JsonNode info = MAPPER.readTree(rawUserInfo);
+                    String name = info.path("name").asText("");
+                    if (!name.isBlank()) {
+                        return name;
+                    }
+
+                    String given = info.path("given_name").asText("");
+                    String family = info.path("family_name").asText("");
+                    String full = (given + " " + family).trim();
+                    if (!full.isBlank()) {
+                        return full;
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return displayNameFromEmail(email);
     }
 
     public AuthSession refresh(AuthSession session) throws IOException, InterruptedException {
@@ -182,7 +214,37 @@ public final class FirebaseAuthService {
         long expiresIn = root.path("expires_in").asLong();
         long expiresAt = Instant.now().getEpochSecond() + expiresIn - 30;
 
-        return new AuthSession(uid, session.email(), idToken, refreshToken, expiresAt);
+        return new AuthSession(uid, session.email(), session.displayName(), idToken, refreshToken, expiresAt);
+    }
+
+    private static String displayNameFromEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String e = email.trim();
+        if (e.isBlank()) {
+            return null;
+        }
+        int at = e.indexOf('@');
+        String local = at > 0 ? e.substring(0, at) : e;
+        local = local.replace('.', ' ').replace('_', ' ').replace('-', ' ');
+        String[] parts = local.trim().split("\\s+");
+        StringBuilder out = new StringBuilder();
+        for (String p : parts) {
+            if (p.isBlank()) {
+                continue;
+            }
+            if (out.length() > 0) {
+                out.append(' ');
+            }
+            if (p.length() == 1) {
+                out.append(p.toUpperCase());
+            } else {
+                out.append(Character.toUpperCase(p.charAt(0))).append(p.substring(1));
+            }
+        }
+        String result = out.toString().trim();
+        return result.isBlank() ? null : result;
     }
 
     private static RuntimeException firebaseError(String body) {

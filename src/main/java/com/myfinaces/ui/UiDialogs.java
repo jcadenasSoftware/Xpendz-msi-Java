@@ -81,6 +81,11 @@ public final class UiDialogs {
 
         String cssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
         var cssUrl = UiDialogs.class.getResource(cssPath);
+        if (cssUrl != null) {
+            System.out.println("[UiDialogs] DialogPane theme css: " + cssUrl);
+        } else {
+            System.out.println("[UiDialogs] DialogPane theme css NOT FOUND: " + cssPath);
+        }
         pane.getStylesheets().clear();
         if (cssUrl != null) {
             pane.getStylesheets().add(cssUrl.toExternalForm());
@@ -116,6 +121,11 @@ public final class UiDialogs {
 
                 String cssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
                 var cssUrl = UiDialogs.class.getResource(cssPath);
+                if (cssUrl != null) {
+                    System.out.println("[UiDialogs] Scene theme css: " + cssUrl);
+                } else {
+                    System.out.println("[UiDialogs] Scene theme css NOT FOUND: " + cssPath);
+                }
                 if (cssUrl != null && pane.getScene() != null) {
                     String css = cssUrl.toExternalForm();
                     if (!pane.getScene().getStylesheets().contains(css)) {
@@ -169,7 +179,10 @@ public final class UiDialogs {
             return;
         }
         try {
-            var url = UiDialogs.class.getResource("/images/logo.png");
+            var url = UiDialogs.class.getResource("/images/xpendz.png");
+            if (url == null) {
+                url = UiDialogs.class.getResource("/images/logo.png");
+            }
             if (url != null) {
                 Image img = new Image(url.toExternalForm());
                 Platform.runLater(() -> s.getIcons().setAll(img));

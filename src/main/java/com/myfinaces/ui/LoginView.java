@@ -36,18 +36,15 @@ public final class LoginView {
         SessionRepository sessionRepo,
         Listener listener
     ) {
-        String copyrightName = "Ing. Joel Cadenas";
+        String copyrightName = "Xpendz";
         String website = "https://jcadenas.com";
-
-        Label title = new Label("Mis Finanzas");
-        title.getStyleClass().add("app-title");
-
-        Label subtitle = new Label("Tu control financiero en un solo lugar");
-        subtitle.getStyleClass().add("text-secondary");
 
         ImageView logo = new ImageView();
         try {
-            var logoStream = LoginView.class.getResourceAsStream("/images/logo.png");
+            var logoStream = LoginView.class.getResourceAsStream("/images/xpendz.png");
+            if (logoStream == null) {
+                logoStream = LoginView.class.getResourceAsStream("/images/logo.png");
+            }
             if (logoStream != null) {
                 logo.setImage(new Image(logoStream));
             }
@@ -55,28 +52,25 @@ public final class LoginView {
         }
         logo.setPreserveRatio(true);
         logo.setSmooth(true);
-        logo.setFitWidth(84);
+        logo.setFitWidth(56);
 
         TextField email = new TextField();
-        email.setPromptText("correo@dominio.com");
-        email.setMaxWidth(280);
+        email.setPromptText("Correo electrónico");
+        email.setMaxWidth(Double.MAX_VALUE);
 
         PasswordField password = new PasswordField();
         password.setPromptText("Contraseña");
-        password.setMaxWidth(280);
+        password.setMaxWidth(Double.MAX_VALUE);
 
-        Button login = new Button("Iniciar sesión");
+        Button login = new Button("Iniciar sesión →");
         login.getStyleClass().add("btn-primary");
-        Button register = new Button("Registrarse");
-        register.getStyleClass().addAll("btn-secondary", "btn-accent");
 
         Button google = new Button("Continuar con Google");
-        google.getStyleClass().addAll("btn-secondary", "btn-accent");
+        google.getStyleClass().add("btn-outline");
         boolean googleEnabled = googleOAuthClientId != null && !googleOAuthClientId.isBlank();
         google.setDisable(!googleEnabled);
 
-        setButtonIcon(login, new FontIcon("fas-sign-in-alt"));
-        setButtonIcon(register, new FontIcon("fas-user-plus"));
+        setButtonIcon(login, new FontIcon("fas-arrow-right"));
         setButtonIcon(google, new FontIcon("fab-google"));
 
         ProgressIndicator progress = new ProgressIndicator();
@@ -87,79 +81,123 @@ public final class LoginView {
         Label status = new Label();
         status.getStyleClass().add("text-danger");
 
-        Label emailLabel = new Label("Correo");
+        Label loginTitle = new Label("Iniciar sesión");
+        loginTitle.getStyleClass().add("login-form-title");
+
+        Label emailLabel = new Label("Correo electrónico");
         Label passwordLabel = new Label("Contraseña");
         emailLabel.getStyleClass().add("form-label");
         passwordLabel.getStyleClass().add("form-label");
 
-        VBox form = new VBox(8, emailLabel, email, passwordLabel, password);
-        form.setAlignment(Pos.CENTER);
+        FontIcon emailIcon = new FontIcon("fas-envelope");
+        emailIcon.getStyleClass().add("input-icon");
+        HBox emailRow = new HBox(10, emailIcon, email);
+        emailRow.getStyleClass().add("input-row");
+        HBox.setHgrow(email, Priority.ALWAYS);
 
-        HBox buttons = new HBox(10, login, register, progress);
-        buttons.setAlignment(Pos.CENTER);
-        buttons.setPrefWidth(280);
-        buttons.setMaxWidth(280);
+        FontIcon passwordIcon = new FontIcon("fas-lock");
+        passwordIcon.getStyleClass().add("input-icon");
+        HBox passwordRow = new HBox(10, passwordIcon, password);
+        passwordRow.getStyleClass().add("input-row");
+        HBox.setHgrow(password, Priority.ALWAYS);
+
+        VBox form = new VBox(8, emailLabel, emailRow, passwordLabel, passwordRow);
+        form.setAlignment(Pos.TOP_LEFT);
+
+        HBox buttons = new HBox(10, login, progress);
+        buttons.setAlignment(Pos.CENTER_LEFT);
         login.setMaxWidth(Double.MAX_VALUE);
-        register.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(login, Priority.ALWAYS);
-        HBox.setHgrow(register, Priority.ALWAYS);
         google.setMaxWidth(Double.MAX_VALUE);
-        VBox.setMargin(google, new Insets(4, 0, 0, 0));
+        VBox.setMargin(google, new Insets(6, 0, 0, 0));
 
         Separator leftSep = new Separator();
         Separator rightSep = new Separator();
         leftSep.setMaxWidth(Double.MAX_VALUE);
         rightSep.setMaxWidth(Double.MAX_VALUE);
-        Label orLabel = new Label("o");
+        Label orLabel = new Label("o continuar con");
         orLabel.getStyleClass().add("login-divider-text");
         HBox divider = new HBox(10, leftSep, orLabel, rightSep);
         divider.setAlignment(Pos.CENTER);
         divider.getStyleClass().add("login-divider");
 
-        VBox header = new VBox(8, logo, title, subtitle);
-        header.setAlignment(Pos.CENTER);
+        Label registerCaption = new Label("¿No tienes cuenta?");
+        registerCaption.getStyleClass().add("text-secondary");
+        Hyperlink registerLink = new Hyperlink("Regístrate");
+        registerLink.getStyleClass().add("login-register-link");
+        HBox registerRow = new HBox(6, registerCaption, registerLink);
+        registerRow.setAlignment(Pos.CENTER);
 
-        VBox formBox = new VBox(12, header, form, buttons, divider, google, status);
+        VBox formBox = new VBox(14, loginTitle, form, buttons, divider, google, status, registerRow);
         formBox.getStyleClass().addAll("login-card", "card");
-        formBox.setPrefWidth(440);
-        formBox.setMaxWidth(440);
-        formBox.setAlignment(Pos.CENTER);
+        formBox.setPrefWidth(420);
+        formBox.setMaxWidth(420);
+        formBox.setAlignment(Pos.CENTER_LEFT);
         formBox.setMinHeight(Region.USE_PREF_SIZE);
         formBox.setMaxHeight(Region.USE_PREF_SIZE);
 
-        StackPane centered = new StackPane(formBox);
-        centered.setAlignment(Pos.CENTER);
-        centered.setPadding(new Insets(0));
+        Label brandTitle = new Label("Xpendz");
+        brandTitle.getStyleClass().add("login-brand-title");
 
-        Label footerLine1 = new Label("© 2025 " + copyrightName);
-        footerLine1.getStyleClass().add("login-footer-brand");
-        Hyperlink footerLink = new Hyperlink(website);
-        footerLink.getStyleClass().add("login-footer-link");
-        footerLink.setOnAction(e -> {
+        Label brandLine1 = new Label("Controla tus finanzas");
+        Label brandLine2 = new Label("en tiempo real");
+        Label brandLine3 = new Label("desde tu celular");
+        Label brandLine4 = new Label("y tu computador");
+        brandLine1.getStyleClass().add("login-brand-headline");
+        brandLine2.getStyleClass().add("login-brand-headline");
+        brandLine3.getStyleClass().add("login-brand-headline");
+        brandLine4.getStyleClass().add("login-brand-headline");
+
+        int year = java.time.Year.now().getValue();
+        Label footerLine1 = new Label("© " + year + " " + copyrightName + " | " + website);
+        footerLine1.getStyleClass().add("login-brand-footer");
+        footerLine1.setOnMouseClicked(e -> {
             try {
                 java.awt.Desktop.getDesktop().browse(java.net.URI.create(website));
             } catch (Exception ignored) {
             }
         });
 
-        VBox footerBox = new VBox(2, footerLine1, footerLink);
-        footerBox.setAlignment(Pos.CENTER);
-        HBox footer = new HBox(footerBox);
-        footer.setAlignment(Pos.CENTER);
-        footer.getStyleClass().add("login-footer");
-        footer.setPadding(new Insets(10, 16, 10, 16));
-        footer.setMaxWidth(Double.MAX_VALUE);
-        footer.setMinHeight(Region.USE_PREF_SIZE);
-        footer.setMaxHeight(Region.USE_PREF_SIZE);
+        StackPane logoBadge = new StackPane(logo);
+        logoBadge.getStyleClass().add("login-logo-badge");
+
+        HBox brandRow = new HBox(12, logoBadge, brandTitle);
+        brandRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox brandTop = new VBox(10, brandRow);
+        brandTop.setAlignment(Pos.TOP_LEFT);
+        VBox brandCopy = new VBox(6, brandLine1, brandLine2, brandLine3, brandLine4);
+        brandCopy.setAlignment(Pos.TOP_LEFT);
+
+        Region brandSpacer = new Region();
+        VBox.setVgrow(brandSpacer, Priority.ALWAYS);
+
+        VBox brandPane = new VBox(18, brandTop, brandCopy, brandSpacer, footerLine1);
+        brandPane.getStyleClass().add("login-brand");
+        brandPane.setPadding(new Insets(36, 34, 22, 34));
+        brandPane.setMinWidth(420);
+
+        VBox formPane = new VBox(formBox);
+        formPane.getStyleClass().add("login-form-pane");
+        formPane.setAlignment(Pos.CENTER);
+        formPane.setPadding(new Insets(34));
+        formPane.setMinWidth(520);
+
+        HBox shell = new HBox(0, brandPane, formPane);
+        shell.getStyleClass().add("login-shell");
+        shell.setMaxWidth(980);
+        shell.setMaxHeight(560);
+
+        StackPane centered = new StackPane(shell);
+        centered.setAlignment(Pos.CENTER);
+        centered.setPadding(new Insets(22));
 
         BorderPane root = new BorderPane();
         root.setCenter(centered);
-        root.setBottom(footer);
         root.getStyleClass().add("app-root");
         BorderPane.setMargin(centered, new Insets(0));
         root.setMinHeight(Region.USE_PREF_SIZE);
         root.setMaxHeight(Region.USE_PREF_SIZE);
-        BorderPane.setAlignment(footer, Pos.CENTER);
 
         playLoginSoundIfPresent();
 
@@ -167,7 +205,7 @@ public final class LoginView {
             email.setDisable(true);
             password.setDisable(true);
             login.setDisable(true);
-            register.setDisable(true);
+            registerLink.setDisable(true);
             progress.setVisible(true);
         };
 
@@ -175,7 +213,7 @@ public final class LoginView {
             email.setDisable(false);
             password.setDisable(false);
             login.setDisable(false);
-            register.setDisable(false);
+            registerLink.setDisable(false);
             progress.setVisible(false);
         };
 
@@ -193,7 +231,7 @@ public final class LoginView {
             listener
         ));
 
-        register.setOnAction(e -> runAuthTask(
+        registerLink.setOnAction(e -> runAuthTask(
             status,
             disableInputs,
             enableInputs,

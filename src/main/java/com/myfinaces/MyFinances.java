@@ -31,7 +31,7 @@ import javafx.stage.Stage;
 public class MyFinances extends Application {
 
     private static String appTitle() {
-        return AppVersion.withVersion("Mis Finanzas");
+        return AppVersion.withVersion("Xpendz");
     }
 
     @Override
@@ -65,7 +65,10 @@ public class MyFinances extends Application {
 
         primaryStage.setTitle(appTitle());
         try {
-            var iconStream = MyFinances.class.getResourceAsStream("/images/logo.png");
+            var iconStream = MyFinances.class.getResourceAsStream("/images/xpendz.png");
+            if (iconStream == null) {
+                iconStream = MyFinances.class.getResourceAsStream("/images/logo.png");
+            }
             if (iconStream != null) {
                 primaryStage.getIcons().add(new Image(iconStream));
             }

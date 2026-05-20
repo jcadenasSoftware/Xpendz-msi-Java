@@ -1292,50 +1292,97 @@
 }
 
 .field-choice {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-color: #FFFFFF;
     -fx-background-radius: 8;
-    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-border-color: #D1D5DB;
     -fx-border-width: 1;
     -fx-padding: 10 12 10 12;
     -fx-font-size: 14px;
-    -fx-text-fill: white;
+    -fx-text-fill: #111827;
 }
 
 .field-choice:hover {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-color: #F9FAFB;
+    -fx-border-color: #9CA3AF;
+}
+
+.field-choice:focused {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #2563EB;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.25), 8, 0.2, 0, 0);
 }
 
 .field-input {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-color: #FFFFFF;
     -fx-background-radius: 8;
-    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-border-color: #D1D5DB;
     -fx-border-width: 1;
     -fx-padding: 10 12 10 12;
     -fx-font-size: 14px;
-    -fx-text-fill: white;
+    -fx-text-fill: #111827;
 }
 
 .field-input:focused {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
-    -fx-border-color: rgba(59, 130, 246, 0.5);
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #2563EB;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.25), 8, 0.2, 0, 0);
 }
 
 .field-date {
-    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-color: #FFFFFF;
     -fx-background-radius: 8;
-    -fx-border-color: rgba(255, 255, 255, 0.15);
+    -fx-border-color: #D1D5DB;
     -fx-border-width: 1;
     -fx-padding: 8 12 8 12;
     -fx-font-size: 14px;
-    -fx-text-fill: white;
+    -fx-text-fill: #111827;
+}
+
+.field-date:focused {
+    -fx-border-color: #2563EB;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.25), 8, 0.2, 0, 0);
 }
 
 .field-date .text {
-    -fx-fill: white;
+    -fx-fill: #111827;
 }
 
 .new-tx-content {
     -fx-spacing: 16;
+}
+
+.new-tx-scroll {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.new-tx-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.new-tx-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 6;
+}
+
+.new-tx-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(15, 23, 42, 0.18);
+    -fx-background-radius: 3;
+}
+
+.new-tx-scroll .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.new-tx-scroll .scroll-bar:vertical .increment-button,
+.new-tx-scroll .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
 }
 
 .balance-label {

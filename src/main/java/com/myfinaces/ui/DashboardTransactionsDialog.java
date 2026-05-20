@@ -1,5 +1,6 @@
 package com.myfinaces.ui;
 
+import java.util.concurrent.atomic.AtomicReference;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
@@ -225,8 +226,9 @@ public final class DashboardTransactionsDialog {
         ChoiceBox<CategoryRepository.Category> txRootCategoryFilter = new ChoiceBox<>();
         ChoiceBox<String> txKindFilter = new ChoiceBox<>();
         MenuButton txDateFilter = new MenuButton();
-        DatePicker txFromDate = new DatePicker();
-        DatePicker txToDate = new DatePicker();
+        LocalDate[] txFromDate = { null };
+        LocalDate[] txToDate = { null };
+        AtomicReference<Runnable> refreshTxRef = new AtomicReference<>();
 
         TextField searchField = new TextField();
         searchField.setPromptText("Buscar transacciones...");
@@ -255,6 +257,10 @@ public final class DashboardTransactionsDialog {
                 } catch (Exception ignored) {
                 }
                 refreshBalances.run();
+                Runnable refreshTx = refreshTxRef.get();
+                if (refreshTx != null) {
+                    refreshTx.run();
+                }
             } catch (Exception ignored) {
             }
         });
@@ -322,6 +328,16 @@ public final class DashboardTransactionsDialog {
         txAccountFilter.getStyleClass().add("tx-chip");
         txRootCategoryFilter.getStyleClass().add("tx-chip");
         txDateFilter.getStyleClass().add("tx-chip");
+        txDateFilter.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && darkTheme.getAsBoolean()) {
+                String cssUrl = DashboardTransactionsDialog.class
+                    .getResource("/styles/tx-popup-dark.css") == null ? null
+                    : DashboardTransactionsDialog.class.getResource("/styles/tx-popup-dark.css").toExternalForm();
+                if (cssUrl != null && !newScene.getStylesheets().contains(cssUrl)) {
+                    newScene.getStylesheets().add(cssUrl);
+                }
+            }
+        });
 
         txDateFilter.setText("Fecha");
         MenuItem dateAll = new MenuItem("Todas");
@@ -331,44 +347,67 @@ public final class DashboardTransactionsDialog {
         MenuItem dateCustom = new MenuItem("Rango...");
         txDateFilter.getItems().setAll(dateAll, dateToday, dateYesterday, dateThisMonth, dateCustom);
 
+        java.time.format.DateTimeFormatter dateFmtShort = java.time.format.DateTimeFormatter
+                .ofPattern("d MMM yyyy", java.util.Locale.forLanguageTag("es"));
         Runnable applyDateLabel = () -> {
-            if (txFromDate.getValue() == null && txToDate.getValue() == null) {
+            LocalDate f = txFromDate[0];
+            LocalDate t = txToDate[0];
+            if (f == null && t == null) {
                 txDateFilter.setText("Fecha");
                 return;
             }
-            String from = txFromDate.getValue() == null ? "" : txFromDate.getValue().toString();
-            String to = txToDate.getValue() == null ? "" : txToDate.getValue().toString();
-            if (!from.isBlank() && !to.isBlank()) {
-                txDateFilter.setText(from + " - " + to);
-            } else if (!from.isBlank()) {
-                txDateFilter.setText(from + " - Hoy");
+            LocalDate today = LocalDate.now();
+            if (f != null && t != null && f.equals(t)) {
+                if (f.equals(today)) {
+                    txDateFilter.setText("Hoy");
+                } else if (f.equals(today.minusDays(1))) {
+                    txDateFilter.setText("Ayer");
+                } else {
+                    txDateFilter.setText(dateFmtShort.format(f));
+                }
+                return;
+            }
+            if (f != null && t != null
+                    && f.equals(today.withDayOfMonth(1)) && t.equals(today)) {
+                txDateFilter.setText("Este mes");
+                return;
+            }
+            if (f != null && t != null) {
+                txDateFilter.setText(dateFmtShort.format(f) + "  –  " + dateFmtShort.format(t));
+            } else if (f != null) {
+                txDateFilter.setText("Desde " + dateFmtShort.format(f));
             } else {
-                txDateFilter.setText("Hasta " + to);
+                txDateFilter.setText("Hasta " + dateFmtShort.format(t));
             }
         };
 
+        Runnable runRefreshTx = () -> { if (refreshTxRef.get() != null) refreshTxRef.get().run(); };
         dateAll.setOnAction(e -> {
-            txFromDate.setValue(null);
-            txToDate.setValue(null);
+            txFromDate[0] = null;
+            txToDate[0] = null;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateToday.setOnAction(e -> {
             LocalDate d = LocalDate.now();
-            txFromDate.setValue(d);
-            txToDate.setValue(d);
+            txFromDate[0] = d;
+            txToDate[0] = d;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateYesterday.setOnAction(e -> {
             LocalDate d = LocalDate.now().minusDays(1);
-            txFromDate.setValue(d);
-            txToDate.setValue(d);
+            txFromDate[0] = d;
+            txToDate[0] = d;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateThisMonth.setOnAction(e -> {
             LocalDate now = LocalDate.now();
-            txFromDate.setValue(now.withDayOfMonth(1));
-            txToDate.setValue(now);
+            txFromDate[0] = now.withDayOfMonth(1);
+            txToDate[0] = now;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateCustom.setOnAction(e -> {
             Dialog<ButtonType> rangeDialog = new Dialog<>();
@@ -376,8 +415,8 @@ public final class DashboardTransactionsDialog {
             rangeDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
             UiDialogs.applyAppTheme(rangeDialog, darkTheme.getAsBoolean());
 
-            DatePicker from = new DatePicker(txFromDate.getValue());
-            DatePicker to = new DatePicker(txToDate.getValue());
+            DatePicker from = new DatePicker(txFromDate[0]);
+            DatePicker to = new DatePicker(txToDate[0]);
             VBox content = new VBox(10, new HBox(10, new Label("Desde"), from), new HBox(10, new Label("Hasta"), to));
             content.setPadding(new Insets(14));
             rangeDialog.getDialogPane().setContent(content);
@@ -385,9 +424,10 @@ public final class DashboardTransactionsDialog {
                 if (btn != ButtonType.OK) {
                     return;
                 }
-                txFromDate.setValue(from.getValue());
-                txToDate.setValue(to.getValue());
+                txFromDate[0] = from.getValue();
+                txToDate[0] = to.getValue();
                 applyDateLabel.run();
+                runRefreshTx.run();
             });
         });
 
@@ -406,8 +446,8 @@ public final class DashboardTransactionsDialog {
             txBox,
             txAccountFilter.getValue() == null ? null : txAccountFilter.getValue().id(),
             txRootCategoryFilter.getValue() == null ? null : txRootCategoryFilter.getValue().id(),
-            txFromDate.getValue(),
-            txToDate.getValue(),
+            txFromDate[0],
+            txToDate[0],
             txKindFilter.getValue(),
             searchField.getText(),
             incomeValue,
@@ -418,6 +458,7 @@ public final class DashboardTransactionsDialog {
             categoryRepo,
             refreshBalances
         );
+        refreshTxRef.set(refreshTx);
 
         try {
             txAccountFilter.getItems().add(null);
@@ -463,14 +504,6 @@ public final class DashboardTransactionsDialog {
 
         txAccountFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
         txRootCategoryFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
-        txFromDate.valueProperty().addListener((obs, o, n) -> {
-            applyDateLabel.run();
-            refreshTx.run();
-        });
-        txToDate.valueProperty().addListener((obs, o, n) -> {
-            applyDateLabel.run();
-            refreshTx.run();
-        });
         txKindFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
         searchField.textProperty().addListener((obs, o, n) -> refreshTx.run());
 
@@ -810,27 +843,10 @@ public final class DashboardTransactionsDialog {
         BorderPane header = new BorderPane();
         header.getStyleClass().add("new-tx-header");
 
-        ImageView headerIconView = new ImageView();
-        try {
-            var iconStream = DashboardTransactionsDialog.class.getResourceAsStream("/images/xpendz.png");
-            if (iconStream == null) {
-                iconStream = DashboardTransactionsDialog.class.getResourceAsStream("/images/logo.png");
-            }
-            if (iconStream != null) {
-                headerIconView.setImage(new Image(iconStream));
-            }
-        } catch (Exception ignored) {
-        }
-        headerIconView.setPreserveRatio(true);
-        headerIconView.setSmooth(true);
-        headerIconView.setFitWidth(18);
-        headerIconView.setFitHeight(18);
-        headerIconView.getStyleClass().add("new-tx-header-icon");
-
         Label headerTitle = new Label("Nueva transacción");
         headerTitle.getStyleClass().add("new-tx-title");
 
-        HBox headerTitleBox = new HBox(8, headerIconView, headerTitle);
+        HBox headerTitleBox = new HBox(headerTitle);
         headerTitleBox.setAlignment(Pos.CENTER_LEFT);
         headerTitleBox.getStyleClass().add("new-tx-title-box");
         
@@ -956,71 +972,22 @@ public final class DashboardTransactionsDialog {
         var datePickerCssUrl = UiDialogs.class.getResource(datePickerCssPath);
         String datePickerCss = datePickerCssUrl == null ? null : datePickerCssUrl.toExternalForm();
         dateField.setOnShowing(ev -> {
-            if (datePickerCss == null) {
-                System.out.println("[DatePickerCss] cssUrl NOT FOUND for path=" + datePickerCssPath);
-                return;
-            }
+            if (datePickerCss == null) return;
             Platform.runLater(() -> {
-                int windows = 0;
-                int popups = 0;
-                int matched = 0;
-                int injected = 0;
                 for (Window w : Window.getWindows()) {
-                    windows++;
-                    if (!(w instanceof PopupWindow pw)) {
-                        continue;
-                    }
-                    popups++;
+                    if (!(w instanceof PopupWindow pw)) continue;
                     try {
                         var sc = pw.getScene();
-                        if (sc == null || sc.getRoot() == null) {
-                            continue;
-                        }
+                        if (sc == null || sc.getRoot() == null) continue;
                         var rootNode = sc.getRoot();
-                        boolean isDatePickerPopupRoot = rootNode.getStyleClass() != null
-                            && rootNode.getStyleClass().contains("date-picker-popup");
-                        boolean hasDatePickerPopupInside = rootNode.lookup(".date-picker-popup") != null;
-                        if (!isDatePickerPopupRoot && !hasDatePickerPopupInside) {
-                            continue;
-                        }
-                        matched++;
+                        boolean isPopup = rootNode.getStyleClass().contains("date-picker-popup")
+                            || rootNode.lookup(".date-picker-popup") != null;
+                        if (!isPopup) continue;
                         if (!sc.getStylesheets().contains(datePickerCss)) {
                             sc.getStylesheets().add(datePickerCss);
-                            injected++;
-                            System.out.println("[DatePickerCss] injected css=" + datePickerCss);
                         }
-
-                        try {
-                            if (!rootNode.getStyleClass().contains("xpendz-date-popup")) {
-                                rootNode.getStyleClass().add("xpendz-date-popup");
-                            }
-                            System.out.println("[DatePickerCss] matched popup window. rootStyleClasses=" + rootNode.getStyleClass());
-                            rootNode.applyCss();
-                            if (rootNode instanceof Parent p) {
-                                p.layout();
-                            }
-                            var dpPopup = rootNode.lookup(".date-picker-popup");
-                            if (dpPopup != null) {
-                                if (!dpPopup.getStyleClass().contains("xpendz-date-popup")) {
-                                    dpPopup.getStyleClass().add("xpendz-date-popup");
-                                }
-                                dpPopup.applyCss();
-                                if (dpPopup instanceof Parent p2) {
-                                    p2.layout();
-                                }
-                            }
-                        } catch (Exception ignored2) {
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    } catch (Exception ignored) {}
                 }
-                System.out.println(
-                    "[DatePickerCss] windows=" + windows
-                        + " popups=" + popups
-                        + " matched=" + matched
-                        + " injected=" + injected
-                        + " cssPath=" + datePickerCssPath
-                );
             });
         });
         
@@ -1056,8 +1023,17 @@ public final class DashboardTransactionsDialog {
             error
         );
 
+        // ScrollPane para el contenido — botones siempre visibles
+        javafx.scene.control.ScrollPane contentScroll = new javafx.scene.control.ScrollPane(content);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.getStyleClass().add("new-tx-scroll");
+        contentScroll.setMaxHeight(420);
+        contentScroll.setPrefHeight(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+
         // Estructura final
-        VBox root = new VBox(header, content);
+        VBox root = new VBox(header, contentScroll);
         root.getStyleClass().add("new-tx-root");
         root.getStyleClass().add("tx-kind-expense");
         root.setFillWidth(true);
@@ -1234,6 +1210,39 @@ public final class DashboardTransactionsDialog {
         });
 
         account.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshBalance.run());
+
+        // Navegación Tab entre campos en orden
+        amountField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                rootCategory.requestFocus();
+            }
+        });
+        rootCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                if (subCategoryBox.isVisible()) subCategory.requestFocus();
+                else account.requestFocus();
+            }
+        });
+        subCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                account.requestFocus();
+            }
+        });
+        account.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                noteField.requestFocus();
+            }
+        });
+        noteField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                dateField.requestFocus();
+            }
+        });
 
         // Foco automático en monto al abrir
         dialog.setOnShown(e -> Platform.runLater(() -> amountField.requestFocus()));

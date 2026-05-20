@@ -52,10 +52,6 @@ public final class AppSchema {
                 ")"
             );
 
-            if (!columnExists(c, "categories", "kind")) {
-                st.executeUpdate("ALTER TABLE categories ADD COLUMN kind TEXT");
-            }
-
             try {
                 st.executeUpdate(
                     "WITH RECURSIVE roots AS (" +

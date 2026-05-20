@@ -24,6 +24,7 @@ public final class AccountRepository {
         String name,
         String type,
         String currency,
+        String color,
         long createdAtEpochSec,
         long updatedAtEpochSec
     ) {
@@ -57,6 +58,10 @@ public final class AccountRepository {
     }
 
     public Account create(String userUid, String name, String type, String currency) throws SQLException {
+        return create(userUid, name, type, currency, null);
+    }
+
+    public Account create(String userUid, String name, String type, String currency, String color) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(name, "name");
 
@@ -66,27 +71,32 @@ public final class AccountRepository {
         String cur = (currency == null || currency.isBlank()) ? "COP" : currency;
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "INSERT INTO accounts (id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO accounts (id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )) {
             ps.setString(1, id);
             ps.setString(2, userUid);
             ps.setString(3, name);
             ps.setString(4, t);
             ps.setString(5, cur);
-            ps.setLong(6, now);
+            if (color == null || color.isBlank()) {
+                ps.setObject(6, null);
+            } else {
+                ps.setString(6, color);
+            }
             ps.setLong(7, now);
+            ps.setLong(8, now);
             ps.executeUpdate();
         }
 
-        return new Account(id, userUid, name, t, cur, now, now);
+        return new Account(id, userUid, name, t, cur, color, now, now);
     }
 
     public List<Account> list(String userUid) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM accounts WHERE user_uid = ? ORDER BY name"
         )) {
             ps.setString(1, userUid);
@@ -99,6 +109,7 @@ public final class AccountRepository {
                         rs.getString("name"),
                         rs.getString("type"),
                         rs.getString("currency"),
+                        rs.getString("color"),
                         rs.getLong("created_at_epoch_sec"),
                         rs.getLong("updated_at_epoch_sec")
                     ));
@@ -113,7 +124,7 @@ public final class AccountRepository {
         Objects.requireNonNull(accountId, "accountId");
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM accounts WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
@@ -128,6 +139,7 @@ public final class AccountRepository {
                     rs.getString("name"),
                     rs.getString("type"),
                     rs.getString("currency"),
+                    rs.getString("color"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 );
@@ -178,6 +190,7 @@ public final class AccountRepository {
                     rs.getString("name"),
                     rs.getString("type"),
                     rs.getString("currency"),
+                    rs.getString("color"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 );
@@ -195,6 +208,7 @@ public final class AccountRepository {
             remote.name(),
             normalizeType(remote.type()),
             remote.currency(),
+            remote.color(),
             remote.createdAtEpochSec(),
             remote.updatedAtEpochSec()
         );
@@ -261,7 +275,7 @@ public final class AccountRepository {
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "SELECT id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec " +
+            "SELECT id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec " +
             "FROM accounts WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
@@ -276,6 +290,7 @@ public final class AccountRepository {
                     rs.getString("name"),
                     rs.getString("type"),
                     rs.getString("currency"),
+                    rs.getString("color"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec")
                 );

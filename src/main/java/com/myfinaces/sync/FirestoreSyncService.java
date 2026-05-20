@@ -6,6 +6,7 @@ import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
@@ -912,7 +913,8 @@ public final class FirestoreSyncService {
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
 
-            out.add(new AccountRepository.Account(id, userUid, name, t, cur, cAt, uAt));
+            String color = readStringField(fields, "color");
+            out.add(new AccountRepository.Account(id, userUid, name, t, cur, color, cAt, uAt));
         }
 
         return out;
@@ -1090,7 +1092,8 @@ public final class FirestoreSyncService {
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
 
-            out.add(new CategoryRepository.Category(id, userUid, name, parentId, kind, cAt, uAt));
+            String icon = readStringField(fields, "icon");
+            out.add(new CategoryRepository.Category(id, userUid, name, parentId, kind, icon, cAt, uAt));
         }
 
         return out;
@@ -1207,5 +1210,24 @@ public final class FirestoreSyncService {
 
     private static String urlEncode(String s) {
         return URLEncoder.encode(s, StandardCharsets.UTF_8);
+    }
+
+    public void syncLoanMovement(AuthSession session, LoanMovementRepository.LoanMovement movement) throws Exception {
+        if (movement == null || movement.id() == null) return;
+        String base = "https://firestore.googleapis.com/v1/projects/" + projectId + "/databases/(default)/documents";
+        String url = base + "/users/" + movement.userUid() + "/loans/" + movement.loanId() + "/movements/" + movement.id();
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("movementType", stringField(movement.movementType()));
+        fields.put("amountCents", intField(movement.amountCents()));
+        fields.put("accountId", stringField(movement.accountId()));
+        fields.put("linkedTransactionId", stringField(movement.linkedTransactionId()));
+        fields.put("note", stringField(movement.note()));
+        fields.put("occurredAtEpochSec", intField(movement.occurredAtEpochSec()));
+        fields.put("createdAtEpochSec", intField(movement.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(movement.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "loanMovement");
     }
 }

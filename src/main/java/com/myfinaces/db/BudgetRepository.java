@@ -351,4 +351,20 @@ public final class BudgetRepository {
         long to = end.atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
         return new long[] { from, to };
     }
+
+    public List<String> listDistinctExpenseMonths(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        List<String> months = new ArrayList<>();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT DISTINCT month FROM budgets WHERE user_uid = ? ORDER BY month DESC"
+        )) {
+            ps.setString(1, userUid);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    months.add(rs.getString("month"));
+                }
+            }
+        }
+        return months;
+    }
 }

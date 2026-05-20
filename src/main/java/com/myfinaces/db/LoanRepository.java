@@ -332,4 +332,54 @@ public final class LoanRepository {
             ps.executeUpdate();
         }
     }
+
+    public Loan findActiveByCounterpartyAndType(String userUid, String counterpartyName, String type) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(counterpartyName, "counterpartyName");
+        Objects.requireNonNull(type, "type");
+
+        String sql = "SELECT * FROM loans WHERE user_uid = ? AND counterparty_name = ? AND type = ? AND status = ? LIMIT 1";
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, userUid);
+            ps.setString(2, counterpartyName);
+            ps.setString(3, type);
+            ps.setString(4, STATUS_OPEN);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Loan(
+                        rs.getString("id"),
+                        rs.getString("user_uid"),
+                        rs.getString("type"),
+                        rs.getString("counterparty_name"),
+                        rs.getString("account_id"),
+                        rs.getLong("principal_cents"),
+                        rs.getString("currency"),
+                        rs.getString("status"),
+                        rs.getString("notes"),
+                        rs.getLong("occurred_at_epoch_sec"),
+                        rs.getLong("created_at_epoch_sec"),
+                        rs.getLong("updated_at_epoch_sec"),
+                        rs.getString("updated_by")
+                    );
+                }
+                return null;
+            }
+        }
+    }
+
+    public void archive(String userUid, String loanId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(loanId, "loanId");
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE loans SET status = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, STATUS_CLOSED);
+            ps.setLong(2, now);
+            ps.setString(3, userUid);
+            ps.setString(4, loanId);
+            ps.executeUpdate();
+        }
+    }
 }

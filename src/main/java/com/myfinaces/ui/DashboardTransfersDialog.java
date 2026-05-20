@@ -444,7 +444,7 @@ public final class DashboardTransfersDialog {
         }
     }
 
-    private record NewTransfer(
+    public record NewTransfer(
         String fromAccountId,
         String toAccountId,
         long amountCents,
@@ -635,7 +635,7 @@ public final class DashboardTransfersDialog {
         ));
     }
 
-    private static Optional<NewTransfer> showEditTransferDialog(
+    public static Optional<NewTransfer> showEditTransferDialog(
         TransferRepository.TransferRow existing,
         String userUid,
         AccountRepository accountRepo,

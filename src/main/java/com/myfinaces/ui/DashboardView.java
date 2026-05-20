@@ -4,6 +4,7 @@ import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
@@ -18,6 +19,7 @@ import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
@@ -93,6 +95,7 @@ public final class DashboardView {
         TransferRepository transferRepo,
         LoanRepository loanRepo,
         LoanPaymentRepository loanPaymentRepo,
+        LoanMovementRepository loanMovementRepo,
         BudgetRepository budgetRepo,
         BooleanProperty darkTheme
     ) {
@@ -336,28 +339,7 @@ public final class DashboardView {
         addAccount.getStyleClass().add("nav-button");
         addAccount.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(addAccount, new FontIcon("fas-plus-circle"));
-        addAccount.setOnAction(e -> {
-            Optional<DashboardAccountsFeature.NewAccount> newAccount = DashboardAccountsFeature.showCreateAccountDialog(darkTheme.get());
-            if (newAccount.isEmpty()) {
-                return;
-            }
-
-            try {
-                DashboardAccountsFeature.NewAccount a = newAccount.get();
-                AccountRepository.Account created = accountRepo.create(session.uid(), a.name(), a.type(), a.currency());
-                try {
-                    AppConfig cfg = AppConfig.loadDefault();
-                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                    sync.syncAccount(session, created);
-                } catch (Exception ignored) {
-                }
-                refreshBalances.run();
-            } catch (Exception ex) {
-                totalValue.setText("No se pudo crear la cuenta.");
-                accountsBox.getChildren().clear();
-                accountsBox.getChildren().add(new Label(ex.getMessage() == null ? "Error" : ex.getMessage()));
-            }
-        });
+        // Handler de addAccount se asigna más abajo, tras la declaración de contentHost y sideDrawer
 
         HBox headerBar = DashboardHeaderPane.build(greeting, month, toggleVisibility, toggleTheme);
 
@@ -418,14 +400,20 @@ public final class DashboardView {
         loans.getStyleClass().add("nav-button");
         loans.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(loans, new FontIcon("fas-handshake"));
-        loans.setOnAction(e -> showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo, darkTheme.get(), refreshBalances));
+        loans.setOnAction(e -> {
+            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(loansPane);
+        });
 
         Button budget = new Button("Presupuesto");
         budget.getStyleClass().add("btn-primary");
         budget.getStyleClass().add("nav-button");
         budget.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(budget, new FontIcon("fas-piggy-bank"));
-        budget.setOnAction(e -> showBudgetDialog(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme.get(), refreshBalances));
+        budget.setOnAction(e -> {
+            Node budgetPane = BudgetView.buildBudgetView(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(budgetPane);
+        });
 
         Button charts = new Button("Gráficos");
         charts.getStyleClass().add("btn-primary");
@@ -439,15 +427,11 @@ public final class DashboardView {
         transfers.getStyleClass().add("nav-button");
         transfers.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(transfers, new FontIcon("fas-exchange-alt"));
-        transfers.setOnAction(e -> showTransfersDialog(session, transferRepo, accountRepo, darkTheme.get(), refreshBalances));
-
         Button categories = new Button("Categorías");
         categories.getStyleClass().add("btn-primary");
         categories.getStyleClass().add("nav-button");
         categories.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(categories, new FontIcon("fas-tags"));
-        categories.setOnAction(e -> showCategoriesDialog(session, categoryRepo, darkTheme.get()));
-
         Button syncNow = new Button("Actualizar");
         syncNow.getStyleClass().add("btn-secondary");
         syncNow.getStyleClass().add("nav-button");
@@ -502,12 +486,14 @@ public final class DashboardView {
 
         loans.setOnAction(e -> {
             setActiveButton.accept(loans);
-            showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo, darkTheme.get(), refreshBalances);
+            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(loansPane);
         });
 
         budget.setOnAction(e -> {
             setActiveButton.accept(budget);
-            showBudgetDialog(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme.get(), refreshBalances);
+            Node budgetPane = BudgetView.buildBudgetView(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(budgetPane);
         });
 
         charts.setOnAction(e -> {
@@ -517,16 +503,28 @@ public final class DashboardView {
 
         transfers.setOnAction(e -> {
             setActiveButton.accept(transfers);
-            showTransfersDialog(session, transferRepo, accountRepo, darkTheme.get(), refreshBalances);
+            Node transfersPane = TransfersView.buildTransfersView(session, transferRepo, accountRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(transfersPane);
         });
 
         categories.setOnAction(e -> {
             setActiveButton.accept(categories);
-            showCategoriesDialog(session, categoryRepo, darkTheme.get());
+            Node categoriesPane = CategoriesView.buildCategoriesView(session, categoryRepo, darkTheme::get, refreshBalances);
+            contentHost.getChildren().setAll(categoriesPane);
         });
 
         // Set home button as active by default
         setActiveButton.accept(home);
+
+        SideDrawer accountDrawer = new SideDrawer();
+        NewAccountDrawer.install(accountDrawer, session, accountRepo, () -> {
+            refreshBalances.run();
+        });
+        StackPane contentWithAccountDrawer = accountDrawer.wrapContent(contentHost);
+
+        addAccount.setOnAction(e -> {
+            accountDrawer.show("new-account");
+        });
 
         java.util.function.Consumer<Runnable> flushAndThen = (after) -> {
             logout.setDisable(true);
@@ -688,7 +686,7 @@ public final class DashboardView {
         BorderPane root = new BorderPane();
         root.getStyleClass().add("app-root");
         root.setLeft(sidebarScroll);
-        root.setCenter(contentHost);
+        root.setCenter(contentWithAccountDrawer);
         root.addEventFilter(KeyEvent.KEY_PRESSED, ev -> {
             if (ev.getCode() == KeyCode.F5) {
                 doRefreshNow.run();

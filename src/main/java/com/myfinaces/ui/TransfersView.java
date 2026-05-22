@@ -1420,6 +1420,24 @@ public final class TransfersView {
             }
         });
 
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                fromAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
         Label toLabel = new Label("Hacia");
         toLabel.getStyleClass().add("modal-field-label");
 
@@ -1539,6 +1557,24 @@ public final class TransfersView {
                 setGraphic(row);
             }
         });
+
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                toAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
 
         fromAccountCombo.valueProperty().addListener((obs, oldV, newV) -> {
             if (accountSelectionLock[0]) {

@@ -2034,6 +2034,61 @@
     -fx-text-fill: #E5E7EB;
 }
 
+.account-combo {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #334155;
+}
+
+.account-combo .list-cell {
+    -fx-background-color: #0F172A;
+    -fx-text-fill: #E5E7EB;
+}
+
+.account-combo .list-cell:hover {
+    -fx-background-color: #334155;
+}
+
+.account-combo .list-cell:selected {
+    -fx-background-color: #3B82F6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box-popup {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #334155;
+    -fx-effect: null;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #0F172A;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: #0F172A;
+    -fx-text-fill: #E5E7EB;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: #334155;
+}
+
+.combo-box-popup .list-view .list-cell:selected {
+    -fx-background-color: #3B82F6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box-popup .scroll-bar {
+    -fx-background-color: #1E293B;
+}
+
+.combo-box-popup .scroll-bar .thumb {
+    -fx-background-color: #475569;
+}
+
+.combo-box-popup .scroll-bar .thumb:hover {
+    -fx-background-color: #64748B;
+}
+
 .combo-box-custom.date-chip,
 .menu-button.date-chip {
     -fx-background-color: #1E293B;

@@ -477,13 +477,11 @@
 .account-item {
     -fx-background-color: rgba(15, 23, 42, 0.70);
     -fx-background-radius: 10;
-    -fx-padding: 10 12;
-    -fx-border-color: rgba(255, 255, 255, 0.10);
     -fx-border-radius: 10;
+    -fx-padding: 10 12;
 }
 
 .account-item:hover {
-    -fx-border-color: rgba(59, 130, 246, 0.40);
     -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.45), 22, 0.18, 0, 10);
 }
 
@@ -1775,4 +1773,190 @@
 
 .chart-pie-label-line {
     -fx-stroke: rgba(255, 255, 255, 0.55);
+}
+
+/* ── Edit Account Modal ──────────────────────────────────────── */
+.edit-account-identity-card {
+    -fx-background-color: #1E293B;
+    -fx-background-radius: 12;
+    -fx-padding: 14 16;
+    -fx-border-color: rgba(255,255,255,0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.edit-account-info-box {
+    -fx-background-color: rgba(37, 99, 235, 0.12);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(37, 99, 235, 0.30);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.edit-account-stat-box {
+    -fx-background-color: #1E293B;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(255,255,255,0.07);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.edit-account-stats-row {
+    -fx-padding: 0;
+}
+
+.edit-account-balance-card {
+    -fx-background-radius: 14;
+}
+
+/* ── Utility text classes (dark) ─────────────── */
+.app-title {
+    -fx-text-fill: #F1F5F9;
+    -fx-font-size: 20px;
+    -fx-font-weight: 700;
+}
+
+.text-secondary {
+    -fx-text-fill: #94A3B8;
+}
+
+.account-name {
+    -fx-text-fill: #E2E8F0;
+    -fx-font-weight: 600;
+}
+
+.money-positive {
+    -fx-text-fill: #34D399;
+    -fx-font-weight: 700;
+}
+
+.money-negative {
+    -fx-text-fill: #F87171;
+    -fx-font-weight: 700;
+}
+
+/* ── Dialog / Modal dark background ──────────── */
+.dialog-pane {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #1E293B;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+}
+
+.dialog-pane > .button-bar > .container {
+    -fx-background-color: #0F172A;
+}
+
+.dialog-pane > .content.label {
+    -fx-text-fill: #E2E8F0;
+}
+
+.dialog-pane > .header-panel {
+    -fx-background-color: #0F172A;
+}
+
+.dialog-pane > .header-panel > .label {
+    -fx-text-fill: #F1F5F9;
+    -fx-font-weight: 700;
+}
+
+.dialog-pane .scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.dialog-pane .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+/* ── Edit Account modal ───────────────────────── */
+.field-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #94A3B8;
+}
+
+.field-input {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #E2E8F0;
+    -fx-prompt-text-fill: #475569;
+    -fx-padding: 8 12;
+}
+
+.field-input:focused {
+    -fx-border-color: #3B82F6;
+    -fx-background-color: #1E2D40;
+}
+
+.field-input:disabled {
+    -fx-opacity: 0.55;
+}
+
+.field-choice {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #E2E8F0;
+    -fx-padding: 6 10;
+}
+
+.edit-account-info-box {
+    -fx-background-color: rgba(37, 99, 235, 0.15);
+    -fx-border-color: rgba(59, 130, 246, 0.35);
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.edit-account-stat-box {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 1;
+}
+
+.edit-account-stats-row {
+    -fx-padding: 0;
+}
+
+.edit-account-identity-card {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 1;
+}
+
+.tx-item {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.tx-item:hover {
+    -fx-background-color: #263348;
+}
+
+.tx-item-icon-bubble {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.tx-item-icon-income {
+    -fx-background-color: rgba(5, 150, 105, 0.25);
+}
+
+.tx-item-icon-expense {
+    -fx-background-color: rgba(225, 29, 72, 0.22);
 }

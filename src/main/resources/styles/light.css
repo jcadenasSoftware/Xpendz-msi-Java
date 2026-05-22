@@ -487,13 +487,11 @@
 .account-item {
     -fx-background-color: rgba(255, 255, 255, 0.92);
     -fx-background-radius: 10;
-    -fx-padding: 10 12;
-    -fx-border-color: rgba(15, 23, 42, 0.08);
     -fx-border-radius: 10;
+    -fx-padding: 10 12;
 }
 
 .account-item:hover {
-    -fx-border-color: rgba(29, 78, 216, 0.35);
     -fx-effect: dropshadow(three-pass-box, rgba(15, 23, 42, 0.10), 18, 0.15, 0, 6);
 }
 
@@ -1449,6 +1447,47 @@
     -fx-border-width: 1;
 }
 
+/* ── Edit Account Modal ──────────────────────────────────────── */
+.edit-account-identity-card {
+    -fx-background-color: #F8FAFC;
+    -fx-background-radius: 12;
+    -fx-padding: 14 16;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.edit-account-info-box {
+    -fx-background-color: rgba(37, 99, 235, 0.07);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(37, 99, 235, 0.25);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.edit-account-stat-box {
+    -fx-background-color: #F1F5F9;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.edit-account-stats-row {
+    -fx-padding: 0;
+}
+
+.edit-account-balance-card {
+    -fx-background-radius: 14;
+}
+
+.field-label {
+    -fx-text-fill: #475569;
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+}
+
 .new-tx-root.tx-kind-expense .currency-symbol {
     -fx-text-fill: #EF4444;
 }
@@ -1760,4 +1799,94 @@
     -fx-font-weight: 700;
     -fx-background-radius: 10;
     -fx-padding: 10 18;
+}
+
+/* ── Edit Account modal ───────────────────────── */
+.field-label {
+    -fx-font-size: 12px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #475569;
+}
+
+.field-input {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #0F172A;
+    -fx-prompt-text-fill: #94A3B8;
+    -fx-padding: 8 12;
+}
+
+.field-input:focused {
+    -fx-border-color: #3B82F6;
+    -fx-background-color: #FFFFFF;
+}
+
+.field-input:disabled {
+    -fx-opacity: 0.6;
+}
+
+.field-choice {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #CBD5E1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-text-fill: #0F172A;
+    -fx-padding: 6 10;
+}
+
+.edit-account-info-box {
+    -fx-background-color: #EFF6FF;
+    -fx-border-color: #BFDBFE;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.edit-account-stat-box {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 1;
+}
+
+.edit-account-stats-row {
+    -fx-padding: 0;
+}
+
+.edit-account-identity-card {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-border-width: 1;
+}
+
+.tx-item {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 8 10;
+}
+
+.tx-item:hover {
+    -fx-background-color: #F1F5F9;
+}
+
+.tx-item-icon-bubble {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.tx-item-icon-income {
+    -fx-background-color: #D1FAE5;
+}
+
+.tx-item-icon-expense {
+    -fx-background-color: #FFE4E6;
 }

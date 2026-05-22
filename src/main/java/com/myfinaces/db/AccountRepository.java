@@ -198,6 +198,57 @@ public final class AccountRepository {
         }
     }
 
+    public Account updateNameTypeAndColor(String userUid, String accountId, String newName, String newType, String newColor) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(accountId, "accountId");
+        Objects.requireNonNull(newName, "newName");
+
+        String n = newName.trim();
+        if (n.isBlank()) {
+            throw new IllegalArgumentException("name");
+        }
+
+        String t = normalizeType(newType);
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE accounts SET name = ?, type = ?, color = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, n);
+            ps.setString(2, t);
+            ps.setString(3, newColor);
+            ps.setLong(4, now);
+            ps.setString(5, userUid);
+            ps.setString(6, accountId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                throw new IllegalArgumentException("account");
+            }
+        }
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec " +
+            "FROM accounts WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, accountId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new IllegalArgumentException("account");
+                }
+                return new Account(
+                    rs.getString("id"),
+                    rs.getString("user_uid"),
+                    rs.getString("name"),
+                    rs.getString("type"),
+                    rs.getString("currency"),
+                    rs.getString("color"),
+                    rs.getLong("created_at_epoch_sec"),
+                    rs.getLong("updated_at_epoch_sec")
+                );
+            }
+        }
+    }
+
     public void upsertFromRemote(String userUid, Account remote) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(remote, "remote");

@@ -212,6 +212,18 @@ public final class DashboardTransactionsDialog {
         BooleanSupplier darkTheme,
         Runnable refreshBalances
     ) {
+        return buildTransactionsPane(session, txRepo, accountRepo, categoryRepo, darkTheme, refreshBalances, null);
+    }
+
+    public static javafx.scene.Node buildTransactionsPane(
+        AuthSession session,
+        TransactionRepository txRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        BooleanSupplier darkTheme,
+        Runnable refreshBalances,
+        String preselectedAccountId
+    ) {
         String userUid = session.uid();
 
         VBox txBox = new VBox(8);
@@ -469,7 +481,15 @@ public final class DashboardTransactionsDialog {
                     .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             txAccountFilter.getItems().addAll(accounts);
-            txAccountFilter.getSelectionModel().selectFirst();
+            if (preselectedAccountId != null) {
+                accounts.stream().filter(a -> a != null && preselectedAccountId.equals(a.id())).findFirst()
+                    .ifPresentOrElse(
+                        txAccountFilter.getSelectionModel()::select,
+                        txAccountFilter.getSelectionModel()::selectFirst
+                    );
+            } else {
+                txAccountFilter.getSelectionModel().selectFirst();
+            }
         } catch (Exception ignored) {
         }
         txAccountFilter.setConverter(new javafx.util.StringConverter<>() {

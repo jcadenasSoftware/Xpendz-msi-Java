@@ -10,6 +10,7 @@ import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.db.BudgetRepository;
+import com.myfinaces.config.AccountStyles;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.animation.PauseTransition;
@@ -136,6 +137,7 @@ public final class DashboardView {
         month.getStyleClass().add("dashboard-month");
 
         AtomicReference<Runnable> refreshBalancesRef = new AtomicReference<>();
+        AtomicReference<java.util.function.Consumer<String>> onViewAllMovementsRef = new AtomicReference<>();
         DashboardBalancesPane.Parts balancesUi = DashboardBalancesPane.build(refreshBalancesRef);
         Label totalValue = balancesUi.totalValue();
         HBox totalTrend = balancesUi.totalTrend();
@@ -266,6 +268,7 @@ public final class DashboardView {
             goalRepo,
             txRepo,
             transferRepo,
+            categoryRepo,
             totalValue,
             totalTrend,
             totalTrendBackdrop,
@@ -290,7 +293,8 @@ public final class DashboardView {
             goalsBox,
             darkTheme,
             hideTotalBalance,
-            openBudgetGoalsTab
+            openBudgetGoalsTab,
+            onViewAllMovementsRef
         );
         refreshBalancesRef.set(refreshBalances);
         refreshBalances.run();
@@ -353,6 +357,13 @@ public final class DashboardView {
 
         StackPane contentHost = new StackPane(dashboardContent);
         contentHost.setMinWidth(0);
+
+        onViewAllMovementsRef.set(accountId -> {
+            javafx.scene.Node txPane = DashboardTransactionsDialog.buildTransactionsPane(
+                session, txRepo, accountRepo, categoryRepo, darkTheme::get, refreshBalancesRef.get() != null ? refreshBalancesRef.get() : () -> {}, accountId
+            );
+            contentHost.getChildren().setAll(txPane);
+        });
 
         Runnable showHome = () -> contentHost.getChildren().setAll(dashboardContent);
 
@@ -757,6 +768,7 @@ public final class DashboardView {
         GoalRepository goalRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
+        CategoryRepository categoryRepo,
         Label totalValue,
         HBox totalTrend,
         Pane totalTrendBackdrop,
@@ -781,7 +793,8 @@ public final class DashboardView {
         VBox goalsBox,
         BooleanProperty darkTheme,
         AtomicBoolean hideTotalBalance,
-        Runnable openBudgetGoalsTab
+        Runnable openBudgetGoalsTab,
+        AtomicReference<java.util.function.Consumer<String>> onViewAllMovementsRef
     ) {
         accountsBox.getChildren().clear();
         goalsBox.getChildren().clear();
@@ -792,6 +805,7 @@ public final class DashboardView {
             goalRepo,
             txRepo,
             transferRepo,
+            categoryRepo,
             totalValue,
             totalTrend,
             totalTrendBackdrop,
@@ -816,7 +830,8 @@ public final class DashboardView {
             goalsBox,
             darkTheme,
             hideTotalBalance,
-            openBudgetGoalsTab
+            openBudgetGoalsTab,
+            onViewAllMovementsRef
         );
 
         Parent goalsParent = goalsBox.getParent();
@@ -964,7 +979,8 @@ public final class DashboardView {
                 .filter(ab -> ab != null && ab.account() != null && !goalAccountIds.contains(ab.account().id()))
                 .toList();
 
-            updateAccountsByTypeTwoColumns(accountsBox, nonGoalAccounts, session, accountRepo, txRepo, transferRepo, darkTheme.get(), refreshAll);
+            java.util.function.Consumer<String> onViewAll = onViewAllMovementsRef != null ? onViewAllMovementsRef.get() : null;
+            updateAccountsByTypeTwoColumns(accountsBox, nonGoalAccounts, session, accountRepo, txRepo, transferRepo, categoryRepo, darkTheme, refreshAll, onViewAll);
 
             if (!goalAccountIds.isEmpty()) {
                 Label hdrGoals = new Label("Metas");
@@ -1090,8 +1106,10 @@ public final class DashboardView {
         AccountRepository accountRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
-        boolean darkTheme,
-        Runnable refreshAll
+        CategoryRepository categoryRepo,
+        BooleanProperty darkTheme,
+        Runnable refreshAll,
+        java.util.function.Consumer<String> onViewAllMovements
     ) {
         if (accountsBox == null) {
             return;
@@ -1124,7 +1142,7 @@ public final class DashboardView {
         int leftCount = 0;
         int rightCount = 0;
         for (AccountWithBalance ab : sorted) {
-            Region row = buildAccountCompactRow(accountsBox, session, accountRepo, txRepo, transferRepo, darkTheme, ab, refreshAll);
+            Region row = buildAccountCompactRow(accountsBox, session, accountRepo, txRepo, transferRepo, categoryRepo, darkTheme, ab, refreshAll, onViewAllMovements);
             if (leftCount <= rightCount) {
                 colLeft.getChildren().add(row);
                 leftCount++;
@@ -1147,12 +1165,37 @@ public final class DashboardView {
         AccountRepository accountRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
-        boolean darkTheme,
+        CategoryRepository categoryRepo,
+        BooleanProperty darkTheme,
         AccountWithBalance ab,
-        Runnable refreshAll
+        Runnable refreshAll,
+        java.util.function.Consumer<String> onViewAllMovements
     ) {
         AccountRepository.Account a = ab.account();
         long balance = ab.balanceCents();
+
+        String accentColor = AccountStyles.resolveColor(a);
+        String softColor   = AccountStyles.resolveSoftColor(a);
+        String iconLiteral = AccountStyles.resolveIcon(a);
+
+        // ── Avatar circular ───────────────────────────────────────────
+        FontIcon avatarIcon = new FontIcon(iconLiteral);
+        avatarIcon.setIconSize(16);
+        try {
+            avatarIcon.setIconColor(Color.web(accentColor));
+        } catch (Exception ignored) {}
+        Circle avatarBg = new Circle(22);
+        try {
+            avatarBg.setFill(Color.web(softColor, 0.55));
+        } catch (Exception ignored) {
+            avatarBg.setFill(Color.TRANSPARENT);
+        }
+        StackPane avatar = new StackPane(avatarBg, avatarIcon);
+        avatar.setMinWidth(44);
+        avatar.setMaxWidth(44);
+        avatar.setPrefWidth(44);
+        avatar.setMinHeight(44);
+        avatar.setMaxHeight(44);
 
         Label name = new Label(a.name());
         name.getStyleClass().add("account-name");
@@ -1161,11 +1204,16 @@ public final class DashboardView {
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
 
-        Label type = new Label(accountTypeLabel(a.type()));
-        type.getStyleClass().addAll("text-secondary", "accounts-type-inline");
-        type.setTextOverrun(OverrunStyle.ELLIPSIS);
-        type.setMinWidth(0);
-        type.setMaxWidth(Double.MAX_VALUE);
+        Label typeDot = new Label("\u2022");
+        try { typeDot.setTextFill(Color.web(accentColor)); } catch (Exception ignored) {}
+        typeDot.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+        Label typeLabel = new Label(accountTypeLabel(a.type()));
+        typeLabel.getStyleClass().addAll("text-secondary", "accounts-type-inline");
+        typeLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
+        typeLabel.setMinWidth(0);
+        typeLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox typeRow = new HBox(4, typeDot, typeLabel);
+        typeRow.setAlignment(Pos.CENTER_LEFT);
 
         Label amount = new Label(formatMoney(balance, a.currency()));
         amount.setMinWidth(0);
@@ -1174,11 +1222,10 @@ public final class DashboardView {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        VBox left = new VBox(2, name, type);
+        VBox left = new VBox(2, name, typeRow);
         left.setMinWidth(0);
         left.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(left, Priority.ALWAYS);
-
 
         Button reconcileBtn = new Button();
         reconcileBtn.getStyleClass().addAll("btn-secondary", "accounts-reconcile-btn");
@@ -1190,14 +1237,26 @@ public final class DashboardView {
         reconcileBtn.setOpacity(0);
         reconcileBtn.setFocusTraversable(false);
 
-        HBox row = new HBox(10, left, spacer, reconcileBtn, amount);
+        HBox row = new HBox(10, avatar, left, spacer, reconcileBtn, amount);
         row.getStyleClass().add("account-item");
         row.setMaxWidth(Double.MAX_VALUE);
         row.setMinHeight(Region.USE_PREF_SIZE);
+        row.setAlignment(Pos.CENTER_LEFT);
+        boolean initialDark = darkTheme != null && darkTheme.get();
+        String borderSoft = initialDark ? "rgba(255,255,255,0.10)" : "rgba(15,23,42,0.09)";
+        String baseStyle = "-fx-border-color: " + borderSoft + " " + borderSoft + " " + borderSoft + " " + accentColor + "; -fx-border-width: 1 1 1 3;";
+        row.setStyle(baseStyle);
 
-        row.hoverProperty().addListener((obs, o, n) -> reconcileBtn.setOpacity(Boolean.TRUE.equals(n) ? 1 : 0));
+        row.hoverProperty().addListener((obs, o, n) -> {
+            reconcileBtn.setOpacity(Boolean.TRUE.equals(n) ? 1 : 0);
+            boolean isDarkNow = darkTheme != null && darkTheme.get();
+            String hoverBorder = isDarkNow ? "rgba(59,130,246,0.40)" : "rgba(29,78,216,0.30)";
+            row.setStyle(Boolean.TRUE.equals(n)
+                ? "-fx-border-color: " + hoverBorder + " " + hoverBorder + " " + hoverBorder + " " + accentColor + "; -fx-border-width: 1 1 1 3;"
+                : baseStyle);
+        });
 
-        VBox reconcilePanel = buildAccountReconcilePanel(accountsBox, a, balance, darkTheme);
+        VBox reconcilePanel = buildAccountReconcilePanel(accountsBox, a, balance, initialDark);
         boolean open = a != null && a.id() != null && a.id().equals(accountsReconcileOpenId(accountsBox));
         reconcilePanel.setVisible(open);
         reconcilePanel.setManaged(open);
@@ -1220,13 +1279,14 @@ public final class DashboardView {
             if (ev.getButton() != MouseButton.PRIMARY || ev.getClickCount() != 2) {
                 return;
             }
-            Optional<DashboardAccountsFeature.EditAccountResult> res = DashboardAccountsFeature.showEditAccountDialog(a, darkTheme);
+            boolean isDarkNow = darkTheme != null && darkTheme.get();
+            Optional<DashboardAccountsFeature.EditAccountResult> res = DashboardAccountsFeature.showEditAccountDialog(a, isDarkNow, session.uid(), accountRepo, txRepo, transferRepo, onViewAllMovements);
             if (res.isEmpty()) {
                 return;
             }
             try {
                 if (res.get().action() == DashboardAccountsFeature.EditAccountAction.SAVE) {
-                    AccountRepository.Account updated = accountRepo.updateNameAndType(session.uid(), a.id(), res.get().newName(), res.get().newType());
+                    AccountRepository.Account updated = accountRepo.updateNameTypeAndColor(session.uid(), a.id(), res.get().newName(), res.get().newType(), res.get().newColor());
                     try {
                         AppConfig cfg = AppConfig.loadDefault();
                         FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
@@ -1237,14 +1297,14 @@ public final class DashboardView {
                         refreshAll.run();
                     }
                 } else if (res.get().action() == DashboardAccountsFeature.EditAccountAction.VIEW_SUMMARY) {
-                    DashboardAccountsFeature.showAccountSummaryDialog(session.uid(), a, txRepo, transferRepo, accountRepo, darkTheme);
+                    DashboardAccountsFeature.showAccountSummaryDialog(session.uid(), a, txRepo, transferRepo, accountRepo, isDarkNow);
                 } else if (res.get().action() == DashboardAccountsFeature.EditAccountAction.DELETE) {
                     Alert confirm = buildAlert(
                         AlertType.CONFIRMATION,
                         "Eliminar cuenta",
                         "¿Eliminar cuenta?",
                         "Esta acción también eliminará sus transacciones y transferencias asociadas.",
-                        darkTheme
+                        isDarkNow
                     );
                     confirm.showAndWait().ifPresent(btn -> {
                         if (btn != ButtonType.OK) {
@@ -1274,7 +1334,7 @@ public final class DashboardView {
                         "Cuenta: " + a.name() + "\n\n" +
                             "Para eliminarla, primero borra sus transacciones y transferencias asociadas, " +
                             "o mueve el saldo a otra cuenta.",
-                        darkTheme
+                        isDarkNow
                     );
                     err.showAndWait();
                 }
@@ -1284,7 +1344,7 @@ public final class DashboardView {
                     "Error",
                     "No se pudo actualizar la cuenta",
                     ex.getMessage() == null ? "Error" : ex.getMessage(),
-                    darkTheme
+                    isDarkNow
                 );
                 err.showAndWait();
             }
@@ -1363,7 +1423,10 @@ public final class DashboardView {
             long realCents = parsed == null ? 0L : parsed;
             long diff = realCents - recordedCents;
             ClipboardContent cc = new ClipboardContent();
-            cc.putString(formatMoney(diff, a == null ? null : a.currency()));
+            long absDiff = Math.abs(diff);
+            long intPart = absDiff / 100;
+            long decPart = absDiff % 100;
+            cc.putString(decPart == 0 ? String.valueOf(intPart) : intPart + "." + String.format("%02d", decPart));
             Clipboard.getSystemClipboard().setContent(cc);
         });
 

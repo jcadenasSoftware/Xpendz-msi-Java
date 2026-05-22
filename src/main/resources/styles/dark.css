@@ -1960,3 +1960,218 @@
 .tx-item-icon-expense {
     -fx-background-color: rgba(225, 29, 72, 0.22);
 }
+
+/* TransfersView dark mode overrides */
+.transfers-root {
+    -tr-color-bg: #0F172A;
+    -tr-color-surface: #1E293B;
+    -tr-color-surface-alt: #334155;
+    -tr-color-border: #334155;
+    -tr-color-text: #E5E7EB;
+    -tr-color-text-muted: #9CA3AF;
+    -tr-color-text-subtle: #64748B;
+    -tr-color-primary: #3B82F6;
+    -tr-color-primary-soft: rgba(59, 130, 246, 0.15);
+    -tr-color-accent: #8B5CF6;
+    -tr-color-success: #22C55E;
+    -tr-color-danger: #EF4444;
+}
+
+.filters-card {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.metric-card {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.tr-card {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #334155;
+}
+
+.history-card {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.transfer-item {
+    -fx-background-color: #1E293B;
+    -fx-border-color: transparent transparent #334155 transparent;
+}
+
+.transfer-item:hover {
+    -fx-background-color: #334155;
+}
+
+.row-actions-menu {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.row-actions-menu .menu-item .label {
+    -fx-text-fill: #E5E7EB;
+}
+
+.row-actions-menu .menu-item:focused,
+.row-actions-menu .menu-item:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+}
+
+.row-actions-menu .menu-item:focused .label,
+.row-actions-menu .menu-item:hover .label {
+    -fx-text-fill: #E5E7EB;
+}
+
+.combo-box-custom {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #334155;
+}
+
+.combo-box-custom .list-cell {
+    -fx-text-fill: #E5E7EB;
+}
+
+.combo-box-custom.date-chip,
+.menu-button.date-chip {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-text-fill: #E5E7EB;
+}
+
+.section-header {
+    -fx-text-fill: #9CA3AF;
+}
+
+/* Modal dark mode overrides */
+.modal-root {
+    -fx-background-color: #0F172A;
+    -fx-border-color: #334155;
+    -modal-color-primary: #3B82F6;
+    -modal-color-text-muted: #9CA3AF;
+    -modal-color-border: #334155;
+    -modal-color-summary-bg: rgba(59, 130, 246, 0.10);
+}
+
+.modal-title {
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-subtitle {
+    -fx-text-fill: #9CA3AF;
+}
+
+.modal-close-icon {
+    -fx-stroke: #9CA3AF;
+}
+
+.modal-field-label {
+    -fx-text-fill: #E5E7EB;
+}
+
+.account-combo {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.account-combo .list-cell {
+    -fx-text-fill: #E5E7EB;
+}
+
+.account-option-name {
+    -fx-text-fill: #E5E7EB;
+}
+
+.account-option-type {
+    -fx-text-fill: #9CA3AF;
+}
+
+.account-option-available-label {
+    -fx-text-fill: #9CA3AF;
+}
+
+.account-option-available-value {
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-swap-btn {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.modal-swap-btn:hover {
+    -fx-background-color: #334155;
+}
+
+.modal-swap-icon {
+    -fx-stroke: #3B82F6;
+}
+
+.modal-amount-input {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-text-fill: #3B82F6;
+}
+
+.modal-help-text {
+    -fx-text-fill: #9CA3AF;
+}
+
+.modal-text-input {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-date-wrap {
+    -fx-background-color: #1E293B;
+    -fx-border-color: #334155;
+}
+
+.modal-date-icon {
+    -fx-stroke: #E5E7EB;
+}
+
+.modal-date-picker .text-field {
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-summary-title {
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-summary-text {
+    -fx-fill: #E5E7EB;
+}
+
+.modal-summary-from {
+    -fx-fill: #3B82F6;
+}
+
+.modal-summary-to {
+    -fx-fill: #8B5CF6;
+}
+
+.modal-footer {
+    -fx-border-color: #334155 transparent transparent transparent;
+    -fx-background-color: #0F172A;
+}
+
+.modal-btn-cancel {
+    -fx-border-color: #4B5563;
+    -fx-text-fill: #E5E7EB;
+}
+
+.modal-btn-cancel:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
+}
+
+.modal-btn-confirm {
+    -fx-background-color: #3B82F6;
+}
+
+.modal-btn-confirm:hover {
+    -fx-background-color: #2563EB;
+}

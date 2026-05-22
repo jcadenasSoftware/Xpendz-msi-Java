@@ -2040,7 +2040,7 @@
 }
 
 .account-combo .list-cell {
-    -fx-background-color: #0F172A;
+    -fx-background-color: transparent;
     -fx-text-fill: #E5E7EB;
 }
 
@@ -2064,7 +2064,7 @@
 }
 
 .combo-box-popup .list-view .list-cell {
-    -fx-background-color: #0F172A;
+    -fx-background-color: transparent;
     -fx-text-fill: #E5E7EB;
 }
 

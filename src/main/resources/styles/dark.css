@@ -2048,7 +2048,7 @@
     -fx-background-color: #334155;
 }
 
-.account-combo .list-cell:selected {
+.account-combo .list-cell:filled:selected {
     -fx-background-color: #3B82F6;
     -fx-text-fill: #FFFFFF;
 }
@@ -2072,7 +2072,7 @@
     -fx-background-color: #334155;
 }
 
-.combo-box-popup .list-view .list-cell:selected {
+.combo-box-popup .list-view .list-cell:filled:selected {
     -fx-background-color: #3B82F6;
     -fx-text-fill: #FFFFFF;
 }

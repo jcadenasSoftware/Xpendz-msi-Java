@@ -728,6 +728,24 @@ public final class TransfersView {
             }
         });
 
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                fromAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
         final boolean[] accountSelectionLock = new boolean[] { false };
         if (accounts != null && !accounts.isEmpty()) {
             fromAccountCombo.getSelectionModel().selectFirst();
@@ -853,6 +871,25 @@ public final class TransfersView {
                 setGraphic(row);
             }
         });
+
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                toAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
         if (accounts != null && !accounts.isEmpty()) {
             AccountRepository.Account fromSelected = fromAccountCombo.getValue();
             AccountRepository.Account pick = null;

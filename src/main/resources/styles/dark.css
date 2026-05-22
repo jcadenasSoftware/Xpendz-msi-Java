@@ -2040,16 +2040,16 @@
 }
 
 .account-combo .list-cell {
-    -fx-background-color: transparent;
+    -fx-background-color: transparent !important;
     -fx-text-fill: #E5E7EB;
 }
 
 .account-combo .list-cell:hover {
-    -fx-background-color: #334155;
+    -fx-background-color: #334155 !important;
 }
 
 .account-combo .list-cell:filled:selected {
-    -fx-background-color: #3B82F6;
+    -fx-background-color: #3B82F6 !important;
     -fx-text-fill: #FFFFFF;
 }
 
@@ -2064,16 +2064,16 @@
 }
 
 .combo-box-popup .list-view .list-cell {
-    -fx-background-color: transparent;
+    -fx-background-color: transparent !important;
     -fx-text-fill: #E5E7EB;
 }
 
 .combo-box-popup .list-view .list-cell:hover {
-    -fx-background-color: #334155;
+    -fx-background-color: #334155 !important;
 }
 
 .combo-box-popup .list-view .list-cell:filled:selected {
-    -fx-background-color: #3B82F6;
+    -fx-background-color: #3B82F6 !important;
     -fx-text-fill: #FFFFFF;
 }
 

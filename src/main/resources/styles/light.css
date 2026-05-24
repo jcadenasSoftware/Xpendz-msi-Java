@@ -2173,6 +2173,7 @@
 /* Drawer base styles */
 .drawer-panel {
     -fx-background-color: #FFFFFF;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.15), 10, 0, -2, 0);
 }
 
 .drawer-body {

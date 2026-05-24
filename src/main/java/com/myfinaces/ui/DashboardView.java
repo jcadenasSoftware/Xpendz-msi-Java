@@ -528,6 +528,8 @@ public final class DashboardView {
         setActiveButton.accept(home);
 
         SideDrawer accountDrawer = new SideDrawer();
+        accountDrawer.setDarkTheme(darkTheme.get());
+        darkTheme.addListener((obs, oldV, newV) -> accountDrawer.setDarkTheme(Boolean.TRUE.equals(newV)));
         NewAccountDrawer.install(accountDrawer, session, accountRepo, () -> {
             refreshBalances.run();
         }, darkTheme.get());

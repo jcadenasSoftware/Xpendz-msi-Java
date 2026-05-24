@@ -15,10 +15,10 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
@@ -71,7 +71,7 @@ public final class NewAccountDrawer {
 
         // ── Account type selector ────────────────────────────────────
         Label typeLabel = SideDrawer.fieldLabel("Tipo de cuenta", "fas-layer-group");
-        FlowPane typeGrid = buildTypeSelector();
+        GridPane typeGrid = buildTypeSelector();
 
         VBox typeSection = new VBox(6, typeLabel, typeGrid);
         typeSection.getStyleClass().add("drawer-section");
@@ -155,7 +155,7 @@ public final class NewAccountDrawer {
             .findFirst().orElse(null);
 
         // ── Register all in drawer ───────────────────────────────────
-        VBox body = drawer.register(DRAWER_ID,
+        VBox body = drawer.register(DRAWER_ID, darkTheme,
             header,
             typeSection,
             nameCurrencyRow,
@@ -163,11 +163,6 @@ public final class NewAccountDrawer {
             colorSection,
             footer
         );
-
-        // Apply dark theme if enabled
-        if (darkTheme) {
-            body.getStyleClass().add("dark");
-        }
 
         // ── Wire create action ───────────────────────────────────────
         if (primaryBtn != null) {
@@ -261,13 +256,16 @@ public final class NewAccountDrawer {
     //  I N T E R N A L   B U I L D E R S
     // ══════════════════════════════════════════════════════════════════
 
-    private static FlowPane buildTypeSelector() {
-        FlowPane grid = new FlowPane();
+    private static GridPane buildTypeSelector() {
+        GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
         grid.getStyleClass().add("drawer-type-grid");
 
         List<StackPane> cards = new ArrayList<>();
+
+        int col = 0;
+        int row = 0;
 
         for (AccountStyles.AccountTypeStyle opt : AccountStyles.ALL_TYPES) {
             FontIcon icon = new FontIcon(opt.icon());
@@ -283,7 +281,7 @@ public final class NewAccountDrawer {
 
             StackPane card = new StackPane(content);
             card.getStyleClass().add("drawer-type-card");
-            card.setPrefWidth(110);
+            card.setMaxWidth(Double.MAX_VALUE);
             card.setPrefHeight(62);
             card.setUserData(opt.key());
 
@@ -312,7 +310,20 @@ public final class NewAccountDrawer {
                 pulseNode(card);
             });
 
-            grid.getChildren().add(card);
+            grid.add(card, col, row);
+            col++;
+            if (col >= 3) {
+                col = 0;
+                row++;
+            }
+        }
+
+        // Configure columns to fill width equally
+        for (int i = 0; i < 3; i++) {
+            ColumnConstraints cc = new ColumnConstraints();
+            cc.setHgrow(Priority.ALWAYS);
+            cc.setPercentWidth(100.0 / 3);
+            grid.getColumnConstraints().add(cc);
         }
 
         // Select first by default

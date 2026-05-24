@@ -21,6 +21,9 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Global reusable side-drawer infrastructure for XPENDZ.
  * <p>
@@ -59,6 +62,11 @@ public final class SideDrawer {
     private final StackPane drawerContainer;
     private VBox activeDrawer;
     private boolean closeOnClickOutside = true;
+    private boolean darkThemeEnabled = false;
+    private final Map<String, DrawerParts> drawersById = new HashMap<>();
+
+    private record DrawerParts(VBox panel, VBox body, ScrollPane scroll) {
+    }
 
     // ══════════════════════════════════════════════════════════════════
     //  C O N S T R U C T O R
@@ -79,6 +87,46 @@ public final class SideDrawer {
         drawerContainer.setMouseTransparent(true);
         drawerContainer.setPickOnBounds(false);
         StackPane.setAlignment(drawerContainer, Pos.CENTER_RIGHT);
+    }
+
+    public void setDarkTheme(boolean enabled) {
+        darkThemeEnabled = enabled;
+        if (enabled) {
+            if (!drawerContainer.getStyleClass().contains("dark")) {
+                drawerContainer.getStyleClass().add("dark");
+            }
+        } else {
+            drawerContainer.getStyleClass().remove("dark");
+        }
+
+        drawersById.values().forEach(parts -> applyInlineTheme(parts.panel(), parts.body(), parts.scroll()));
+    }
+
+    private void applyInlineTheme(VBox panel, VBox body, ScrollPane scroll) {
+        if (darkThemeEnabled) {
+            String darkBgCss = "-fx-background-color: #0F172A; -fx-background: #0F172A;";
+            panel.setStyle(darkBgCss);
+            body.setStyle(darkBgCss);
+            scroll.setStyle(darkBgCss);
+            scroll.skinProperty().addListener((obs, oldSkin, newSkin) -> {
+                if (newSkin == null) return;
+                Node viewport = scroll.lookup(".viewport");
+                if (viewport instanceof Region vp) {
+                    vp.setStyle(darkBgCss);
+                }
+            });
+        } else {
+            panel.setStyle("");
+            body.setStyle("");
+            scroll.setStyle("");
+            scroll.skinProperty().addListener((obs, oldSkin, newSkin) -> {
+                if (newSkin == null) return;
+                Node viewport = scroll.lookup(".viewport");
+                if (viewport instanceof Region vp) {
+                    vp.setStyle("");
+                }
+            });
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -109,7 +157,9 @@ public final class SideDrawer {
      * Registers a drawer panel with the given ID and content nodes.
      * Content is wrapped in a styled VBox with full height and scroll support.
      */
-    public VBox register(String id, Node... contentNodes) {
+    public VBox register(String id, boolean darkTheme, Node... contentNodes) {
+        setDarkTheme(darkTheme);
+
         VBox body = new VBox(12, contentNodes);
         body.setPadding(new Insets(20, 24, 20, 24));
         body.setFillWidth(true);
@@ -130,8 +180,10 @@ public final class SideDrawer {
         panel.setMaxHeight(Double.MAX_VALUE);
         panel.setFillWidth(true);
         panel.getStyleClass().add("drawer-panel");
-        panel.setStyle("-fx-background-color: #FFFFFF; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 10, 0, -2, 0);");
         panel.setOnMouseClicked(ev -> ev.consume());
+
+        drawersById.put(id, new DrawerParts(panel, body, scroll));
+        applyInlineTheme(panel, body, scroll);
 
         drawerContainer.getChildren().add(panel);
         StackPane.setAlignment(panel, Pos.CENTER_RIGHT);

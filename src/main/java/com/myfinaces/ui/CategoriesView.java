@@ -444,7 +444,7 @@ public final class CategoriesView {
                 e.consume();
                 Runnable refresher = loadCategoriesRef.get();
                 VBox editForm = buildEditCategoryFormPremium(sideDrawer, session, categoryRepo, cat, refresher != null ? refresher : () -> {}, isDark);
-                sideDrawer.register("edit-category", editForm);
+                sideDrawer.register("edit-category", isDark, editForm);
                 sideDrawer.show("edit-category");
             });
             
@@ -569,7 +569,7 @@ public final class CategoriesView {
                     // Abrir drawer de edición
                     Runnable refresher = loadCategoriesRef.get();
                     VBox editForm = buildEditCategoryFormPremium(sideDrawer, session, categoryRepo, cat, refresher != null ? refresher : () -> {}, isDark);
-                    sideDrawer.register("edit-category", editForm);
+                    sideDrawer.register("edit-category", isDark, editForm);
                     sideDrawer.show("edit-category");
                     return;
                 }
@@ -718,13 +718,13 @@ public final class CategoriesView {
         // ═══════════════════════════════════════════════════════════════════
         btnNewCategory.setOnAction(e -> {
             VBox newCategoryForm = buildNewCategoryFormPremium(sideDrawer, session, categoryRepo, loadCategories, isDark);
-            sideDrawer.register("new-category", newCategoryForm);
+            sideDrawer.register("new-category", isDark, newCategoryForm);
             sideDrawer.show("new-category");
         });
         
         emptyActionBtn.setOnAction(e -> {
             VBox newCategoryForm = buildNewCategoryFormPremium(sideDrawer, session, categoryRepo, loadCategories, isDark);
-            sideDrawer.register("new-category", newCategoryForm);
+            sideDrawer.register("new-category", isDark, newCategoryForm);
             sideDrawer.show("new-category");
         });
 
@@ -839,7 +839,7 @@ public final class CategoriesView {
         btnNewSub.setOnAction(e -> {
             try {
                 VBox form = buildNewSubcategoryFormPremium(drawer, session, categoryRepo, parent, refreshCallback, isDark);
-                drawer.register("new-subcategory", form);
+                drawer.register("new-subcategory", isDark, form);
                 drawer.show("new-subcategory");
             } catch (Exception ex) {
                 System.err.println("Error al abrir drawer de nueva subcategoría: " + ex.getMessage());
@@ -910,7 +910,7 @@ public final class CategoriesView {
                         btnCreateSub.setOnAction(e -> {
                             try {
                                 VBox form = buildNewSubcategoryFormPremium(drawer, session, categoryRepo, parent, refreshCallback, isDark);
-                                drawer.register("new-subcategory", form);
+                                drawer.register("new-subcategory", isDark, form);
                                 drawer.show("new-subcategory");
                             } catch (Exception ex) {
                                 System.err.println("Error al abrir drawer: " + ex.getMessage());
@@ -1021,7 +1021,7 @@ public final class CategoriesView {
         editBtn.setOnAction(e -> {
             e.consume();
             VBox form = buildEditSubcategoryFormPremium(drawer, session, categoryRepo, sub, parent, refreshCallback, isDark);
-            drawer.register("edit-subcategory", form);
+            drawer.register("edit-subcategory", isDark, form);
             drawer.show("edit-subcategory");
         });
         
@@ -2184,7 +2184,7 @@ public final class CategoriesView {
         body.getStyleClass().add("drawer-body");
         body.setPadding(new Insets(20, 24, 20, 24));
         
-        drawer.register("delete-confirmation", body);
+        drawer.register("delete-confirmation", isDark, body);
         drawer.show("delete-confirmation");
     }
     
@@ -2312,7 +2312,7 @@ public final class CategoriesView {
         body.getStyleClass().add("drawer-body");
         body.setPadding(new Insets(20, 24, 20, 24));
         
-        drawer.register("delete-subcategory-confirmation", body);
+        drawer.register("delete-subcategory-confirmation", isDark, body);
         drawer.show("delete-subcategory-confirmation");
     }
 }

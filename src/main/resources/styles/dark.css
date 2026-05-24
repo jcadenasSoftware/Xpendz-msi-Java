@@ -2526,15 +2526,16 @@
 
 /* Drawer dark theme styles */
 .dark .drawer-panel {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.60), 24, 0.20, -6, 0);
 }
 
 .dark .drawer-body {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
 }
 
 .dark .drawer-header {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
 }
 
 .dark .drawer-title {
@@ -2549,7 +2550,7 @@
 }
 
 .dark .drawer-section {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
 }
 
 .dark .drawer-field-label {
@@ -2660,11 +2661,11 @@
 }
 
 .dark .drawer-scroll {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
 }
 
 .dark .drawer-scroll .viewport {
-    -fx-background-color: #1E293B;
+    -fx-background-color: #0F172A;
 }
 
 .dark .drawer-scroll .scroll-bar {

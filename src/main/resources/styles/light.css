@@ -2164,23 +2164,8 @@
 }
 
 .drawer-type-card-selected {
-    -fx-background-color: rgba(37, 99, 235, 0.12);
-    -fx-border-color: rgba(37, 99, 235, 0.55);
-    -fx-border-width: 1.5;
-}
-
-.drawer-type-check {
-    -fx-opacity: 0;
-    -fx-background-color: #2563EB;
-    -fx-background-radius: 10;
-    -fx-padding: 2 4;
-}
-
-.drawer-type-card-selected .drawer-type-check {
-    -fx-opacity: 1;
-}
-
-.drawer-type-check-icon {
-    -fx-icon-color: white;
-    -fx-icon-size: 10;
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+    -fx-border-color: #3B82F6;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.25), 8, 0, 0, 2);
 }

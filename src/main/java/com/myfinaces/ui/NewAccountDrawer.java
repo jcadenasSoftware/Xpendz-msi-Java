@@ -276,19 +276,11 @@ public final class NewAccountDrawer {
             content.setAlignment(Pos.CENTER);
             content.setPadding(new Insets(8, 6, 8, 6));
 
-            FontIcon checkIcon = new FontIcon("fas-check");
-            checkIcon.getStyleClass().add("drawer-type-check-icon");
-            StackPane checkBadge = new StackPane(checkIcon);
-            checkBadge.getStyleClass().add("drawer-type-check");
-
-            StackPane card = new StackPane(content, checkBadge);
+            StackPane card = new StackPane(content);
             card.getStyleClass().add("drawer-type-card");
             card.setPrefWidth(110);
             card.setPrefHeight(62);
             card.setUserData(opt.key());
-
-            StackPane.setAlignment(checkBadge, Pos.TOP_RIGHT);
-            StackPane.setMargin(checkBadge, new Insets(6));
 
             // Hover scale micro-animation
             card.setOnMouseEntered(me -> {

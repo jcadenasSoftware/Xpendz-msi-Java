@@ -435,7 +435,7 @@
     -modal-color-summary-bg: #F0F6FF;
 }
 .modal-title-bar {
-    -fx-padding: 14 18 10 20;
+    -fx-padding: 12 16 8 16;
     -fx-background-color: white;
     -fx-background-radius: 12 12 0 0;
     -fx-border-radius: 12 12 0 0;
@@ -560,8 +560,8 @@
     -fx-border-radius: 10;
     -fx-border-color: -modal-color-border;
     -fx-border-width: 1;
-    -fx-padding: 16;
-    -fx-font-size: 16px;
+    -fx-padding: 12;
+    -fx-font-size: 14px;
     -fx-font-weight: 700;
     -fx-text-fill: -modal-color-primary;
     -fx-alignment: center;
@@ -579,7 +579,7 @@
     -fx-border-radius: 10;
     -fx-border-color: -modal-color-border;
     -fx-border-width: 1;
-    -fx-padding: 12;
+    -fx-padding: 10;
 }
 
 .modal-date-wrap {
@@ -588,7 +588,7 @@
     -fx-border-radius: 10;
     -fx-border-color: -modal-color-border;
     -fx-border-width: 1;
-    -fx-padding: 10;
+    -fx-padding: 8;
 }
 .modal-date-icon {
     -fx-stroke: #111827;
@@ -617,7 +617,7 @@
 .modal-summary-card {
     -fx-background-color: -modal-color-summary-bg;
     -fx-background-radius: 10;
-    -fx-padding: 10;
+    -fx-padding: 8;
     -fx-alignment: center;
 }
 .modal-summary-title {
@@ -653,7 +653,7 @@
     -fx-padding: 0;
 }
 .modal-footer {
-    -fx-padding: 12 16 16 16;
+    -fx-padding: 10 14 12 14;
     -fx-border-color: -modal-color-border transparent transparent transparent;
     -fx-border-width: 1 0 0 0;
     -fx-background-color: white;
@@ -668,7 +668,7 @@
     -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
-    -fx-padding: 12 20;
+    -fx-padding: 10 16;
     -fx-text-fill: #374151;
     -fx-font-size: 12px;
     -fx-font-weight: 700;
@@ -680,7 +680,7 @@
 .modal-btn-confirm {
     -fx-background-color: -modal-color-primary;
     -fx-background-radius: 10;
-    -fx-padding: 12 20;
+    -fx-padding: 10 16;
     -fx-text-fill: white;
     -fx-font-size: 12px;
     -fx-font-weight: 700;

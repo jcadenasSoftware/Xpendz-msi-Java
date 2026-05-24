@@ -599,8 +599,8 @@ public final class TransfersView {
         titleBar.setAlignment(Pos.CENTER_LEFT);
         titleBar.getStyleClass().add("modal-title-bar");
 
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(14));
+        VBox content = new VBox(8);
+        content.setPadding(new Insets(12));
         content.getStyleClass().add("modal-content");
 
         Map<String, Long> balanceByAccountId = new HashMap<>();
@@ -1158,7 +1158,7 @@ public final class TransfersView {
 
         Button cancelBtn = new Button("Cancelar");
         cancelBtn.getStyleClass().add("modal-btn-cancel");
-        cancelBtn.setMinHeight(44);
+        cancelBtn.setMinHeight(40);
         cancelBtn.setOnAction(e -> modal.close());
 
         SVGPath lockIcon = new SVGPath();
@@ -1172,7 +1172,7 @@ public final class TransfersView {
         Button confirmBtn = new Button();
         confirmBtn.setGraphic(confirmGraphic);
         confirmBtn.getStyleClass().add("modal-btn-confirm");
-        confirmBtn.setMinHeight(44);
+        confirmBtn.setMinHeight(40);
 
         confirmBtn.setOnAction(ev -> {
             try {

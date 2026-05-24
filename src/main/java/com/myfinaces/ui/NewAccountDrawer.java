@@ -66,7 +66,7 @@ public final class NewAccountDrawer {
      * and wires it to the real account creation flow.
      */
     public static VBox install(SideDrawer drawer, AuthSession session,
-                               AccountRepository accountRepo, Runnable refreshBalances) {
+                               AccountRepository accountRepo, Runnable refreshBalances, boolean darkTheme) {
         HBox header = drawer.buildHeader("Nueva cuenta", "Crea una cuenta para gestionar tus finanzas.");
 
         // ── Account type selector ────────────────────────────────────
@@ -163,6 +163,11 @@ public final class NewAccountDrawer {
             colorSection,
             footer
         );
+
+        // Apply dark theme if enabled
+        if (darkTheme) {
+            body.getStyleClass().add("dark");
+        }
 
         // ── Wire create action ───────────────────────────────────────
         if (primaryBtn != null) {

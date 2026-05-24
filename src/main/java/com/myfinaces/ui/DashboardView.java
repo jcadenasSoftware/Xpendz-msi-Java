@@ -530,7 +530,7 @@ public final class DashboardView {
         SideDrawer accountDrawer = new SideDrawer();
         NewAccountDrawer.install(accountDrawer, session, accountRepo, () -> {
             refreshBalances.run();
-        });
+        }, darkTheme.get());
         StackPane contentWithAccountDrawer = accountDrawer.wrapContent(contentHost);
 
         addAccount.setOnAction(e -> {

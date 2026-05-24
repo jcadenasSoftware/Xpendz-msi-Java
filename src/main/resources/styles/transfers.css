@@ -434,6 +434,9 @@
 }
 .modal-title-bar {
     -fx-padding: 14 18 10 20;
+    -fx-background-color: white;
+    -fx-background-radius: 12 12 0 0;
+    -fx-border-radius: 12 12 0 0;
     -fx-border-color: transparent transparent -modal-color-border transparent;
     -fx-border-width: 0 0 1 0;
 }

@@ -884,6 +884,8 @@ public final class LoansView {
         amountField.setPromptText("$0");
         amountField.getStyleClass().add("modal-amount-input");
 
+        UiDialogs.restrictToDecimalAmount(amountField);
+
         VBox amountBlock = new VBox(6, amountLabel, amountField);
 
         // ── Nota ─────────────────────────────────────────────────
@@ -1091,6 +1093,8 @@ public final class LoansView {
         TextField amtField = new TextField();
         amtField.setPromptText("$0");
         amtField.getStyleClass().add("modal-amount-input");
+
+        UiDialogs.restrictToDecimalAmount(amtField);
 
         // ── Cálculo dinámico de restante ─────────────────────────
         Label remainLabel = new Label("Restante después del pago");
@@ -1335,6 +1339,8 @@ public final class LoansView {
         TextField amtField = new TextField();
         amtField.setPromptText("$0");
         amtField.getStyleClass().add("modal-amount-input");
+
+        UiDialogs.restrictToDecimalAmount(amtField);
 
         // ── Resumen dinámico ───────────────────────────────────
         Label summaryLabel = new Label("Nuevo total del préstamo");

@@ -1587,6 +1587,8 @@ public final class BudgetView {
             + "-fx-border-radius: 10; -fx-background-radius: 10; "
             + "-fx-padding: 12 14; -fx-font-size: 13px; -fx-text-fill: " + titleColor + ";"
         );
+
+        UiDialogs.restrictToDecimalAmount(amountField);
         Label amountError = new Label("El monto debe ser mayor a 0");
         amountError.setStyle("-fx-font-size: 11px; -fx-text-fill: " + errorColor + ";");
         amountError.setVisible(false);
@@ -2795,6 +2797,8 @@ public final class BudgetView {
             + "-fx-border-radius: 8; -fx-background-radius: 8; "
             + "-fx-padding: 10 12; -fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";"
         );
+
+        UiDialogs.restrictToDecimalAmount(inlineAmountField);
 
         // ── Error ─────────────────────────────────────────────────
         Label inlineError = new Label("");

@@ -369,6 +369,8 @@ public final class DashboardGoalsDialog {
         TextField target = new TextField();
         target.setPromptText("Ej: 1000000.00");
 
+        UiDialogs.restrictToDecimalAmount(target);
+
         DatePicker targetDate = new DatePicker(LocalDate.now().plusMonths(1));
 
         Label error = new Label();
@@ -450,6 +452,8 @@ public final class DashboardGoalsDialog {
         balance.getStyleClass().add("text-secondary");
         TextField amount = new TextField();
         amount.setPromptText("Ej: 10000.00");
+
+        UiDialogs.restrictToDecimalAmount(amount);
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
 
@@ -567,6 +571,8 @@ public final class DashboardGoalsDialog {
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
         TextField amount = new TextField();
         amount.setPromptText("Ej: 10000.00");
+
+        UiDialogs.restrictToDecimalAmount(amount);
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
 

@@ -529,6 +529,8 @@ public final class DashboardLoansDialog {
         TextField amount = new TextField();
         amount.setPromptText("Ej: 50000.00");
 
+        UiDialogs.restrictToDecimalAmount(amount);
+
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
 
@@ -692,6 +694,8 @@ public final class DashboardLoansDialog {
 
         TextField amount = new TextField();
         amount.setPromptText("Ej: 100000.00");
+
+        UiDialogs.restrictToDecimalAmount(amount);
 
         TextField notes = new TextField();
         notes.setPromptText("Nota (opcional)");

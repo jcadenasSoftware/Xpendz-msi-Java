@@ -951,6 +951,8 @@ public final class DashboardTransactionsDialog {
         amountField.setPromptText("0.00");
         HBox.setHgrow(amountField, Priority.ALWAYS);
 
+        UiDialogs.restrictToDecimalAmount(amountField);
+
         amountRow.getChildren().addAll(currencySymbol, amountField);
         amountContainer.getChildren().add(amountRow);
 
@@ -1515,6 +1517,8 @@ public final class DashboardTransactionsDialog {
         amountField.setMaxWidth(Double.MAX_VALUE);
         amountField.setPromptText("0.00");
         HBox.setHgrow(amountField, Priority.ALWAYS);
+
+        UiDialogs.restrictToDecimalAmount(amountField);
 
         amountRow.getChildren().addAll(currencySymbol, amountField);
         amountContainer.getChildren().add(amountRow);

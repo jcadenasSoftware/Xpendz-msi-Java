@@ -92,7 +92,7 @@ public final class NewAccountDrawer {
         currencyCombo.getItems().addAll("COP", "USD", "EUR", "GBP", "MXN", "ARS", "CLP", "PEN", "VES");
         currencyCombo.getSelectionModel().select("COP");
         currencyCombo.setMaxWidth(Double.MAX_VALUE);
-        currencyCombo.getStyleClass().add("drawer-combo");
+        currencyCombo.getStyleClass().add("account-combo");
 
         VBox currencySection = new VBox(6, currencyLabel, currencyCombo);
         currencySection.getStyleClass().add("drawer-section");
@@ -276,11 +276,19 @@ public final class NewAccountDrawer {
             content.setAlignment(Pos.CENTER);
             content.setPadding(new Insets(8, 6, 8, 6));
 
-            StackPane card = new StackPane(content);
+            FontIcon checkIcon = new FontIcon("fas-check");
+            checkIcon.getStyleClass().add("drawer-type-check-icon");
+            StackPane checkBadge = new StackPane(checkIcon);
+            checkBadge.getStyleClass().add("drawer-type-check");
+
+            StackPane card = new StackPane(content, checkBadge);
             card.getStyleClass().add("drawer-type-card");
             card.setPrefWidth(110);
             card.setPrefHeight(62);
             card.setUserData(opt.key());
+
+            StackPane.setAlignment(checkBadge, Pos.TOP_RIGHT);
+            StackPane.setMargin(checkBadge, new Insets(6));
 
             // Hover scale micro-animation
             card.setOnMouseEntered(me -> {

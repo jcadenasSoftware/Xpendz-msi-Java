@@ -2474,3 +2474,67 @@
 .modal-btn-confirm:hover {
     -fx-background-color: #2563EB;
 }
+
+.drawer-primary-btn {
+    -fx-background-color: linear-gradient(to bottom, #3B82F6, #2563EB);
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+}
+
+.drawer-primary-btn:hover {
+    -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
+}
+
+.drawer-primary-btn-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 14;
+}
+
+.drawer-cancel-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-text-fill: rgba(229, 231, 235, 0.88);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+    -fx-font-weight: 700;
+}
+
+.drawer-cancel-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+}
+
+.drawer-type-card {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(229, 231, 235, 0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.drawer-type-card-selected {
+    -fx-background-color: rgba(59, 130, 246, 0.14);
+    -fx-border-color: rgba(59, 130, 246, 0.55);
+    -fx-border-width: 1.5;
+}
+
+.drawer-type-check {
+    -fx-opacity: 0;
+    -fx-background-color: #3B82F6;
+    -fx-background-radius: 10;
+    -fx-padding: 2 4;
+}
+
+.drawer-type-card-selected .drawer-type-check {
+    -fx-opacity: 1;
+}
+
+.drawer-type-check-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 10;
+}

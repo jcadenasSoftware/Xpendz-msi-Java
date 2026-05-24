@@ -2120,3 +2120,67 @@
     -fx-text-fill: #1D4ED8;
     -fx-border-color: #2563EB;
 }
+
+.drawer-primary-btn {
+    -fx-background-color: linear-gradient(to bottom, #3B82F6, #2563EB);
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+}
+
+.drawer-primary-btn:hover {
+    -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
+}
+
+.drawer-primary-btn-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 14;
+}
+
+.drawer-cancel-btn {
+    -fx-background-color: rgba(15, 23, 42, 0.04);
+    -fx-text-fill: rgba(15, 23, 42, 0.82);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 10 18;
+    -fx-cursor: hand;
+    -fx-font-weight: 700;
+}
+
+.drawer-cancel-btn:hover {
+    -fx-background-color: rgba(15, 23, 42, 0.06);
+}
+
+.drawer-type-card {
+    -fx-background-color: #F8FAFC;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.drawer-type-card-selected {
+    -fx-background-color: rgba(37, 99, 235, 0.12);
+    -fx-border-color: rgba(37, 99, 235, 0.55);
+    -fx-border-width: 1.5;
+}
+
+.drawer-type-check {
+    -fx-opacity: 0;
+    -fx-background-color: #2563EB;
+    -fx-background-radius: 10;
+    -fx-padding: 2 4;
+}
+
+.drawer-type-card-selected .drawer-type-check {
+    -fx-opacity: 1;
+}
+
+.drawer-type-check-icon {
+    -fx-icon-color: white;
+    -fx-icon-size: 10;
+}

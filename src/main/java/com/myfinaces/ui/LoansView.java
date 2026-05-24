@@ -888,13 +888,11 @@ public final class LoansView {
 
         // ── Nota ─────────────────────────────────────────────────
         Label noteLabel = ModalOverlay.fieldLabel("Nota (opcional)", "fas-sticky-note");
-        TextArea noteArea = new TextArea();
-        noteArea.setPromptText("Agrega una descripción...");
-        noteArea.getStyleClass().add("modal-text-input");
-        noteArea.setPrefRowCount(2);
-        noteArea.setMaxHeight(64);
+        TextField noteField = new TextField();
+        noteField.setPromptText("Agrega una descripción...");
+        noteField.getStyleClass().add("modal-text-input");
 
-        VBox noteBlock = new VBox(6, noteLabel, noteArea);
+        VBox noteBlock = new VBox(6, noteLabel, noteField);
 
         // ── Error label ──────────────────────────────────────────
         Label errorLabel = new Label();
@@ -953,7 +951,7 @@ public final class LoansView {
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
-                String notes = noteArea.getText() == null ? null : noteArea.getText().trim();
+                String notes = noteField.getText() == null ? null : noteField.getText().trim();
                 if (notes != null && notes.isBlank()) notes = null;
 
                 // Execute
@@ -967,7 +965,7 @@ public final class LoansView {
                     overlay.hide();
                     personField.clear();
                     amountField.clear();
-                    noteArea.clear();
+                    noteField.clear();
                     Platform.runLater(() -> {
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });

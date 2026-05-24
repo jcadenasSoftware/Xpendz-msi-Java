@@ -1712,5 +1712,142 @@
     -fx-text-fill: white;
     -fx-font-weight: 700;
     -fx-background-radius: 10;
-    -fx-padding: 10 18;
+}
+
+/* ModalOverlay styles */
+.modal-root {
+    -fx-background-color: white;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.18), 32, 0.22, 0, 8);
+}
+
+.modal-title-bar {
+    -fx-padding: 0 0 12 0;
+}
+
+.modal-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #0F172A;
+}
+
+.modal-subtitle {
+    -fx-font-size: 12px;
+    -fx-font-weight: 400;
+    -fx-text-fill: #64748B;
+}
+
+.modal-close-btn {
+    -fx-background-color: #F8FAFC;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-max-width: 34;
+    -fx-max-height: 34;
+    -fx-cursor: hand;
+    -fx-padding: 0;
+}
+
+.modal-close-btn:hover {
+    -fx-background-color: #FEE2E2;
+    -fx-border-color: #FECACA;
+}
+
+.modal-close-icon {
+    -fx-icon-color: #64748B;
+    -fx-icon-size: 16;
+}
+
+.modal-close-btn:hover .modal-close-icon {
+    -fx-icon-color: #EF4444;
+}
+
+.modal-footer {
+    -fx-padding: 16 0 0 0;
+}
+
+.modal-footer-separator {
+    -fx-background-color: #E2E8F0;
+}
+
+.modal-btn-cancel {
+    -fx-background-color: transparent;
+    -fx-text-fill: #64748B;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-cursor: hand;
+    -fx-padding: 10 0 10 0;
+}
+
+.modal-btn-cancel:hover {
+    -fx-background-color: #F8FAFC;
+    -fx-text-fill: #334155;
+    -fx-border-color: #CBD5E1;
+}
+
+.modal-field-label {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #64748B;
+}
+
+.modal-field-icon {
+    -fx-icon-color: #64748B;
+    -fx-icon-size: 12;
+}
+
+/* Loan segmented control buttons */
+.loan-seg-btn {
+    -fx-background-color: #F8FAFC;
+    -fx-text-fill: white;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-padding: 10 16;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-cursor: hand;
+}
+
+.loan-seg-btn:hover {
+    -fx-background-color: #F1F5F9;
+}
+
+.loan-seg-active {
+    -fx-background-color: #3B82F6;
+    -fx-border-color: #3B82F6;
+}
+
+.loan-seg-active:hover {
+    -fx-background-color: #2563EB;
+    -fx-border-color: #2563EB;
+}
+
+.loan-seg-icon {
+    -fx-icon-color: inherit;
+}
+
+/* Account combo box */
+.account-combo {
+    -fx-background-color: #F8FAFC;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-padding: 4;
+}
+
+.account-combo .list-cell {
+    -fx-padding: 10;
 }

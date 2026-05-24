@@ -1890,3 +1890,96 @@
 .tx-item-icon-expense {
     -fx-background-color: #FFE4E6;
 }
+
+.combo-box-custom {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #CBD5E1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 2 6 2 6;
+    -fx-cursor: hand;
+}
+
+.combo-box-custom:hover {
+    -fx-background-color: #F8FAFC;
+}
+
+.combo-box-custom .arrow-button {
+    -fx-background-radius: 0 8 8 0;
+    -fx-background-color: transparent;
+}
+
+.combo-box-custom .list-cell {
+    -fx-text-fill: #1E293B;
+    -fx-font-weight: 700;
+    -fx-font-size: 13px;
+    -fx-padding: 4 8 4 8;
+}
+
+.combo-box-custom .text {
+    -fx-font-weight: 700;
+}
+
+.budget-sub-card {
+    -fx-background-color: #F8FAFC;
+    -fx-background-radius: 10;
+    -fx-border-color: #E2E8F0;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+}
+
+.budget-sub-card:hover {
+    -fx-background-color: #F8FAFC;
+    -fx-border-color: #2563EB;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(37,99,235,0.15), 12, 0, 0, 3);
+}
+
+.budget-sub-card-danger {
+    -fx-background-color: #FFF5F5;
+    -fx-border-color: #FECACA;
+    -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.08), 6, 0, 0, 2);
+}
+
+.budget-sub-card-danger:hover {
+    -fx-background-color: #FFF5F5;
+    -fx-border-color: #EF4444;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.20), 12, 0, 0, 3);
+}
+
+.budget-sub-name {
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #1E293B;
+}
+
+.budget-sub-name-danger {
+    -fx-text-fill: #EF4444;
+}
+
+.budget-sub-pct {
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+}
+
+.budget-sub-edit-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #2563EB;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+    -fx-border-color: #DBEAFE;
+    -fx-border-width: 1;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+    -fx-pref-height: 34;
+}
+
+.budget-sub-edit-btn:hover {
+    -fx-background-color: #EFF6FF;
+    -fx-text-fill: #1D4ED8;
+    -fx-border-color: #2563EB;
+}

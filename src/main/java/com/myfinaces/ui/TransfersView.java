@@ -37,6 +37,7 @@ import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.Scene;
+import javafx.scene.paint.Color;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Text;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -61,7 +62,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import javafx.util.Duration;
@@ -569,7 +569,7 @@ public final class TransfersView {
         if (owner != null) {
             modal.initOwner(owner);
         }
-        modal.initStyle(StageStyle.UNDECORATED);
+        modal.initStyle(StageStyle.TRANSPARENT);
         modal.setResizable(false);
         modal.setTitle("Nueva transferencia");
 
@@ -1256,8 +1256,12 @@ public final class TransfersView {
 
         VBox rootBox = new VBox(titleBar, content, footer);
         rootBox.getStyleClass().add("modal-root");
+        if (darkTheme) {
+            rootBox.getStyleClass().add("dark");
+        }
 
         Scene scene = new Scene(rootBox, 480, Region.USE_COMPUTED_SIZE);
+        scene.setFill(Color.TRANSPARENT);
         java.net.URL themeCss = TransfersView.class.getResource(darkTheme ? "/styles/dark.css" : "/styles/light.css");
         if (themeCss != null) {
             scene.getStylesheets().add(themeCss.toExternalForm());

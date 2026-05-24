@@ -434,6 +434,16 @@
     -modal-color-border: #E5E7EB;
     -modal-color-summary-bg: #F0F6FF;
 }
+
+.modal-root.dark {
+    -fx-background-color: #0F172A;
+    -fx-border-color: rgba(229, 231, 235, 0.10);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 34, 0.22, 0, 10);
+
+    -modal-color-text-muted: rgba(229, 231, 235, 0.60);
+    -modal-color-border: rgba(229, 231, 235, 0.12);
+    -modal-color-summary-bg: rgba(59, 130, 246, 0.10);
+}
 .modal-title-bar {
     -fx-padding: 12 16 8 16;
     -fx-background-color: white;
@@ -442,10 +452,18 @@
     -fx-border-color: transparent transparent -modal-color-border transparent;
     -fx-border-width: 0 0 1 0;
 }
+
+.modal-root.dark .modal-title-bar {
+    -fx-background-color: #0F172A;
+}
 .modal-title {
     -fx-font-size: 18px;
     -fx-font-weight: 700;
     -fx-text-fill: #111827;
+}
+
+.modal-root.dark .modal-title {
+    -fx-text-fill: #E5E7EB;
 }
 .modal-subtitle {
     -fx-font-size: 12px;
@@ -487,6 +505,10 @@
     -fx-text-fill: #111827;
 }
 
+.modal-root.dark .modal-field-label {
+    -fx-text-fill: #E5E7EB;
+}
+
 .account-combo {
     -fx-background-color: white;
     -fx-background-radius: 10;
@@ -494,6 +516,10 @@
     -fx-border-color: -modal-color-border;
     -fx-border-width: 1;
     -fx-padding: 4;
+}
+
+.modal-root.dark .account-combo {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
 }
 .account-combo .list-cell {
     -fx-padding: 10;
@@ -503,6 +529,10 @@
     -fx-font-size: 12px;
     -fx-font-weight: 700;
     -fx-text-fill: #111827;
+}
+
+.modal-root.dark .account-option-name {
+    -fx-text-fill: #E5E7EB;
 }
 .account-option-type {
     -fx-font-size: 11px;
@@ -519,6 +549,10 @@
     -fx-font-size: 12px;
     -fx-font-weight: 700;
     -fx-text-fill: #111827;
+}
+
+.modal-root.dark .account-option-available-value {
+    -fx-text-fill: #E5E7EB;
 }
 .account-option-available-box {
     -fx-alignment: center-right;
@@ -542,6 +576,10 @@
     -fx-border-width: 1;
     -fx-padding: 0;
     -fx-cursor: hand;
+}
+
+.modal-root.dark .modal-swap-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
 }
 .modal-swap-btn:hover {
     -fx-background-color: rgba(0,0,0,0.03);
@@ -567,6 +605,11 @@
     -fx-alignment: center;
 }
 
+.modal-root.dark .modal-amount-input {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-text-fill: #93C5FD;
+}
+
 .modal-help-text {
     -fx-font-size: 11px;
     -fx-font-weight: 400;
@@ -582,6 +625,11 @@
     -fx-padding: 10;
 }
 
+.modal-root.dark .modal-text-input {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-text-fill: #E5E7EB;
+}
+
 .modal-date-wrap {
     -fx-background-color: white;
     -fx-background-radius: 10;
@@ -590,12 +638,20 @@
     -fx-border-width: 1;
     -fx-padding: 8;
 }
+
+.modal-root.dark .modal-date-wrap {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+}
 .modal-date-icon {
     -fx-stroke: #111827;
     -fx-stroke-width: 1.8;
     -fx-fill: transparent;
     -fx-stroke-line-cap: round;
     -fx-stroke-line-join: round;
+}
+
+.modal-root.dark .modal-date-icon {
+    -fx-stroke: #E5E7EB;
 }
 .modal-date-picker {
     -fx-background-color: transparent;
@@ -625,6 +681,10 @@
     -fx-font-weight: 700;
     -fx-text-fill: #111827;
 }
+
+.modal-root.dark .modal-summary-title {
+    -fx-text-fill: #E5E7EB;
+}
 .modal-summary-line {
     -fx-text-alignment: center;
 }
@@ -632,6 +692,10 @@
     -fx-fill: #111827;
     -fx-font-size: 12px;
     -fx-font-weight: 600;
+}
+
+.modal-root.dark .modal-summary-text {
+    -fx-fill: #E5E7EB;
 }
 .modal-summary-amount {
     -fx-fill: -modal-color-primary;
@@ -661,6 +725,10 @@
     -fx-background-insets: 0;
     -fx-border-radius: 0 0 12 12;
     -fx-border-insets: 0;
+}
+
+.modal-root.dark .modal-footer {
+    -fx-background-color: #0F172A;
 }
 .modal-btn-cancel {
     -fx-background-color: transparent;

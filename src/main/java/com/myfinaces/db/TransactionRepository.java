@@ -383,11 +383,11 @@ public final class TransactionRepository {
 
         StringBuilder sql = new StringBuilder(
             "SELECT t.id, t.user_uid, t.account_id, a.name AS account_name, " +
-            "       t.category_id, c.name AS category_name, " +
+            "       t.category_id, COALESCE(c.name, t.category_id) AS category_name, " +
             "       t.kind, t.amount_cents, t.occurred_at_epoch_sec, t.note " +
             "FROM transactions t " +
             "INNER JOIN accounts a ON a.id = t.account_id " +
-            "INNER JOIN categories c ON c.id = t.category_id " +
+            "LEFT JOIN categories c ON c.id = t.category_id " +
             "WHERE t.user_uid = ?"
         );
 

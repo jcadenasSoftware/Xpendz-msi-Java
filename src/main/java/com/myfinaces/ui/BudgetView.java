@@ -167,7 +167,7 @@ public final class BudgetView {
                 setText(empty || item == null ? null : conv.toString(item));
             }
         });
-        monthCombo.getStyleClass().add("budget-month-picker");
+        monthCombo.getStyleClass().add("combo-box-custom");
         monthCombo.setPrefWidth(160);
         monthCombo.setPrefHeight(30);
         monthCombo.valueProperty().addListener((obs, o, n) -> {
@@ -529,7 +529,10 @@ public final class BudgetView {
                 rotate.setByAngle(expanded[0] ? 180 : -180);
                 rotate.playFromStart();
             };
-            chevronBtn.setOnMouseClicked(e -> toggleAction.handle(null));
+            chevronBtn.setOnMouseClicked(e -> {
+                e.consume();
+                toggleAction.handle(null);
+            });
             centerRow.setOnMouseClicked(e -> toggleAction.handle(null));
             centerRow.setStyle("-fx-cursor: hand;");
         }
@@ -559,8 +562,10 @@ public final class BudgetView {
         boolean isDanger  = pct > 85;
 
         Label nameLbl = new Label(name);
-        nameLbl.setStyle("-fx-font-size: 12px; -fx-font-weight: 800;"
-            + (isDanger ? " -fx-text-fill: #EF4444;" : ""));
+        nameLbl.getStyleClass().add("budget-sub-name");
+        if (isDanger) {
+            nameLbl.getStyleClass().add("budget-sub-name-danger");
+        }
 
         HBox metricsRow = new HBox(12);
         metricsRow.getChildren().addAll(
@@ -574,28 +579,10 @@ public final class BudgetView {
         bar.setPrefHeight(6);
 
         Label pctLbl = new Label(pct + "%");
-        pctLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: " + stateColor + ";");
+        pctLbl.getStyleClass().add("budget-sub-pct");
+        pctLbl.setStyle("-fx-text-fill: " + stateColor + ";");
         HBox pctRow = new HBox(pctLbl);
         pctRow.setAlignment(Pos.CENTER_RIGHT);
-
-        String normalBg = isDanger ? "#FFF5F5" : "#F8FAFC";
-        String normalBorder = isDanger ? "#FECACA" : "#E2E8F0";
-        String normalStyle = "-fx-background-color: " + normalBg + "; "
-            + "-fx-background-radius: 10; "
-            + "-fx-border-color: " + normalBorder + "; "
-            + "-fx-border-radius: 10; "
-            + "-fx-border-width: 1; "
-            + "-fx-cursor: hand;"
-            + (isDanger ? " -fx-effect: dropshadow(gaussian, rgba(239,68,68,0.08), 6, 0, 0, 2);" : "");
-        String hoverStyle = "-fx-background-color: " + normalBg + "; "
-            + "-fx-background-radius: 10; "
-            + "-fx-border-color: " + (isDanger ? "#EF4444" : "#2563EB") + "; "
-            + "-fx-border-radius: 10; "
-            + "-fx-border-width: 1.5; "
-            + "-fx-cursor: hand; "
-            + "-fx-effect: dropshadow(gaussian, "
-                + (isDanger ? "rgba(239,68,68,0.20)" : "rgba(37,99,235,0.15)")
-                + ", 12, 0, 0, 3);";
 
         // ── Botón Editar límite ────────────────────────────────────────
         FontIcon editIcon = new FontIcon("fas-pen");
@@ -605,24 +592,7 @@ public final class BudgetView {
         btnEdit.setGraphic(editIcon);
         btnEdit.setGraphicTextGap(6);
         btnEdit.setMaxWidth(Double.MAX_VALUE);
-        btnEdit.setStyle(
-            "-fx-background-color: transparent; "
-            + "-fx-text-fill: #2563EB; -fx-font-weight: 700; -fx-font-size: 12px; "
-            + "-fx-border-color: #DBEAFE; -fx-border-width: 1; "
-            + "-fx-background-radius: 8; -fx-border-radius: 8; "
-            + "-fx-cursor: hand; -fx-pref-height: 34;");
-        btnEdit.setOnMouseEntered(ev -> btnEdit.setStyle(
-            "-fx-background-color: #EFF6FF; "
-            + "-fx-text-fill: #1D4ED8; -fx-font-weight: 700; -fx-font-size: 12px; "
-            + "-fx-border-color: #2563EB; -fx-border-width: 1; "
-            + "-fx-background-radius: 8; -fx-border-radius: 8; "
-            + "-fx-cursor: hand; -fx-pref-height: 34;"));
-        btnEdit.setOnMouseExited(ev -> btnEdit.setStyle(
-            "-fx-background-color: transparent; "
-            + "-fx-text-fill: #2563EB; -fx-font-weight: 700; -fx-font-size: 12px; "
-            + "-fx-border-color: #DBEAFE; -fx-border-width: 1; "
-            + "-fx-background-radius: 8; -fx-border-radius: 8; "
-            + "-fx-cursor: hand; -fx-pref-height: 34;"));
+        btnEdit.getStyleClass().add("budget-sub-edit-btn");
         if (editAction != null) {
             btnEdit.setOnAction(ev -> editAction.run());
         }
@@ -630,9 +600,10 @@ public final class BudgetView {
         VBox subCard = new VBox(8, nameLbl, metricsRow, bar, pctRow, btnEdit);
         subCard.setPadding(new Insets(14, 14, 12, 14));
         subCard.setMaxWidth(Double.MAX_VALUE);
-        subCard.setStyle(normalStyle);
-        subCard.setOnMouseEntered(e -> subCard.setStyle(hoverStyle));
-        subCard.setOnMouseExited(e  -> subCard.setStyle(normalStyle));
+        subCard.getStyleClass().add("budget-sub-card");
+        if (isDanger) {
+            subCard.getStyleClass().add("budget-sub-card-danger");
+        }
         return subCard;
     }
 
@@ -772,14 +743,44 @@ public final class BudgetView {
         String currency = "COP";
         String userUid = session.uid();
 
-        // ── Meses disponibles desde transacciones reales ──────────────
+        // ── Meses disponibles desde presupuestos y transacciones ──────────────
         List<YearMonth> availableMonths = new ArrayList<>();
         try {
-            List<String> rawMonths = budgetRepo.listDistinctExpenseMonths(userUid);
-            for (String ym : rawMonths) {
-                availableMonths.add(YearMonth.parse(ym));
+            // Meses con presupuestos configurados (excluir __BASE__)
+            List<String> budgetMonths = budgetRepo.listDistinctExpenseMonths(userUid);
+            for (String ym : budgetMonths) {
+                // Filtrar __BASE__ y valores no válidos
+                if (ym == null || ym.isBlank() || ym.equals(BudgetRepository.BASE_BUDGET_MONTH)) {
+                    continue;
+                }
+                try {
+                    YearMonth parsed = YearMonth.parse(ym);
+                    if (!availableMonths.contains(parsed)) {
+                        availableMonths.add(parsed);
+                    }
+                } catch (Exception ignored) {
+                    // Ignorar meses con formato inválido
+                }
             }
-        } catch (Exception ignored) {
+            // Meses con transacciones de gastos
+            List<String> transactionMonths = budgetRepo.listDistinctTransactionMonths(userUid);
+            for (String ym : transactionMonths) {
+                if (ym == null || ym.isBlank()) {
+                    continue;
+                }
+                try {
+                    YearMonth parsed = YearMonth.parse(ym);
+                    if (!availableMonths.contains(parsed)) {
+                        availableMonths.add(parsed);
+                    }
+                } catch (Exception ignored) {
+                    // Ignorar meses con formato inválido
+                }
+            }
+            // Ordenar descendente (más recientes primero)
+            availableMonths.sort((a, b) -> b.compareTo(a));
+        } catch (Exception e) {
+            e.printStackTrace();
         }
         // Siempre incluir el mes actual si no está
         YearMonth thisMonth = YearMonth.now();
@@ -1131,9 +1132,7 @@ public final class BudgetView {
         ComboBox<CategoryRepository.Category> catCombo = new ComboBox<>();
         catCombo.setPromptText("Seleccionar categoría");
         catCombo.setMaxWidth(Double.MAX_VALUE);
-        catCombo.getStyleClass().add("budget-month-picker");
-        catCombo.setStyle("-fx-pref-height: 44; -fx-font-size: 13px; "
-            + "-fx-background-radius: 10; -fx-border-radius: 10;");
+        catCombo.getStyleClass().add("combo-box-custom");
         catCombo.setConverter(catConverter);
         try {
             for (CategoryRepository.Category r : categoryRepo.listRoots(userUid)) {
@@ -1146,9 +1145,7 @@ public final class BudgetView {
         ComboBox<CategoryRepository.Category> subCombo = new ComboBox<>();
         subCombo.setPromptText("Seleccionar subcategoría");
         subCombo.setMaxWidth(Double.MAX_VALUE);
-        subCombo.getStyleClass().add("budget-month-picker");
-        subCombo.setStyle("-fx-pref-height: 44; -fx-font-size: 13px; "
-            + "-fx-background-radius: 10; -fx-border-radius: 10;");
+        subCombo.getStyleClass().add("combo-box-custom");
         subCombo.setConverter(catConverter);
         subCombo.setDisable(true);
         VBox fieldSubcategoria = buildDrawerField(2, "Subcategoría", subCombo);

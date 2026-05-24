@@ -1,5 +1,6 @@
 package com.myfinaces.ui;
 
+import java.util.concurrent.atomic.AtomicReference;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
@@ -211,6 +212,18 @@ public final class DashboardTransactionsDialog {
         BooleanSupplier darkTheme,
         Runnable refreshBalances
     ) {
+        return buildTransactionsPane(session, txRepo, accountRepo, categoryRepo, darkTheme, refreshBalances, null);
+    }
+
+    public static javafx.scene.Node buildTransactionsPane(
+        AuthSession session,
+        TransactionRepository txRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        BooleanSupplier darkTheme,
+        Runnable refreshBalances,
+        String preselectedAccountId
+    ) {
         String userUid = session.uid();
 
         VBox txBox = new VBox(8);
@@ -225,8 +238,9 @@ public final class DashboardTransactionsDialog {
         ChoiceBox<CategoryRepository.Category> txRootCategoryFilter = new ChoiceBox<>();
         ChoiceBox<String> txKindFilter = new ChoiceBox<>();
         MenuButton txDateFilter = new MenuButton();
-        DatePicker txFromDate = new DatePicker();
-        DatePicker txToDate = new DatePicker();
+        LocalDate[] txFromDate = { null };
+        LocalDate[] txToDate = { null };
+        AtomicReference<Runnable> refreshTxRef = new AtomicReference<>();
 
         TextField searchField = new TextField();
         searchField.setPromptText("Buscar transacciones...");
@@ -255,6 +269,10 @@ public final class DashboardTransactionsDialog {
                 } catch (Exception ignored) {
                 }
                 refreshBalances.run();
+                Runnable refreshTx = refreshTxRef.get();
+                if (refreshTx != null) {
+                    refreshTx.run();
+                }
             } catch (Exception ignored) {
             }
         });
@@ -322,6 +340,16 @@ public final class DashboardTransactionsDialog {
         txAccountFilter.getStyleClass().add("tx-chip");
         txRootCategoryFilter.getStyleClass().add("tx-chip");
         txDateFilter.getStyleClass().add("tx-chip");
+        txDateFilter.sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (newScene != null && darkTheme.getAsBoolean()) {
+                String cssUrl = DashboardTransactionsDialog.class
+                    .getResource("/styles/tx-popup-dark.css") == null ? null
+                    : DashboardTransactionsDialog.class.getResource("/styles/tx-popup-dark.css").toExternalForm();
+                if (cssUrl != null && !newScene.getStylesheets().contains(cssUrl)) {
+                    newScene.getStylesheets().add(cssUrl);
+                }
+            }
+        });
 
         txDateFilter.setText("Fecha");
         MenuItem dateAll = new MenuItem("Todas");
@@ -331,44 +359,67 @@ public final class DashboardTransactionsDialog {
         MenuItem dateCustom = new MenuItem("Rango...");
         txDateFilter.getItems().setAll(dateAll, dateToday, dateYesterday, dateThisMonth, dateCustom);
 
+        java.time.format.DateTimeFormatter dateFmtShort = java.time.format.DateTimeFormatter
+                .ofPattern("d MMM yyyy", java.util.Locale.forLanguageTag("es"));
         Runnable applyDateLabel = () -> {
-            if (txFromDate.getValue() == null && txToDate.getValue() == null) {
+            LocalDate f = txFromDate[0];
+            LocalDate t = txToDate[0];
+            if (f == null && t == null) {
                 txDateFilter.setText("Fecha");
                 return;
             }
-            String from = txFromDate.getValue() == null ? "" : txFromDate.getValue().toString();
-            String to = txToDate.getValue() == null ? "" : txToDate.getValue().toString();
-            if (!from.isBlank() && !to.isBlank()) {
-                txDateFilter.setText(from + " - " + to);
-            } else if (!from.isBlank()) {
-                txDateFilter.setText(from + " - Hoy");
+            LocalDate today = LocalDate.now();
+            if (f != null && t != null && f.equals(t)) {
+                if (f.equals(today)) {
+                    txDateFilter.setText("Hoy");
+                } else if (f.equals(today.minusDays(1))) {
+                    txDateFilter.setText("Ayer");
+                } else {
+                    txDateFilter.setText(dateFmtShort.format(f));
+                }
+                return;
+            }
+            if (f != null && t != null
+                    && f.equals(today.withDayOfMonth(1)) && t.equals(today)) {
+                txDateFilter.setText("Este mes");
+                return;
+            }
+            if (f != null && t != null) {
+                txDateFilter.setText(dateFmtShort.format(f) + "  –  " + dateFmtShort.format(t));
+            } else if (f != null) {
+                txDateFilter.setText("Desde " + dateFmtShort.format(f));
             } else {
-                txDateFilter.setText("Hasta " + to);
+                txDateFilter.setText("Hasta " + dateFmtShort.format(t));
             }
         };
 
+        Runnable runRefreshTx = () -> { if (refreshTxRef.get() != null) refreshTxRef.get().run(); };
         dateAll.setOnAction(e -> {
-            txFromDate.setValue(null);
-            txToDate.setValue(null);
+            txFromDate[0] = null;
+            txToDate[0] = null;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateToday.setOnAction(e -> {
             LocalDate d = LocalDate.now();
-            txFromDate.setValue(d);
-            txToDate.setValue(d);
+            txFromDate[0] = d;
+            txToDate[0] = d;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateYesterday.setOnAction(e -> {
             LocalDate d = LocalDate.now().minusDays(1);
-            txFromDate.setValue(d);
-            txToDate.setValue(d);
+            txFromDate[0] = d;
+            txToDate[0] = d;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateThisMonth.setOnAction(e -> {
             LocalDate now = LocalDate.now();
-            txFromDate.setValue(now.withDayOfMonth(1));
-            txToDate.setValue(now);
+            txFromDate[0] = now.withDayOfMonth(1);
+            txToDate[0] = now;
             applyDateLabel.run();
+            runRefreshTx.run();
         });
         dateCustom.setOnAction(e -> {
             Dialog<ButtonType> rangeDialog = new Dialog<>();
@@ -376,8 +427,8 @@ public final class DashboardTransactionsDialog {
             rangeDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
             UiDialogs.applyAppTheme(rangeDialog, darkTheme.getAsBoolean());
 
-            DatePicker from = new DatePicker(txFromDate.getValue());
-            DatePicker to = new DatePicker(txToDate.getValue());
+            DatePicker from = new DatePicker(txFromDate[0]);
+            DatePicker to = new DatePicker(txToDate[0]);
             VBox content = new VBox(10, new HBox(10, new Label("Desde"), from), new HBox(10, new Label("Hasta"), to));
             content.setPadding(new Insets(14));
             rangeDialog.getDialogPane().setContent(content);
@@ -385,9 +436,10 @@ public final class DashboardTransactionsDialog {
                 if (btn != ButtonType.OK) {
                     return;
                 }
-                txFromDate.setValue(from.getValue());
-                txToDate.setValue(to.getValue());
+                txFromDate[0] = from.getValue();
+                txToDate[0] = to.getValue();
                 applyDateLabel.run();
+                runRefreshTx.run();
             });
         });
 
@@ -406,8 +458,8 @@ public final class DashboardTransactionsDialog {
             txBox,
             txAccountFilter.getValue() == null ? null : txAccountFilter.getValue().id(),
             txRootCategoryFilter.getValue() == null ? null : txRootCategoryFilter.getValue().id(),
-            txFromDate.getValue(),
-            txToDate.getValue(),
+            txFromDate[0],
+            txToDate[0],
             txKindFilter.getValue(),
             searchField.getText(),
             incomeValue,
@@ -418,6 +470,7 @@ public final class DashboardTransactionsDialog {
             categoryRepo,
             refreshBalances
         );
+        refreshTxRef.set(refreshTx);
 
         try {
             txAccountFilter.getItems().add(null);
@@ -428,7 +481,15 @@ public final class DashboardTransactionsDialog {
                     .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             txAccountFilter.getItems().addAll(accounts);
-            txAccountFilter.getSelectionModel().selectFirst();
+            if (preselectedAccountId != null) {
+                accounts.stream().filter(a -> a != null && preselectedAccountId.equals(a.id())).findFirst()
+                    .ifPresentOrElse(
+                        txAccountFilter.getSelectionModel()::select,
+                        txAccountFilter.getSelectionModel()::selectFirst
+                    );
+            } else {
+                txAccountFilter.getSelectionModel().selectFirst();
+            }
         } catch (Exception ignored) {
         }
         txAccountFilter.setConverter(new javafx.util.StringConverter<>() {
@@ -463,14 +524,6 @@ public final class DashboardTransactionsDialog {
 
         txAccountFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
         txRootCategoryFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
-        txFromDate.valueProperty().addListener((obs, o, n) -> {
-            applyDateLabel.run();
-            refreshTx.run();
-        });
-        txToDate.valueProperty().addListener((obs, o, n) -> {
-            applyDateLabel.run();
-            refreshTx.run();
-        });
         txKindFilter.valueProperty().addListener((obs, o, n) -> refreshTx.run());
         searchField.textProperty().addListener((obs, o, n) -> refreshTx.run());
 
@@ -671,7 +724,7 @@ public final class DashboardTransactionsDialog {
                 rightBox.setAlignment(Pos.CENTER_RIGHT);
 
                 Runnable doEdit = () -> {
-                    Optional<NewTransaction> updated = showEditTransactionDialog(
+                    Optional<EditTransactionResult> updated = showEditTransactionDialog(
                         t,
                         userUid,
                         accountRepo,
@@ -682,13 +735,26 @@ public final class DashboardTransactionsDialog {
                         return;
                     }
                     try {
-                        NewTransaction ut = updated.get();
-                        txRepo.update(userUid, t.id(), ut.accountId(), ut.categoryId(), ut.kind(), ut.amountCents(), ut.occurredAtEpochSec(), ut.note());
-                        try {
-                            AppConfig cfg = AppConfig.loadDefault();
-                            FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                            sync.syncTransaction(session, txRepo.getForSyncById(userUid, t.id()));
-                        } catch (Exception ignored) {
+                        if (updated.get().delete()) {
+                            txRepo.delete(userUid, t.id());
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.deleteTransaction(session, t.id());
+                            } catch (Exception ignored) {
+                            }
+                        } else {
+                            NewTransaction ut = updated.get().updated();
+                            if (ut == null) {
+                                return;
+                            }
+                            txRepo.update(userUid, t.id(), ut.accountId(), ut.categoryId(), ut.kind(), ut.amountCents(), ut.occurredAtEpochSec(), ut.note());
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                sync.syncTransaction(session, txRepo.getForSyncById(userUid, t.id()));
+                            } catch (Exception ignored) {
+                            }
                         }
                         refreshBalances.run();
                         refreshTransactions(session, userUid, txRepo, txBox, accountId, rootCategoryId, fromDate, toDate, kindFilter, query, incomeValue, expenseValue, balanceValue, darkTheme, accountRepo, categoryRepo, refreshBalances);
@@ -779,6 +845,12 @@ public final class DashboardTransactionsDialog {
     ) {
     }
 
+    private record EditTransactionResult(
+        boolean delete,
+        NewTransaction updated
+    ) {
+    }
+
     private static Optional<NewTransaction> showCreateTransactionDialog(
         String userUid,
         AccountRepository accountRepo,
@@ -810,27 +882,10 @@ public final class DashboardTransactionsDialog {
         BorderPane header = new BorderPane();
         header.getStyleClass().add("new-tx-header");
 
-        ImageView headerIconView = new ImageView();
-        try {
-            var iconStream = DashboardTransactionsDialog.class.getResourceAsStream("/images/xpendz.png");
-            if (iconStream == null) {
-                iconStream = DashboardTransactionsDialog.class.getResourceAsStream("/images/logo.png");
-            }
-            if (iconStream != null) {
-                headerIconView.setImage(new Image(iconStream));
-            }
-        } catch (Exception ignored) {
-        }
-        headerIconView.setPreserveRatio(true);
-        headerIconView.setSmooth(true);
-        headerIconView.setFitWidth(18);
-        headerIconView.setFitHeight(18);
-        headerIconView.getStyleClass().add("new-tx-header-icon");
-
         Label headerTitle = new Label("Nueva transacción");
         headerTitle.getStyleClass().add("new-tx-title");
 
-        HBox headerTitleBox = new HBox(8, headerIconView, headerTitle);
+        HBox headerTitleBox = new HBox(headerTitle);
         headerTitleBox.setAlignment(Pos.CENTER_LEFT);
         headerTitleBox.getStyleClass().add("new-tx-title-box");
         
@@ -956,71 +1011,22 @@ public final class DashboardTransactionsDialog {
         var datePickerCssUrl = UiDialogs.class.getResource(datePickerCssPath);
         String datePickerCss = datePickerCssUrl == null ? null : datePickerCssUrl.toExternalForm();
         dateField.setOnShowing(ev -> {
-            if (datePickerCss == null) {
-                System.out.println("[DatePickerCss] cssUrl NOT FOUND for path=" + datePickerCssPath);
-                return;
-            }
+            if (datePickerCss == null) return;
             Platform.runLater(() -> {
-                int windows = 0;
-                int popups = 0;
-                int matched = 0;
-                int injected = 0;
                 for (Window w : Window.getWindows()) {
-                    windows++;
-                    if (!(w instanceof PopupWindow pw)) {
-                        continue;
-                    }
-                    popups++;
+                    if (!(w instanceof PopupWindow pw)) continue;
                     try {
                         var sc = pw.getScene();
-                        if (sc == null || sc.getRoot() == null) {
-                            continue;
-                        }
+                        if (sc == null || sc.getRoot() == null) continue;
                         var rootNode = sc.getRoot();
-                        boolean isDatePickerPopupRoot = rootNode.getStyleClass() != null
-                            && rootNode.getStyleClass().contains("date-picker-popup");
-                        boolean hasDatePickerPopupInside = rootNode.lookup(".date-picker-popup") != null;
-                        if (!isDatePickerPopupRoot && !hasDatePickerPopupInside) {
-                            continue;
-                        }
-                        matched++;
+                        boolean isPopup = rootNode.getStyleClass().contains("date-picker-popup")
+                            || rootNode.lookup(".date-picker-popup") != null;
+                        if (!isPopup) continue;
                         if (!sc.getStylesheets().contains(datePickerCss)) {
                             sc.getStylesheets().add(datePickerCss);
-                            injected++;
-                            System.out.println("[DatePickerCss] injected css=" + datePickerCss);
                         }
-
-                        try {
-                            if (!rootNode.getStyleClass().contains("xpendz-date-popup")) {
-                                rootNode.getStyleClass().add("xpendz-date-popup");
-                            }
-                            System.out.println("[DatePickerCss] matched popup window. rootStyleClasses=" + rootNode.getStyleClass());
-                            rootNode.applyCss();
-                            if (rootNode instanceof Parent p) {
-                                p.layout();
-                            }
-                            var dpPopup = rootNode.lookup(".date-picker-popup");
-                            if (dpPopup != null) {
-                                if (!dpPopup.getStyleClass().contains("xpendz-date-popup")) {
-                                    dpPopup.getStyleClass().add("xpendz-date-popup");
-                                }
-                                dpPopup.applyCss();
-                                if (dpPopup instanceof Parent p2) {
-                                    p2.layout();
-                                }
-                            }
-                        } catch (Exception ignored2) {
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    } catch (Exception ignored) {}
                 }
-                System.out.println(
-                    "[DatePickerCss] windows=" + windows
-                        + " popups=" + popups
-                        + " matched=" + matched
-                        + " injected=" + injected
-                        + " cssPath=" + datePickerCssPath
-                );
             });
         });
         
@@ -1056,8 +1062,17 @@ public final class DashboardTransactionsDialog {
             error
         );
 
+        // ScrollPane para el contenido — botones siempre visibles
+        javafx.scene.control.ScrollPane contentScroll = new javafx.scene.control.ScrollPane(content);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.getStyleClass().add("new-tx-scroll");
+        contentScroll.setMaxHeight(420);
+        contentScroll.setPrefHeight(javafx.scene.layout.Region.USE_COMPUTED_SIZE);
+
         // Estructura final
-        VBox root = new VBox(header, content);
+        VBox root = new VBox(header, contentScroll);
         root.getStyleClass().add("new-tx-root");
         root.getStyleClass().add("tx-kind-expense");
         root.setFillWidth(true);
@@ -1235,6 +1250,39 @@ public final class DashboardTransactionsDialog {
 
         account.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshBalance.run());
 
+        // Navegación Tab entre campos en orden
+        amountField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                rootCategory.requestFocus();
+            }
+        });
+        rootCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                if (subCategoryBox.isVisible()) subCategory.requestFocus();
+                else account.requestFocus();
+            }
+        });
+        subCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                account.requestFocus();
+            }
+        });
+        account.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                noteField.requestFocus();
+            }
+        });
+        noteField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                dateField.requestFocus();
+            }
+        });
+
         // Foco automático en monto al abrir
         dialog.setOnShown(e -> Platform.runLater(() -> amountField.requestFocus()));
 
@@ -1312,7 +1360,10 @@ public final class DashboardTransactionsDialog {
 
         dialog.setResultConverter(btn -> btn);
         Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isEmpty() || result.get() != saveBtnType) {
+        if (result.isEmpty() || result.get() == cancelBtnType) {
+            return Optional.empty();
+        }
+        if (result.get() != saveBtnType) {
             return Optional.empty();
         }
 
@@ -1349,7 +1400,7 @@ public final class DashboardTransactionsDialog {
         ));
     }
 
-    private static Optional<NewTransaction> showEditTransactionDialog(
+    private static Optional<EditTransactionResult> showEditTransactionDialog(
         TransactionRepository.TransactionRow existing,
         String userUid,
         AccountRepository accountRepo,
@@ -1358,53 +1409,189 @@ public final class DashboardTransactionsDialog {
     ) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Editar transacción");
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        ButtonType saveBtnType = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType deleteBtnType = new ButtonType("Eliminar", ButtonBar.ButtonData.LEFT);
+        ButtonType cancelBtnType = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(deleteBtnType, saveBtnType, cancelBtnType);
         UiDialogs.applyAppTheme(dialog, darkTheme);
-        dialog.getDialogPane().setMinWidth(640);
-        dialog.getDialogPane().setPrefWidth(640);
+
+        dialog.getDialogPane().getStyleClass().remove("categories-dialog");
+        if (!dialog.getDialogPane().getStyleClass().contains("new-tx-dialog")) {
+            dialog.getDialogPane().getStyleClass().add("new-tx-dialog");
+        }
+
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().setHeader(null);
+        dialog.getDialogPane().setPadding(Insets.EMPTY);
+
+        dialog.getDialogPane().setMinWidth(420);
+        dialog.getDialogPane().setPrefWidth(440);
+        dialog.getDialogPane().setMaxWidth(480);
+
+        BorderPane header = new BorderPane();
+        header.getStyleClass().add("new-tx-header");
+
+        Label headerTitle = new Label("Editar transacción");
+        headerTitle.getStyleClass().add("new-tx-title");
+
+        HBox headerTitleBox = new HBox(headerTitle);
+        headerTitleBox.setAlignment(Pos.CENTER_LEFT);
+        headerTitleBox.getStyleClass().add("new-tx-title-box");
+
+        Button closeBtn = new Button();
+        closeBtn.getStyleClass().add("new-tx-close");
+        FontIcon closeIcon = new FontIcon("fas-times");
+        closeIcon.getStyleClass().add("new-tx-close-icon");
+        closeBtn.setGraphic(closeIcon);
+        closeBtn.setOnAction(e -> dialog.setResult(cancelBtnType));
+
+        header.setCenter(headerTitleBox);
+        header.setRight(closeBtn);
+        BorderPane.setAlignment(headerTitleBox, Pos.CENTER);
+        BorderPane.setAlignment(closeBtn, Pos.CENTER);
+        BorderPane.setMargin(closeBtn, new Insets(0, 8, 0, 0));
+
+        ToggleGroup kindToggle = new ToggleGroup();
+        ToggleButton expenseBtn = new ToggleButton("Gasto");
+        expenseBtn.getStyleClass().add("tx-type-btn");
+        expenseBtn.getStyleClass().add("tx-type-expense");
+        expenseBtn.setToggleGroup(kindToggle);
+
+        FontIcon expenseIcon = new FontIcon("fas-shopping-cart");
+        expenseIcon.getStyleClass().add("tx-type-icon");
+        expenseBtn.setGraphic(expenseIcon);
+
+        ToggleButton incomeBtn = new ToggleButton("Ingreso");
+        incomeBtn.getStyleClass().add("tx-type-btn");
+        incomeBtn.getStyleClass().add("tx-type-income");
+        incomeBtn.setToggleGroup(kindToggle);
+
+        FontIcon incomeIcon = new FontIcon("fas-hand-holding-usd");
+        incomeIcon.getStyleClass().add("tx-type-icon");
+        incomeBtn.setGraphic(incomeIcon);
+
+        HBox kindBox = new HBox(expenseBtn, incomeBtn);
+        kindBox.getStyleClass().add("tx-type-toggle");
+        kindBox.setAlignment(Pos.CENTER);
+        kindBox.setFillHeight(true);
+        HBox.setHgrow(expenseBtn, Priority.ALWAYS);
+        HBox.setHgrow(incomeBtn, Priority.ALWAYS);
+        expenseBtn.setMaxWidth(Double.MAX_VALUE);
+        incomeBtn.setMaxWidth(Double.MAX_VALUE);
+
+        java.util.concurrent.atomic.AtomicReference<String> currentKind = new java.util.concurrent.atomic.AtomicReference<>(
+            existing == null || existing.kind() == null ? "EXPENSE" : existing.kind()
+        );
+        boolean isExpense = "EXPENSE".equalsIgnoreCase(currentKind.get());
+        if (isExpense) {
+            kindToggle.selectToggle(expenseBtn);
+        } else {
+            kindToggle.selectToggle(incomeBtn);
+        }
+        expenseBtn.getStyleClass().add("tx-type-active");
+        if (!isExpense) {
+            expenseBtn.getStyleClass().remove("tx-type-active");
+            incomeBtn.getStyleClass().add("tx-type-active");
+        }
+
+        kindBox.setDisable(true);
+        expenseBtn.setDisable(true);
+        incomeBtn.setDisable(true);
+
+        VBox amountContainer = new VBox();
+        amountContainer.getStyleClass().add("amount-container");
+        amountContainer.setAlignment(Pos.CENTER_LEFT);
+
+        HBox amountRow = new HBox(8);
+        amountRow.setAlignment(Pos.CENTER_LEFT);
+        amountRow.getStyleClass().add("amount-row");
+
+        Label currencySymbol = new Label("$");
+        currencySymbol.getStyleClass().add("currency-symbol");
+
+        TextField amountField = new TextField(BigDecimal.valueOf(existing.amountCents(), 2).toPlainString());
+        amountField.getStyleClass().add("amount-field");
+        amountField.setAlignment(Pos.CENTER_LEFT);
+        amountField.setMaxWidth(Double.MAX_VALUE);
+        amountField.setPromptText("0.00");
+        HBox.setHgrow(amountField, Priority.ALWAYS);
+
+        amountRow.getChildren().addAll(currencySymbol, amountField);
+        amountContainer.getChildren().add(amountRow);
+
+        Label categoryLabel = new Label("Categoría");
+        categoryLabel.getStyleClass().add("field-label");
+
+        ChoiceBox<CategoryRepository.Category> rootCategory = new ChoiceBox<>();
+        rootCategory.getStyleClass().add("field-choice");
+        rootCategory.setMaxWidth(Double.MAX_VALUE);
+
+        VBox categoryBox = new VBox(4, categoryLabel, rootCategory);
+        categoryBox.setFillWidth(true);
+
+        VBox subCategoryBox = new VBox(4);
+        Label subCategoryLabel = new Label("Subcategoría");
+        subCategoryLabel.getStyleClass().add("field-label");
+
+        ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
+        subCategory.getStyleClass().add("field-choice");
+        subCategory.setMaxWidth(Double.MAX_VALUE);
+
+        subCategoryBox.getChildren().addAll(subCategoryLabel, subCategory);
+        subCategoryBox.setManaged(false);
+        subCategoryBox.setVisible(false);
+
+        Label accountLabel = new Label("Cuenta");
+        accountLabel.getStyleClass().add("field-label");
+
+        ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
+        account.getStyleClass().add("field-choice");
+        account.setMaxWidth(Double.MAX_VALUE);
+
+        VBox accountBox = new VBox(4, accountLabel, account);
+
+        Label noteLabel = new Label("Descripción");
+        noteLabel.getStyleClass().add("field-label");
+
+        TextField noteField = new TextField(existing.note() == null ? "" : existing.note());
+        noteField.setPromptText("Ej: Compra semanal");
+        noteField.getStyleClass().add("field-input");
+        noteField.setMaxWidth(Double.MAX_VALUE);
+
+        VBox noteBox = new VBox(4, noteLabel, noteField);
+
+        Label dateLabel = new Label("Fecha");
+        dateLabel.getStyleClass().add("field-label");
 
         LocalDate existingDate = Instant.ofEpochSecond(existing.occurredAtEpochSec()).atZone(ZoneId.systemDefault()).toLocalDate();
-        DatePicker date = new DatePicker(existingDate);
-        ChoiceBox<AccountRepository.Account> account = new ChoiceBox<>();
-        ChoiceBox<CategoryRepository.Category> rootCategory = new ChoiceBox<>();
-        ChoiceBox<CategoryRepository.Category> subCategory = new ChoiceBox<>();
-        ChoiceBox<String> kind = new ChoiceBox<>();
-        kind.getItems().addAll("INCOME", "EXPENSE");
-        kind.getSelectionModel().clearSelection();
-        kind.setDisable(true);
-        kind.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(String object) {
-                if (object == null) {
-                    return "";
-                }
-                if ("INCOME".equalsIgnoreCase(object)) {
-                    return "Ingreso";
-                }
-                if ("EXPENSE".equalsIgnoreCase(object)) {
-                    return "Egreso";
-                }
-                return object;
-            }
+        DatePicker dateField = new DatePicker(existingDate);
+        dateField.getStyleClass().add("field-date");
+        dateField.setMaxWidth(Double.MAX_VALUE);
 
-            @Override
-            public String fromString(String string) {
-                if (string == null) {
-                    return null;
+        String datePickerCssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
+        var datePickerCssUrl = UiDialogs.class.getResource(datePickerCssPath);
+        String datePickerCss = datePickerCssUrl == null ? null : datePickerCssUrl.toExternalForm();
+        dateField.setOnShowing(ev -> {
+            if (datePickerCss == null) return;
+            Platform.runLater(() -> {
+                for (Window w : Window.getWindows()) {
+                    if (!(w instanceof PopupWindow pw)) continue;
+                    try {
+                        var sc = pw.getScene();
+                        if (sc == null || sc.getRoot() == null) continue;
+                        var rootNode = sc.getRoot();
+                        boolean isPopup = rootNode.getStyleClass().contains("date-picker-popup")
+                            || rootNode.lookup(".date-picker-popup") != null;
+                        if (!isPopup) continue;
+                        if (!sc.getStylesheets().contains(datePickerCss)) {
+                            sc.getStylesheets().add(datePickerCss);
+                        }
+                    } catch (Exception ignored) {}
                 }
-                String s = string.trim();
-                if ("Ingreso".equalsIgnoreCase(s)) {
-                    return "INCOME";
-                }
-                if ("Egreso".equalsIgnoreCase(s)) {
-                    return "EXPENSE";
-                }
-                return null;
-            }
+            });
         });
 
-        Label balanceLabel = new Label();
-        balanceLabel.getStyleClass().add("account-name");
+        VBox dateBox = new VBox(4, dateLabel, dateField);
 
         Label error = new Label();
         error.getStyleClass().add("error");
@@ -1412,104 +1599,45 @@ public final class DashboardTransactionsDialog {
         error.setVisible(false);
         error.setManaged(false);
 
-        java.util.concurrent.atomic.AtomicReference<Runnable> refreshKindFromRootRef = new java.util.concurrent.atomic.AtomicReference<>(null);
+        Label balanceLabel = new Label();
+        balanceLabel.getStyleClass().add("balance-label");
+        balanceLabel.setVisible(isExpense);
+        balanceLabel.setManaged(isExpense);
+        VBox balanceBox = new VBox(balanceLabel);
 
-        try {
-            account.getItems().setAll(accountRepo.list(userUid));
-            for (AccountRepository.Account a : account.getItems()) {
-                if (a.id().equals(existing.accountId())) {
-                    account.getSelectionModel().select(a);
-                }
-            }
-        } catch (Exception ignored) {
-        }
+        VBox content = new VBox(12);
+        content.getStyleClass().add("new-tx-content");
+        content.setPadding(new Insets(12, 18, 12, 18));
+        content.getChildren().addAll(
+            kindBox,
+            amountContainer,
+            categoryBox,
+            subCategoryBox,
+            accountBox,
+            balanceBox,
+            noteBox,
+            dateBox,
+            error
+        );
 
-        Runnable refreshSubcats = () -> {
-            CategoryRepository.Category root = rootCategory.getValue();
-            subCategory.getItems().clear();
-            subCategory.setDisable(root == null);
-            if (root == null) {
-                return;
-            }
-            try {
-                subCategory.getItems().add(null);
-                subCategory.getItems().addAll(categoryRepo.listChildren(userUid, root.id()));
-            } catch (Exception ignored) {
-            }
-            subCategory.getSelectionModel().selectFirst();
-        };
+        ScrollPane contentScroll = new ScrollPane(content);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.getStyleClass().add("new-tx-scroll");
+        contentScroll.setMaxHeight(420);
+        contentScroll.setPrefHeight(Region.USE_COMPUTED_SIZE);
 
-        try {
-            rootCategory.getItems().setAll(categoryRepo.listRoots(userUid));
-            if (!rootCategory.getItems().isEmpty()) {
-                rootCategory.getSelectionModel().selectFirst();
-            }
-        } catch (Exception ignored) {
-        }
-        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
-            refreshSubcats.run();
-            Runnable r = refreshKindFromRootRef.get();
-            if (r != null) {
-                r.run();
-            }
-        });
-        refreshSubcats.run();
-
-        account.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(AccountRepository.Account object) {
-                return object == null ? "" : formatAccountLabel(object);
-            }
-
-            @Override
-            public AccountRepository.Account fromString(String string) {
-                return null;
-            }
-        });
-        rootCategory.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(CategoryRepository.Category object) {
-                return object == null ? "" : object.name();
-            }
-
-            @Override
-            public CategoryRepository.Category fromString(String string) {
-                return null;
-            }
-        });
-
-        subCategory.setConverter(new javafx.util.StringConverter<>() {
-            @Override
-            public String toString(CategoryRepository.Category object) {
-                return object == null ? "(Sin subcategoría)" : object.name();
-            }
-
-            @Override
-            public CategoryRepository.Category fromString(String string) {
-                return null;
-            }
-        });
-
-        javafx.scene.control.TextField amount = new javafx.scene.control.TextField(BigDecimal.valueOf(existing.amountCents(), 2).toPlainString());
-        amount.setPrefWidth(340);
-
-        javafx.scene.control.TextField note = new javafx.scene.control.TextField(existing.note() == null ? "" : existing.note());
-        note.setPromptText("Nota (opcional)");
-        note.setPrefWidth(340);
+        VBox root = new VBox(header, contentScroll);
+        root.getStyleClass().add("new-tx-root");
+        root.getStyleClass().add(isExpense ? "tx-kind-expense" : "tx-kind-income");
+        root.setFillWidth(true);
+        root.setAlignment(Pos.TOP_CENTER);
+        dialog.getDialogPane().setContent(root);
 
         Runnable refreshBalance = () -> {
-            error.setText("");
-            error.setVisible(false);
-            error.setManaged(false);
-
             AccountRepository.Account a = account.getValue();
-            if (a == null) {
-                balanceLabel.setText("");
-                return;
-            }
-            String derived = kindForRootCategory(rootCategory.getValue());
-            String finalKind = derived != null ? derived : kind.getValue();
-            if (!"EXPENSE".equalsIgnoreCase(finalKind)) {
+            if (a == null || !"EXPENSE".equalsIgnoreCase(currentKind.get())) {
                 balanceLabel.setText("");
                 return;
             }
@@ -1525,64 +1653,123 @@ public final class DashboardTransactionsDialog {
             }
         };
 
-        Runnable refreshKindFromRoot = () -> {
-            String derived = kindForRootCategory(rootCategory.getValue());
-            if (derived == null) {
-                kind.setDisable(false);
-                if (kind.getValue() == null) {
-                    kind.getSelectionModel().clearSelection();
+        try {
+            account.getItems().add(null);
+            List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
+            accounts.sort(
+                Comparator
+                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+            );
+            account.getItems().addAll(accounts);
+            if (existing.accountId() != null) {
+                for (AccountRepository.Account a : account.getItems()) {
+                    if (a != null && existing.accountId().equals(a.id())) {
+                        account.getSelectionModel().select(a);
+                        break;
+                    }
                 }
-            } else {
-                kind.getSelectionModel().select(derived);
-                kind.setDisable(true);
             }
-            refreshBalance.run();
+            if (account.getValue() == null && !account.getItems().isEmpty()) {
+                account.getSelectionModel().selectFirst();
+            }
+        } catch (Exception ignored) {
+        }
+
+        account.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account object) {
+                return object == null ? "" : formatAccountLabel(object);
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String string) {
+                return null;
+            }
+        });
+
+        List<CategoryRepository.Category> allRoots = new ArrayList<>();
+        try {
+            allRoots.addAll(categoryRepo.listRoots(userUid));
+        } catch (Exception ignored) {
+        }
+
+        Runnable refreshRootCatsByKind = () -> {
+            String k = currentKind.get();
+            rootCategory.getItems().clear();
+            rootCategory.getItems().add(null);
+            for (CategoryRepository.Category r : allRoots) {
+                String derived = kindForRootCategory(r);
+                if (derived == null || derived.isBlank()) {
+                    continue;
+                }
+                if ("BOTH".equalsIgnoreCase(derived)) {
+                    rootCategory.getItems().add(r);
+                    continue;
+                }
+                if (k != null && derived.equalsIgnoreCase(k)) {
+                    rootCategory.getItems().add(r);
+                }
+            }
+            if (!rootCategory.getItems().isEmpty()) {
+                rootCategory.getSelectionModel().selectFirst();
+            }
         };
-        refreshKindFromRootRef.set(refreshKindFromRoot);
 
-        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPrefWidth(480);
+        refreshRootCatsByKind.run();
 
-        Label lDate = new Label("Fecha");
-        lDate.getStyleClass().add("account-name");
-        grid.add(lDate, 0, 0);
-        grid.add(date, 1, 0);
-        Label lAccount = new Label("Cuenta");
-        lAccount.getStyleClass().add("account-name");
-        grid.add(lAccount, 0, 1);
-        grid.add(account, 1, 1);
-        Label lRoot = new Label("Categoría");
-        lRoot.getStyleClass().add("account-name");
-        grid.add(lRoot, 0, 2);
-        grid.add(rootCategory, 1, 2);
-        Label lSub = new Label("Subcategoría");
-        lSub.getStyleClass().add("account-name");
-        grid.add(lSub, 0, 3);
-        grid.add(subCategory, 1, 3);
-        Label lKind = new Label("Tipo");
-        lKind.getStyleClass().add("account-name");
-        grid.add(lKind, 0, 4);
-        grid.add(kind, 1, 4);
+        rootCategory.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(CategoryRepository.Category object) {
+                return object == null ? "" : object.name();
+            }
 
-        Label lBalance = new Label("Disponible");
-        lBalance.getStyleClass().add("account-name");
-        grid.add(lBalance, 0, 5);
-        grid.add(balanceLabel, 1, 5);
+            @Override
+            public CategoryRepository.Category fromString(String string) {
+                return null;
+            }
+        });
 
-        Label lAmount = new Label("Monto");
-        lAmount.getStyleClass().add("account-name");
-        grid.add(lAmount, 0, 6);
-        grid.add(amount, 1, 6);
+        Runnable refreshSubcats = () -> {
+            CategoryRepository.Category selectedCategory = rootCategory.getValue();
+            subCategory.getItems().clear();
+            if (selectedCategory == null) {
+                subCategoryBox.setVisible(false);
+                subCategoryBox.setManaged(false);
+                return;
+            }
+            try {
+                List<CategoryRepository.Category> children = categoryRepo.listChildren(userUid, selectedCategory.id());
+                if (children.isEmpty()) {
+                    subCategoryBox.setVisible(false);
+                    subCategoryBox.setManaged(false);
+                } else {
+                    subCategory.getItems().add(null);
+                    subCategory.getItems().addAll(children);
+                    subCategory.getSelectionModel().selectFirst();
+                    subCategoryBox.setVisible(true);
+                    subCategoryBox.setManaged(true);
+                }
+            } catch (Exception ignored) {
+                subCategoryBox.setVisible(false);
+                subCategoryBox.setManaged(false);
+            }
+        };
 
-        Label lNote = new Label("Nota");
-        lNote.getStyleClass().add("account-name");
-        grid.add(lNote, 0, 7);
-        grid.add(note, 1, 7);
+        subCategory.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(CategoryRepository.Category object) {
+                return object == null ? "" : object.name();
+            }
 
-        grid.add(error, 0, 8, 2, 1);
-        dialog.getDialogPane().setContent(grid);
+            @Override
+            public CategoryRepository.Category fromString(String string) {
+                return null;
+            }
+        });
+
+        rootCategory.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshSubcats.run());
+        refreshSubcats.run();
 
         Runnable selectExistingCategory = () -> {
             try {
@@ -1600,7 +1787,7 @@ public final class DashboardTransactionsDialog {
 
                 if (current.parentId() == null) {
                     for (CategoryRepository.Category r : rootCategory.getItems()) {
-                        if (r.id().equals(current.id())) {
+                        if (r != null && r.id().equals(current.id())) {
                             rootCategory.getSelectionModel().select(r);
                             break;
                         }
@@ -1610,18 +1797,18 @@ public final class DashboardTransactionsDialog {
                     return;
                 }
 
-                CategoryRepository.Category root = null;
+                CategoryRepository.Category rootCat = null;
                 for (CategoryRepository.Category c : all) {
                     if (current.parentId().equals(c.id())) {
-                        root = c;
+                        rootCat = c;
                         break;
                     }
                 }
-                if (root == null) {
+                if (rootCat == null) {
                     return;
                 }
                 for (CategoryRepository.Category r : rootCategory.getItems()) {
-                    if (r.id().equals(root.id())) {
+                    if (r != null && r.id().equals(rootCat.id())) {
                         rootCategory.getSelectionModel().select(r);
                         break;
                     }
@@ -1636,27 +1823,110 @@ public final class DashboardTransactionsDialog {
             } catch (Exception ignored) {
             }
         };
-        selectExistingCategory.run();
-        refreshKindFromRoot.run();
 
-        account.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
-        kind.getSelectionModel().selectedItemProperty().addListener((obs, o, n) -> refreshBalance.run());
+        selectExistingCategory.run();
+        account.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshBalance.run());
         refreshBalance.run();
 
-        javafx.scene.Node okNode = dialog.getDialogPane().lookupButton(ButtonType.OK);
+        amountField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                rootCategory.requestFocus();
+            }
+        });
+        rootCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                if (subCategoryBox.isVisible()) subCategory.requestFocus();
+                else account.requestFocus();
+            }
+        });
+        subCategory.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                account.requestFocus();
+            }
+        });
+        account.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                noteField.requestFocus();
+            }
+        });
+        noteField.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.TAB) {
+                e.consume();
+                dateField.requestFocus();
+            }
+        });
+
+        Runnable restyleDeleteBtn = () -> {
+            try {
+                javafx.scene.Node dn = dialog.getDialogPane().lookupButton(deleteBtnType);
+                if (dn instanceof Button b) {
+                    b.getStyleClass().removeAll("btn-secondary", "btn-primary");
+                    if (!b.getStyleClass().contains("btn-danger")) {
+                        b.getStyleClass().add("btn-danger");
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        };
+
+        javafx.event.EventHandler<javafx.scene.control.DialogEvent> prevShown = dialog.getOnShown();
+        dialog.setOnShown(e -> {
+            if (prevShown != null) {
+                prevShown.handle(e);
+            }
+            Platform.runLater(() -> {
+                amountField.requestFocus();
+                restyleDeleteBtn.run();
+                Platform.runLater(restyleDeleteBtn);
+            });
+        });
+
+        javafx.scene.Node deleteNode = dialog.getDialogPane().lookupButton(deleteBtnType);
+        javafx.scene.Node okNode = dialog.getDialogPane().lookupButton(saveBtnType);
+        javafx.scene.Node cancelNode = dialog.getDialogPane().lookupButton(cancelBtnType);
+        if (cancelNode instanceof Button cancelBtn) {
+            cancelBtn.getStyleClass().add("btn-secondary");
+        }
+        if (deleteNode instanceof Button delBtn) {
+            delBtn.getStyleClass().removeAll("btn-secondary", "btn-primary");
+            delBtn.getStyleClass().add("btn-danger");
+            delBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
+                Dialog<ButtonType> confirm = new Dialog<>();
+                confirm.setTitle("Eliminar");
+                UiDialogs.applyAppTheme(confirm, darkTheme);
+                confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+                confirm.setContentText("¿Eliminar esta transacción?");
+                Optional<ButtonType> res = confirm.showAndWait();
+                if (res.isEmpty() || res.get() != ButtonType.OK) {
+                    ev.consume();
+                }
+            });
+        }
         if (okNode instanceof Button okBtn) {
+            okBtn.getStyleClass().add("btn-primary");
+            okBtn.getStyleClass().add("tx-save-btn");
             okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
                 error.setText("");
                 error.setVisible(false);
                 error.setManaged(false);
 
-                if (date.getValue() == null || account.getValue() == null || rootCategory.getValue() == null) {
+                if (dateField.getValue() == null || account.getValue() == null || rootCategory.getValue() == null) {
+                    error.setText("Por favor completa los campos obligatorios.");
+                    error.setVisible(true);
+                    error.setManaged(true);
                     ev.consume();
                     return;
                 }
 
-                String raw = amount.getText() == null ? "" : amount.getText().trim();
+                String raw = amountField.getText() == null ? "" : amountField.getText().trim();
                 if (raw.isBlank()) {
+                    error.setText("Por favor ingresa el monto.");
+                    error.setVisible(true);
+                    error.setManaged(true);
                     ev.consume();
                     return;
                 }
@@ -1666,37 +1936,39 @@ public final class DashboardTransactionsDialog {
                     BigDecimal v = DashboardFormatters.parseAmount(raw);
                     cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
                 } catch (Exception ignored) {
+                    error.setText("Monto inválido.");
+                    error.setVisible(true);
+                    error.setManaged(true);
                     ev.consume();
                     return;
                 }
-                if (cents < 0) {
+                if (cents <= 0) {
+                    error.setText("El monto debe ser mayor a 0.");
+                    error.setVisible(true);
+                    error.setManaged(true);
                     ev.consume();
                     return;
                 }
 
-                String derivedKind = kindForRootCategory(rootCategory.getValue());
-                String finalKind = derivedKind != null ? derivedKind : kind.getValue();
-                if (finalKind == null || finalKind.isBlank()) {
-                    ev.consume();
-                    return;
-                }
-
-                if ("EXPENSE".equalsIgnoreCase(finalKind)) {
+                if ("EXPENSE".equalsIgnoreCase(currentKind.get())) {
                     AccountRepository.Account a = account.getValue();
                     if (a != null) {
-                        try {
-                            long available = accountRepo.computeBalanceCents(userUid, a.id());
-                            if (existing.accountId() != null && existing.accountId().equals(a.id())) {
-                                long effect = "EXPENSE".equalsIgnoreCase(existing.kind()) ? -existing.amountCents() : existing.amountCents();
-                                available -= effect;
+                        if ("CREDIT".equalsIgnoreCase(AccountRepository.normalizeType(a.type()))) {
+                        } else {
+                            try {
+                                long available = accountRepo.computeBalanceCents(userUid, a.id());
+                                if (existing.accountId() != null && existing.accountId().equals(a.id())) {
+                                    long effect = "EXPENSE".equalsIgnoreCase(existing.kind()) ? -existing.amountCents() : existing.amountCents();
+                                    available -= effect;
+                                }
+                                if (cents > available) {
+                                    error.setText("El monto supera el saldo disponible.");
+                                    error.setVisible(true);
+                                    error.setManaged(true);
+                                    ev.consume();
+                                }
+                            } catch (Exception ignored) {
                             }
-                            if (cents > available) {
-                                error.setText("El monto supera el saldo disponible.");
-                                error.setVisible(true);
-                                error.setManaged(true);
-                                ev.consume();
-                            }
-                        } catch (Exception ignored) {
                         }
                     }
                 }
@@ -1705,21 +1977,21 @@ public final class DashboardTransactionsDialog {
 
         dialog.setResultConverter(btn -> btn);
         Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isEmpty() || result.get() != ButtonType.OK) {
+        if (result.isEmpty() || result.get() == cancelBtnType) {
+            return Optional.empty();
+        }
+        if (result.get() == deleteBtnType) {
+            return Optional.of(new EditTransactionResult(true, null));
+        }
+        if (result.get() != saveBtnType) {
             return Optional.empty();
         }
 
-        if (date.getValue() == null || account.getValue() == null || rootCategory.getValue() == null) {
+        if (dateField.getValue() == null || account.getValue() == null || rootCategory.getValue() == null) {
             return Optional.empty();
         }
 
-        String derivedKind = kindForRootCategory(rootCategory.getValue());
-        String finalKind = derivedKind != null ? derivedKind : kind.getValue();
-        if (finalKind == null || finalKind.isBlank()) {
-            return Optional.empty();
-        }
-
-        String raw = amount.getText() == null ? "" : amount.getText().trim();
+        String raw = amountField.getText() == null ? "" : amountField.getText().trim();
         if (raw.isBlank()) {
             return Optional.empty();
         }
@@ -1731,19 +2003,20 @@ public final class DashboardTransactionsDialog {
         } catch (Exception ignored) {
             return Optional.empty();
         }
-        if (cents < 0) {
+
+        if (cents <= 0) {
             return Optional.empty();
         }
 
-        long occurredAt = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        long occurredAt = dateField.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
         CategoryRepository.Category chosen = subCategory.getValue() != null ? subCategory.getValue() : rootCategory.getValue();
-        return Optional.of(new NewTransaction(
+        return Optional.of(new EditTransactionResult(false, new NewTransaction(
             account.getValue().id(),
             chosen.id(),
-            finalKind,
+            currentKind.get(),
             cents,
             occurredAt,
-            note.getText() == null ? null : note.getText().trim()
-        ));
+            noteField.getText() == null ? null : noteField.getText().trim()
+        )));
     }
 }

@@ -1,5 +1,6 @@
 package com.myfinaces.ui;
 
+import com.myfinaces.config.AccountStyles;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
@@ -19,6 +20,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.util.StringConverter;
+import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
@@ -26,7 +28,14 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.Window;
+import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,7 +56,7 @@ public final class DashboardAccountsFeature {
         DELETE
     }
 
-    public record EditAccountResult(EditAccountAction action, String newName, String newType) {
+    public record EditAccountResult(EditAccountAction action, String newName, String newType, String newColor) {
     }
 
     public record NewAccount(String name, String type, String currency) {
@@ -158,105 +167,443 @@ public final class DashboardAccountsFeature {
         return Optional.of(new NewAccount(n, t, cur));
     }
 
-    public static Optional<EditAccountResult> showEditAccountDialog(AccountRepository.Account existing, boolean darkTheme) {
-        Dialog<ButtonType> dialog = new Dialog<>();
-        dialog.setTitle("Editar cuenta");
-        ButtonType deleteBtn = new ButtonType("Eliminar", ButtonBar.ButtonData.LEFT);
-        ButtonType summaryBtn = new ButtonType("Resumen", ButtonBar.ButtonData.OTHER);
-        dialog.getDialogPane().getButtonTypes().addAll(deleteBtn, summaryBtn, ButtonType.OK, ButtonType.CANCEL);
-        UiDialogs.applyAppTheme(dialog, darkTheme);
-
-        Platform.runLater(() -> {
-            try {
-                Button bDelete = (Button) dialog.getDialogPane().lookupButton(deleteBtn);
-                if (bDelete != null) {
-                    bDelete.getStyleClass().removeAll("btn-primary", "btn-secondary", "btn-accent");
-                    bDelete.getStyleClass().add("btn-danger");
-                    bDelete.setMinWidth(130);
+    public static Optional<EditAccountResult> showEditAccountDialog(
+        AccountRepository.Account existing,
+        boolean darkTheme,
+        String userUid,
+        AccountRepository accountRepo,
+        TransactionRepository txRepo,
+        TransferRepository transferRepo,
+        java.util.function.Consumer<String> onViewAllMovements
+    ) {
+        Stage modal = new Stage();
+        modal.initModality(Modality.APPLICATION_MODAL);
+        try {
+            for (Window w : Window.getWindows()) {
+                if (w != null && w.isShowing()) {
+                    modal.initOwner(w);
+                    break;
                 }
-
-                Button bSummary = (Button) dialog.getDialogPane().lookupButton(summaryBtn);
-                if (bSummary != null) {
-                    bSummary.getStyleClass().removeAll("btn-primary", "btn-danger");
-                    bSummary.getStyleClass().addAll("btn-secondary", "btn-accent");
-                    bSummary.setMinWidth(150);
-                }
-            } catch (Exception ignored) {
             }
+        } catch (Exception ignored) {
+        }
+        modal.setTitle("Editar cuenta");
+        modal.setResizable(true);
+        modal.setMinWidth(860);
+        modal.setWidth(920);
+        modal.setMinHeight(560);
+
+        Button bDelete = new Button("Eliminar cuenta");
+        bDelete.getStyleClass().add("btn-danger");
+        FontIcon di = new FontIcon("fas-trash");
+        di.setIconSize(13);
+        bDelete.setGraphic(di);
+        bDelete.setMinWidth(140);
+
+        Button bCancel = new Button("Cancelar");
+        bCancel.getStyleClass().add("btn-secondary");
+        FontIcon ci = new FontIcon("fas-times");
+        ci.setIconSize(13);
+        bCancel.setGraphic(ci);
+        bCancel.setMinWidth(120);
+
+        Button bSave = new Button("Guardar cambios");
+        bSave.getStyleClass().add("btn-primary");
+        FontIcon si = new FontIcon("fas-save");
+        si.setIconSize(13);
+        bSave.setGraphic(si);
+        bSave.setMinWidth(160);
+
+        // ── Header title ─────────────────────────────────────────────
+        Label title = new Label("Editar cuenta");
+        title.getStyleClass().add("app-title");
+        Label subtitle = new Label("Administra tu cuenta y revisa actividad relacionada.");
+        subtitle.getStyleClass().add("text-secondary");
+        VBox titleBox = new VBox(2, title, subtitle);
+
+        // ════════════════════════════════════════════════
+        //  LEFT COLUMN
+        // ════════════════════════════════════════════════
+
+        // ── Identity card preview (AccountCard) ──────────────────────
+        HBox identityCard = AccountCard.buildIdentity(existing, AccountCard.Variant.DETAIL, () -> darkTheme);
+        identityCard.setMaxWidth(Double.MAX_VALUE);
+        identityCard.getStyleClass().add("edit-account-identity-card");
+
+        // ── Name field ───────────────────────────────────────────────
+        Label lName = new Label("Nombre de la cuenta");
+        lName.getStyleClass().add("field-label");
+        TextField nameField = new TextField(existing == null ? "" : existing.name());
+        nameField.getStyleClass().add("field-input");
+        nameField.setMaxWidth(Double.MAX_VALUE);
+        VBox nameSection = new VBox(6, lName, nameField);
+
+        // ── Account type selector ────────────────────────────────────
+        Label lType = new Label("Tipo de cuenta");
+        lType.getStyleClass().add("field-label");
+        ChoiceBox<String> typeBox = new ChoiceBox<>();
+        typeBox.getItems().addAll("BANK", "CREDIT", "CASH", "SAVINGS", "VIRTUAL_WALLET", "DIGITAL_ACCOUNT");
+        typeBox.setConverter(new StringConverter<>() {
+            @Override public String toString(String s) { return accountTypeLabel(s); }
+            @Override public String fromString(String s) { return s; }
         });
-
-        dialog.getDialogPane().setMinWidth(560);
-        dialog.getDialogPane().setPrefWidth(560);
-
-        TextField name = new TextField(existing == null ? "" : existing.name());
-        name.setPromptText("Ej: Banco X - Ahorros / Efectivo");
-        name.setPrefWidth(360);
-
-        ChoiceBox<String> type = new ChoiceBox<>();
-        type.getItems().addAll("BANK", "CASH", "SAVINGS", "VIRTUAL_WALLET", "DIGITAL_ACCOUNT");
-        type.setConverter(new StringConverter<>() {
-            @Override
-            public String toString(String object) {
-                return accountTypeLabel(object);
-            }
-
-            @Override
-            public String fromString(String string) {
-                return string;
-            }
-        });
-        String normalized = AccountRepository.normalizeType(existing == null ? null : existing.type());
-        if (type.getItems().contains(normalized)) {
-            type.getSelectionModel().select(normalized);
+        typeBox.getStyleClass().add("field-choice");
+        typeBox.setMaxWidth(Double.MAX_VALUE);
+        String normalizedType = AccountRepository.normalizeType(existing == null ? null : existing.type());
+        if (typeBox.getItems().contains(normalizedType)) {
+            typeBox.getSelectionModel().select(normalizedType);
         } else {
-            type.getSelectionModel().selectFirst();
+            typeBox.getSelectionModel().selectFirst();
         }
-        type.setDisable(false);
+        VBox typeSection = new VBox(6, lType, typeBox);
 
-        TextField currency = new TextField(existing == null ? "COP" : existing.currency());
-        currency.setPrefWidth(200);
-        currency.setDisable(true);
-
-        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
-        grid.setHgap(12);
-        grid.setVgap(12);
-        grid.setPadding(new Insets(14));
-        grid.setPrefWidth(520);
-        Label lName = new Label("Nombre");
-        lName.getStyleClass().add("account-name");
-        grid.add(lName, 0, 0);
-        grid.add(name, 1, 0);
-        Label lType = new Label("Tipo");
-        lType.getStyleClass().add("account-name");
-        grid.add(lType, 0, 1);
-        grid.add(type, 1, 1);
+        // ── Currency (read-only) ─────────────────────────────────────
         Label lCurrency = new Label("Moneda");
-        lCurrency.getStyleClass().add("account-name");
-        grid.add(lCurrency, 0, 2);
-        grid.add(currency, 1, 2);
-        dialog.getDialogPane().setContent(grid);
+        lCurrency.getStyleClass().add("field-label");
+        TextField currencyField = new TextField(existing == null ? "COP" : existing.currency());
+        currencyField.getStyleClass().add("field-input");
+        currencyField.setMaxWidth(Double.MAX_VALUE);
+        currencyField.setDisable(true);
+        FontIcon moneyIcon = new FontIcon("fas-coins");
+        moneyIcon.setIconSize(14);
+        StackPane currencyWrap = new StackPane(currencyField, moneyIcon);
+        StackPane.setAlignment(moneyIcon, Pos.CENTER_RIGHT);
+        StackPane.setMargin(moneyIcon, new Insets(0, 10, 0, 0));
+        VBox currencySection = new VBox(6, lCurrency, currencyWrap);
 
-        dialog.setResultConverter(btn -> btn);
-        Optional<ButtonType> result = dialog.showAndWait();
-        if (result.isEmpty() || result.get() == ButtonType.CANCEL) {
-            return Optional.empty();
-        }
-        if (result.get() == deleteBtn) {
-            return Optional.of(new EditAccountResult(EditAccountAction.DELETE, null, null));
-        }
-        if (result.get() == summaryBtn) {
-            return Optional.of(new EditAccountResult(EditAccountAction.VIEW_SUMMARY, null, null));
-        }
-        if (result.get() != ButtonType.OK) {
-            return Optional.empty();
-        }
+        // ── Warning info box ─────────────────────────────────────────
+        FontIcon infoIcon = new FontIcon("fas-info-circle");
+        infoIcon.setIconSize(14);
+        Label infoText = new Label("Los cambios se aplicarán a todas las transacciones y transferencias vinculadas a esta cuenta.");
+        infoText.setWrapText(true);
+        infoText.getStyleClass().add("text-secondary");
+        HBox infoBox = new HBox(8, infoIcon, infoText);
+        infoBox.getStyleClass().add("edit-account-info-box");
+        infoBox.setAlignment(Pos.TOP_LEFT);
+        infoBox.setMinHeight(Region.USE_PREF_SIZE);
+        infoBox.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        HBox.setHgrow(infoText, Priority.ALWAYS);
 
-        String n = name.getText() == null ? "" : name.getText().trim();
-        if (n.isBlank()) {
-            return Optional.empty();
+        // ── Color picker ─────────────────────────────────────────────
+        Label lColor = new Label("Color de la cuenta");
+        lColor.getStyleClass().add("field-label");
+        String initialColor = (existing != null && existing.color() != null && !existing.color().isBlank())
+            ? existing.color()
+            : AccountStyles.resolveColor(existing);
+        AccountColorPicker colorPicker = new AccountColorPicker.Builder()
+            .value(initialColor)
+            .onChange(hex -> {}) 
+            .build();
+        VBox colorSection = new VBox(6, lColor, colorPicker.getNode());
+
+        VBox leftCol = new VBox(14,
+            titleBox,
+            identityCard,
+            nameSection,
+            typeSection,
+            currencySection,
+            infoBox,
+            colorSection
+        );
+        leftCol.setPrefWidth(400);
+        leftCol.setMaxWidth(400);
+        leftCol.setMinWidth(360);
+
+        // ════════════════════════════════════════════════
+        //  RIGHT COLUMN
+        // ════════════════════════════════════════════════
+
+        // ── Balance card ─────────────────────────────────────────────
+        long balanceCents = 0L;
+        try {
+            if (userUid != null && existing != null) {
+                balanceCents = accountRepo.computeBalanceCents(userUid, existing.id());
+            }
+        } catch (Exception ignored) {}
+
+        String accentHex = AccountStyles.resolveColor(existing);
+        Label balanceTitle = new Label("Saldo actual");
+        balanceTitle.getStyleClass().addAll("text-secondary");
+        balanceTitle.setStyle("-fx-text-fill: rgba(255,255,255,0.8);");
+        FontIcon walletIcon = new FontIcon("fas-wallet");
+        walletIcon.setIconSize(18);
+        try { walletIcon.setIconColor(Color.WHITE); } catch (Exception ignored) {}
+        HBox balanceTitleRow = new HBox(8, walletIcon, balanceTitle);
+        balanceTitleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label balanceAmount = new Label(DashboardFormatters.formatMoney(balanceCents, existing == null ? "COP" : existing.currency()));
+        balanceAmount.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: white;");
+
+        Rectangle cardDeco = new Rectangle(120, 80);
+        cardDeco.setArcWidth(16); cardDeco.setArcHeight(16);
+        try { cardDeco.setFill(Color.web("rgba(255,255,255,0.12)")); } catch (Exception ignored) {}
+        StackPane decoPane = new StackPane(cardDeco);
+        decoPane.setAlignment(Pos.CENTER_RIGHT);
+        Region decoSpacer = new Region();
+        HBox.setHgrow(decoSpacer, Priority.ALWAYS);
+
+        VBox balanceTextCol = new VBox(6, balanceTitleRow, balanceAmount);
+        HBox balanceCardRow = new HBox(decoSpacer, decoPane);
+        VBox balanceCard = new VBox(10, balanceTextCol, balanceCardRow);
+        balanceCard.getStyleClass().add("edit-account-balance-card");
+        balanceCard.setPadding(new Insets(18));
+        try {
+            balanceCard.setStyle("-fx-background-color: linear-gradient(to bottom right, " + accentHex + ", derive(" + accentHex + ", -20%)); -fx-background-radius: 14;");
+        } catch (Exception ignored) {}
+
+        // ── Stats row ─────────────────────────────────────────────────
+        long txCount = 0L, trCount = 0L;
+        long lastMovEpoch = 0L;
+        List<TransactionRepository.TransactionRow> txListForStats = new java.util.ArrayList<>();
+        try {
+            if (userUid != null && existing != null) {
+                txListForStats = txRepo.listFiltered(userUid, existing.id(), (List<String>) null, null, null, 5000);
+                txCount = txListForStats.size();
+                lastMovEpoch = txListForStats.stream().mapToLong(TransactionRepository.TransactionRow::occurredAtEpochSec).max().orElse(0L);
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        try {
+            if (userUid != null && existing != null) {
+                List<TransferRepository.TransferRow> trList = transferRepo.listFiltered(userUid, existing.id(), null, null, 5000);
+                trCount = trList.size();
+                long lastTr = trList.stream().mapToLong(TransferRepository.TransferRow::occurredAtEpochSec).max().orElse(0L);
+                if (lastTr > lastMovEpoch) lastMovEpoch = lastTr;
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+
+        String lastMovStr = lastMovEpoch > 0
+            ? java.time.Instant.ofEpochSecond(lastMovEpoch).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", new java.util.Locale("es")))
+            : "—";
+
+        VBox statTx = buildStatBox(String.valueOf(txCount), "Transacciones", "fas-receipt", "#2563EB");
+        VBox statTr = buildStatBox(String.valueOf(trCount), "Transferencias", "fas-exchange-alt", "#D97706");
+        VBox statLast = buildStatBox(lastMovStr, "Último movimiento", "fas-calendar-alt", "#7C3AED");
+        HBox statsRow = new HBox(10, statTx, statTr, statLast);
+        HBox.setHgrow(statTx, Priority.ALWAYS);
+        HBox.setHgrow(statTr, Priority.ALWAYS);
+        HBox.setHgrow(statLast, Priority.ALWAYS);
+        statsRow.getStyleClass().add("edit-account-stats-row");
+
+        // ── Recent movements ─────────────────────────────────────────
+        Label movLabel = new Label("Últimos movimientos");
+        movLabel.getStyleClass().add("account-name");
+        movLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 700;");
+        Region movHeaderSpacer = new Region();
+        HBox.setHgrow(movHeaderSpacer, Priority.ALWAYS);
+        Button viewAllBtn = new Button("Ver todos los movimientos ›");
+        viewAllBtn.getStyleClass().addAll("btn-secondary");
+        viewAllBtn.setStyle("-fx-font-size: 12px; -fx-padding: 5 12;");
+        HBox movHeader = new HBox(movLabel, movHeaderSpacer, viewAllBtn);
+        movHeader.setAlignment(Pos.CENTER_LEFT);
+
+        VBox movBox = new VBox(6);
+        try {
+            if (userUid != null && existing != null) {
+                Map<String, String> accountCurrency = new HashMap<>();
+                for (AccountRepository.Account ac : accountRepo.list(userUid)) {
+                    accountCurrency.put(ac.id(), ac.currency());
+                }
+
+                class RecentItem {
+                    final boolean isTransfer;
+                    final TransactionRepository.TransactionRow tx;
+                    final TransferRepository.TransferRow tr;
+                    final long epoch;
+                    RecentItem(TransactionRepository.TransactionRow tx) {
+                        this.isTransfer = false;
+                        this.tx = tx;
+                        this.tr = null;
+                        this.epoch = tx == null ? 0L : tx.occurredAtEpochSec();
+                    }
+                    RecentItem(TransferRepository.TransferRow tr) {
+                        this.isTransfer = true;
+                        this.tx = null;
+                        this.tr = tr;
+                        this.epoch = tr == null ? 0L : tr.occurredAtEpochSec();
+                    }
+                }
+
+                List<RecentItem> recentAll = new java.util.ArrayList<>();
+                for (TransactionRepository.TransactionRow t : txListForStats) {
+                    recentAll.add(new RecentItem(t));
+                }
+                try {
+                    List<TransferRepository.TransferRow> trs = transferRepo.listFiltered(userUid, existing.id(), null, null, 5000);
+                    for (TransferRepository.TransferRow tr : trs) {
+                        recentAll.add(new RecentItem(tr));
+                    }
+                } catch (Exception ignored) {
+                }
+
+                recentAll.sort((a, b) -> Long.compare(b.epoch, a.epoch));
+                if (recentAll.size() > 3) {
+                    recentAll = recentAll.subList(0, 3);
+                }
+
+                if (recentAll.isEmpty()) {
+                    Label empty = new Label("Sin movimientos recientes.");
+                    empty.getStyleClass().add("text-secondary");
+                    movBox.getChildren().add(empty);
+                } else {
+                    for (RecentItem it : recentAll) {
+                        long epoch = it.epoch;
+                        java.time.LocalDate d = java.time.Instant.ofEpochSecond(epoch).atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                        String dateStr = d.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", new java.util.Locale("es")));
+
+                        String titleText;
+                        String noteText;
+                        String iconLiteral;
+                        String cur;
+                        long signed;
+
+                        if (!it.isTransfer && it.tx != null) {
+                            TransactionRepository.TransactionRow t = it.tx;
+                            signed = "EXPENSE".equalsIgnoreCase(t.kind()) ? -t.amountCents() : t.amountCents();
+                            cur = accountCurrency.getOrDefault(t.accountId(), existing.currency());
+                            String catNameDisplay = (t.categoryName() != null && !t.categoryName().isBlank()) ? t.categoryName() : "Movimiento";
+                            titleText = catNameDisplay;
+                            String rawNote = (t.note() != null && !t.note().isBlank()) ? t.note() : "";
+                            noteText = rawNote.isEmpty() ? catNameDisplay : rawNote;
+                            iconLiteral = "fas-hand-holding-usd";
+                        } else if (it.tr != null) {
+                            TransferRepository.TransferRow tr = it.tr;
+                            boolean outgoing = existing.id() != null && existing.id().equals(tr.fromAccountId());
+                            String other = outgoing ? tr.toAccountName() : tr.fromAccountName();
+                            titleText = outgoing ? ("Transferencia a " + other) : ("Transferencia de " + other);
+                            String rawNote = tr.note() == null ? "" : tr.note().trim();
+                            noteText = rawNote.isBlank() ? (outgoing ? ("→ " + other) : ("← " + other)) : rawNote;
+                            signed = outgoing ? -tr.amountCents() : tr.amountCents();
+                            cur = accountCurrency.getOrDefault(outgoing ? tr.fromAccountId() : tr.toAccountId(), existing.currency());
+                            iconLiteral = "fas-exchange-alt";
+                        } else {
+                            continue;
+                        }
+
+                        Label movCat = new Label(titleText);
+                        movCat.getStyleClass().add("account-name");
+                        movCat.setStyle("-fx-font-size: 13px; -fx-font-weight: 600;");
+
+                        Label movNote = new Label(noteText);
+                        movNote.getStyleClass().add("text-secondary");
+                        movNote.setStyle("-fx-font-size: 11px;");
+                        movNote.setMaxWidth(200);
+                        movNote.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+
+                        VBox movLeft = new VBox(2, movCat, movNote);
+                        HBox.setHgrow(movLeft, Priority.ALWAYS);
+
+                        Label movAmount = new Label(DashboardFormatters.formatMoney(signed, cur));
+                        movAmount.getStyleClass().add(signed >= 0 ? "money-positive" : "money-negative");
+                        movAmount.setStyle("-fx-font-size: 13px; -fx-font-weight: 700;");
+
+                        Label movDate = new Label(dateStr);
+                        movDate.getStyleClass().add("text-secondary");
+                        movDate.setStyle("-fx-font-size: 11px;");
+                        movDate.setAlignment(Pos.CENTER_RIGHT);
+
+                        VBox movRight = new VBox(2, movAmount, movDate);
+                        movRight.setAlignment(Pos.CENTER_RIGHT);
+
+                        FontIcon movIcon = new FontIcon(iconLiteral);
+                        movIcon.setIconSize(14);
+                        StackPane iconCircle = new StackPane(movIcon);
+                        iconCircle.getStyleClass().add("tx-item-icon-bubble");
+                        iconCircle.getStyleClass().add(signed >= 0 ? "tx-item-icon-income" : "tx-item-icon-expense");
+                        iconCircle.setMinSize(36, 36);
+                        iconCircle.setMaxSize(36, 36);
+
+                        HBox movRow = new HBox(10, iconCircle, movLeft, movRight);
+                        movRow.setAlignment(Pos.CENTER_LEFT);
+                        movRow.getStyleClass().add("tx-item");
+                        movBox.getChildren().add(movRow);
+                    }
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+
+        ScrollPane movScroll = new ScrollPane(movBox);
+        movScroll.setFitToWidth(true);
+        movScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        movScroll.getStyleClass().addAll("edge-to-edge");
+        VBox.setVgrow(movScroll, Priority.ALWAYS);
+
+        viewAllBtn.setOnAction(e -> {
+            modal.close();
+            if (onViewAllMovements != null && existing != null) {
+                onViewAllMovements.accept(existing.id());
+            }
+        });
+
+        VBox rightCol = new VBox(14, balanceCard, statsRow, movHeader, movScroll);
+        rightCol.setPadding(new Insets(0, 0, 0, 14));
+        HBox.setHgrow(rightCol, Priority.ALWAYS);
+
+        // ── Root layout ───────────────────────────────────────────────
+        HBox root = new HBox(20, leftCol, rightCol);
+        root.setPadding(new Insets(20));
+
+        Region footerSpacer = new Region();
+        HBox.setHgrow(footerSpacer, Priority.ALWAYS);
+        HBox footer = new HBox(12, bDelete, footerSpacer, bSave, bCancel);
+        footer.setAlignment(Pos.CENTER_RIGHT);
+        footer.setPadding(new Insets(14, 20, 14, 20));
+
+        VBox shell = new VBox(root, footer);
+        shell.getStyleClass().add("app-root");
+
+        Scene scene = new Scene(shell);
+        var themeUrl = DashboardAccountsFeature.class.getResource(darkTheme ? "/styles/dark.css" : "/styles/light.css");
+        if (themeUrl != null) {
+            scene.getStylesheets().add(themeUrl.toExternalForm());
         }
-        String t = AccountRepository.normalizeType(type.getValue());
-        return Optional.of(new EditAccountResult(EditAccountAction.SAVE, n, t));
+        modal.setScene(scene);
+
+        final java.util.concurrent.atomic.AtomicReference<EditAccountResult> resultRef = new java.util.concurrent.atomic.AtomicReference<>(null);
+
+        bCancel.setOnAction(e -> {
+            resultRef.set(null);
+            modal.close();
+        });
+        bDelete.setOnAction(e -> {
+            resultRef.set(new EditAccountResult(EditAccountAction.DELETE, null, null, null));
+            modal.close();
+        });
+        bSave.setOnAction(e -> {
+            String n = nameField.getText() == null ? "" : nameField.getText().trim();
+            if (n.isBlank()) {
+                return;
+            }
+            String t = AccountRepository.normalizeType(typeBox.getValue());
+            String c = colorPicker.getValue();
+            resultRef.set(new EditAccountResult(EditAccountAction.SAVE, n, t, c));
+            modal.close();
+        });
+
+        modal.showAndWait();
+        EditAccountResult r = resultRef.get();
+        return r == null ? Optional.empty() : Optional.of(r);
+    }
+
+    private static VBox buildStatBox(String value, String label, String iconLiteral, String colorHex) {
+        FontIcon icon = new FontIcon(iconLiteral);
+        icon.setIconSize(16);
+        try { icon.setIconColor(Color.web(colorHex)); } catch (Exception ignored) {}
+
+        Label valueLabel = new Label(value);
+        valueLabel.setStyle("-fx-font-size: 15px; -fx-font-weight: 800;");
+        valueLabel.getStyleClass().add("account-name");
+
+        Label descLabel = new Label(label);
+        descLabel.getStyleClass().add("text-secondary");
+        descLabel.setStyle("-fx-font-size: 11px;");
+
+        VBox box = new VBox(2, icon, valueLabel, descLabel);
+        box.getStyleClass().add("edit-account-stat-box");
+        box.setAlignment(Pos.TOP_LEFT);
+        box.setPadding(new Insets(10));
+        box.setMaxWidth(Double.MAX_VALUE);
+        return box;
     }
 
     public static void showAccountSummaryDialog(

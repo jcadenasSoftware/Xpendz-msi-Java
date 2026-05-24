@@ -92,48 +92,93 @@ public final class UiDialogs {
         }
         pane.getStyleClass().addAll("app-root", "categories-dialog");
 
+        final String cssExternal = cssUrl != null ? cssUrl.toExternalForm() : null;
         pane.sceneProperty().addListener((obs, oldScene, newScene) -> {
             if (newScene == null) {
                 return;
             }
-            Platform.runLater(() -> styleDialogButtons(pane));
+            if (cssExternal != null) {
+                newScene.getStylesheets().setAll(cssExternal);
+            }
+            if (darkTheme) {
+                pane.setStyle("-fx-background-color: #0F172A;");
+            } else {
+                pane.setStyle("");
+            }
+            Platform.runLater(() -> {
+                styleDialogButtons(pane);
+                try {
+                    var buttonBar = pane.lookup(".button-bar");
+                    if (buttonBar != null) buttonBar.setStyle(darkTheme ? "-fx-background-color: #0F172A;" : "");
+                    var container = pane.lookup(".button-bar > .container");
+                    if (container != null) container.setStyle(darkTheme ? "-fx-background-color: #0F172A;" : "");
+                } catch (Exception ignored) {}
+            });
         });
 
         pane.getButtonTypes().addListener((ListChangeListener<ButtonType>) change -> Platform.runLater(() -> styleDialogButtons(pane)));
         Platform.runLater(() -> styleDialogButtons(pane));
     }
 
+    private static void applyThemeToScene(DialogPane pane, boolean darkTheme, String dialogTitle) {
+        if (pane == null) return;
+        String cssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
+        var cssUrl = UiDialogs.class.getResource(cssPath);
+        System.out.println("[UiDialogs] applyThemeToScene dark=" + darkTheme + " url=" + cssUrl);
+        if (cssUrl != null && pane.getScene() != null) {
+            String css = cssUrl.toExternalForm();
+            pane.getScene().getStylesheets().setAll(css);
+        }
+        if (darkTheme) {
+            pane.setStyle("-fx-background-color: #0F172A;");
+            if (pane.getContent() != null) {
+                pane.getContent().setStyle("-fx-background-color: transparent;");
+            }
+            try {
+                var buttonBar = pane.lookup(".button-bar");
+                if (buttonBar != null) buttonBar.setStyle("-fx-background-color: #0F172A;");
+                var container = pane.lookup(".button-bar > .container");
+                if (container != null) container.setStyle("-fx-background-color: #0F172A;");
+                var headerPanel = pane.lookup(".header-panel");
+                if (headerPanel != null) headerPanel.setStyle("-fx-background-color: #0F172A;");
+            } catch (Exception ignored) {}
+        } else {
+            pane.setStyle("");
+            if (pane.getContent() != null) {
+                pane.getContent().setStyle("");
+            }
+            try {
+                var buttonBar = pane.lookup(".button-bar");
+                if (buttonBar != null) buttonBar.setStyle("");
+                var container = pane.lookup(".button-bar > .container");
+                if (container != null) container.setStyle("");
+            } catch (Exception ignored) {}
+        }
+        if (dialogTitle != null) {
+            trySetWindowTitle(pane.getScene() == null ? null : pane.getScene().getWindow(), dialogTitle);
+        }
+        trySetStageIcon(pane.getScene() == null ? null : pane.getScene().getWindow());
+        styleDialogButtons(pane);
+    }
+
     private static void hookDialogOnShown(Dialog<?> dialog, boolean darkTheme) {
+        DialogPane pane = dialog.getDialogPane();
+        if (pane != null) {
+            pane.sceneProperty().addListener((obs, oldScene, newScene) -> {
+                if (newScene != null) {
+                    Platform.runLater(() -> applyThemeToScene(pane, darkTheme, dialog.getTitle()));
+                }
+            });
+        }
+
         EventHandler<javafx.scene.control.DialogEvent> existing = dialog.getOnShown();
         dialog.setOnShown(ev -> {
             if (existing != null) {
                 existing.handle(ev);
             }
-
-            DialogPane pane = dialog.getDialogPane();
-            if (pane == null) {
-                return;
-            }
-
-            Platform.runLater(() -> {
-                trySetStageIcon(pane.getScene() == null ? null : pane.getScene().getWindow());
-                trySetWindowTitle(pane.getScene() == null ? null : pane.getScene().getWindow(), dialog.getTitle());
-
-                String cssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
-                var cssUrl = UiDialogs.class.getResource(cssPath);
-                if (cssUrl != null) {
-                    System.out.println("[UiDialogs] Scene theme css: " + cssUrl);
-                } else {
-                    System.out.println("[UiDialogs] Scene theme css NOT FOUND: " + cssPath);
-                }
-                if (cssUrl != null && pane.getScene() != null) {
-                    String css = cssUrl.toExternalForm();
-                    if (!pane.getScene().getStylesheets().contains(css)) {
-                        pane.getScene().getStylesheets().add(css);
-                    }
-                }
-                styleDialogButtons(pane);
-            });
+            DialogPane dp = dialog.getDialogPane();
+            if (dp == null) return;
+            Platform.runLater(() -> applyThemeToScene(dp, darkTheme, dialog.getTitle()));
         });
     }
 

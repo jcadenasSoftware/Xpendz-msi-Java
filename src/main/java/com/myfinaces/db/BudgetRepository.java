@@ -367,4 +367,28 @@ public final class BudgetRepository {
         }
         return months;
     }
+
+    public List<String> listDistinctTransactionMonths(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        List<String> months = new ArrayList<>();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT DISTINCT strftime('%Y-%m', datetime(t.occurred_at_epoch_sec, 'unixepoch', 'localtime')) AS month " +
+            "FROM transactions t " +
+            "INNER JOIN accounts a ON a.id = t.account_id " +
+            "WHERE t.user_uid = ? AND a.user_uid = ? AND t.kind = 'EXPENSE' " +
+            "ORDER BY month DESC"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, userUid);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String month = rs.getString("month");
+                    if (month != null && !month.isBlank()) {
+                        months.add(month);
+                    }
+                }
+            }
+        }
+        return months;
+    }
 }

@@ -373,13 +373,18 @@ public final class TransfersView {
                     if (t != null && row.transferId().equals(t.id())) { existing = t; break; }
                 }
                 if (existing == null) return;
-                Optional<DashboardTransfersDialog.NewTransfer> updated =
-                        DashboardTransfersDialog.showEditTransferDialog(existing, session.uid(), accountRepo, darkTheme.getAsBoolean());
-                if (updated.isEmpty()) return;
-                DashboardTransfersDialog.NewTransfer ut = updated.get();
-                transferRepo.update(session.uid(), row.transferId(), ut.fromAccountId(), ut.toAccountId(), ut.amountCents(), ut.occurredAtEpochSec(), ut.note());
-                if (refreshBalances != null) refreshBalances.run();
-                reloadHolder[0].run();
+                openEditTransferModal(
+                    null,
+                    darkTheme.getAsBoolean(),
+                    session,
+                    transferRepo,
+                    refreshBalances,
+                    reloadHolder,
+                    session.uid(),
+                    accountRepo,
+                    accounts,
+                    existing
+                );
             } catch (Exception ignored) {}
         };
 
@@ -723,6 +728,24 @@ public final class TransfersView {
             }
         });
 
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                fromAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
         final boolean[] accountSelectionLock = new boolean[] { false };
         if (accounts != null && !accounts.isEmpty()) {
             fromAccountCombo.getSelectionModel().selectFirst();
@@ -848,6 +871,25 @@ public final class TransfersView {
                 setGraphic(row);
             }
         });
+
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                toAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
         if (accounts != null && !accounts.isEmpty()) {
             AccountRepository.Account fromSelected = fromAccountCombo.getValue();
             AccountRepository.Account pick = null;
@@ -1232,6 +1274,768 @@ public final class TransfersView {
         double maxHeight = Math.min(760, bounds.getHeight() * 0.90);
         modal.setHeight(Math.max(560, maxHeight));
         modal.centerOnScreen();
+        modal.showAndWait();
+    }
+
+    private static void openEditTransferModal(
+        Window owner,
+        boolean darkTheme,
+        AuthSession session,
+        TransferRepository transferRepo,
+        Runnable refreshBalances,
+        Runnable[] reloadHolder,
+        String userUid,
+        AccountRepository accountRepo,
+        List<AccountRepository.Account> accounts,
+        TransferRepository.TransferRow existing
+    ) {
+        if (existing == null) {
+            return;
+        }
+
+        Stage modal = new Stage();
+        modal.initModality(Modality.APPLICATION_MODAL);
+        if (owner != null) {
+            modal.initOwner(owner);
+        }
+        modal.initStyle(StageStyle.UNDECORATED);
+        modal.setResizable(false);
+        modal.setTitle("Editar transferencia");
+
+        Label titleLabel = new Label("Editar transferencia");
+        titleLabel.getStyleClass().add("modal-title");
+
+        Label subtitleLabel = new Label("Actualiza los datos de esta transferencia");
+        subtitleLabel.getStyleClass().add("modal-subtitle");
+
+        VBox titleText = new VBox(2, titleLabel, subtitleLabel);
+        titleText.setAlignment(Pos.CENTER_LEFT);
+
+        SVGPath closeIcon = new SVGPath();
+        closeIcon.setContent("M6 6 L18 18 M18 6 L6 18");
+        closeIcon.getStyleClass().add("modal-close-icon");
+
+        Button closeBtn = new Button();
+        closeBtn.setGraphic(closeIcon);
+        closeBtn.getStyleClass().add("modal-close-btn");
+        closeBtn.setFocusTraversable(false);
+        closeBtn.setOnAction(e -> modal.close());
+
+        Region titleSpacer = new Region();
+        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+
+        HBox titleBar = new HBox(8, titleText, titleSpacer, closeBtn);
+        titleBar.setAlignment(Pos.CENTER_LEFT);
+        titleBar.getStyleClass().add("modal-title-bar");
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(14));
+        content.getStyleClass().add("modal-content");
+
+        Map<String, Long> balanceByAccountId = new HashMap<>();
+        if (accounts != null && accountRepo != null && userUid != null && !userUid.isBlank()) {
+            for (AccountRepository.Account a : accounts) {
+                if (a == null || a.id() == null || a.id().isBlank()) {
+                    continue;
+                }
+                try {
+                    balanceByAccountId.put(a.id(), accountRepo.computeBalanceCents(userUid, a.id()));
+                } catch (Exception ignored) {
+                    balanceByAccountId.put(a.id(), null);
+                }
+            }
+        }
+
+        Label fromLabel = new Label("Desde");
+        fromLabel.getStyleClass().add("modal-field-label");
+
+        ComboBox<AccountRepository.Account> fromAccountCombo = new ComboBox<>();
+        fromAccountCombo.getStyleClass().add("account-combo");
+        fromAccountCombo.setPromptText("Selecciona una cuenta");
+        fromAccountCombo.setMaxWidth(Double.MAX_VALUE);
+        fromAccountCombo.setItems(FXCollections.observableArrayList(accounts == null ? List.of() : accounts));
+
+        ObjectProperty<AccountRepository.Account> toSelectedForFrom = new SimpleObjectProperty<>(null);
+
+        var fromCellFactory = (javafx.util.Callback<javafx.scene.control.ListView<AccountRepository.Account>, javafx.scene.control.ListCell<AccountRepository.Account>>) cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(AccountRepository.Account item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setDisable(false);
+                    setOpacity(1.0);
+                    return;
+                }
+
+                AccountRepository.Account toSelected = toSelectedForFrom.get();
+                boolean disallowed = toSelected != null
+                    && toSelected.id() != null
+                    && item.id() != null
+                    && toSelected.id().equals(item.id());
+                setDisable(disallowed);
+                setOpacity(disallowed ? 0.45 : 1.0);
+
+                StackPane avatar = buildAccountAvatar(AccountRepository.normalizeType(item.type()), item.color());
+                avatar.setMinSize(32, 32);
+                avatar.setPrefSize(32, 32);
+                avatar.setMaxSize(32, 32);
+
+                Label name = new Label(titleCase(item.name() == null ? "" : item.name()));
+                name.getStyleClass().add("account-option-name");
+
+                Label type = new Label(accountTypeLabel(item.type()));
+                type.getStyleClass().add("account-option-type");
+
+                VBox leftText = new VBox(2, name, type);
+                leftText.setAlignment(Pos.CENTER_LEFT);
+                leftText.setMinWidth(0);
+
+                Long bal = item.id() == null ? null : balanceByAccountId.get(item.id());
+                String balText = bal == null ? "--" : DashboardFormatters.formatMoney(bal, item.currency());
+                Label availableLabel = new Label("Disponible");
+                availableLabel.getStyleClass().add("account-option-available-label");
+                Label availableValue = new Label(balText);
+                availableValue.getStyleClass().add("account-option-available-value");
+                VBox availableBox = new VBox(2, availableLabel, availableValue);
+                availableBox.setAlignment(Pos.CENTER_RIGHT);
+                availableBox.getStyleClass().add("account-option-available-box");
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                HBox row = new HBox(10, avatar, leftText, spacer, availableBox);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+            }
+        };
+        fromAccountCombo.setCellFactory(fromCellFactory);
+        fromAccountCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(AccountRepository.Account item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+
+                StackPane avatar = buildAccountAvatar(AccountRepository.normalizeType(item.type()), item.color());
+                avatar.setMinSize(32, 32);
+                avatar.setPrefSize(32, 32);
+                avatar.setMaxSize(32, 32);
+
+                Label name = new Label(titleCase(item.name() == null ? "" : item.name()));
+                name.getStyleClass().add("account-option-name");
+
+                Label type = new Label(accountTypeLabel(item.type()));
+                type.getStyleClass().add("account-option-type");
+
+                VBox leftText = new VBox(2, name, type);
+                leftText.setAlignment(Pos.CENTER_LEFT);
+                leftText.setMinWidth(0);
+
+                Long bal = item.id() == null ? null : balanceByAccountId.get(item.id());
+                String balText = bal == null ? "--" : DashboardFormatters.formatMoney(bal, item.currency());
+                Label availableLabel = new Label("Disponible");
+                availableLabel.getStyleClass().add("account-option-available-label");
+                Label availableValue = new Label(balText);
+                availableValue.getStyleClass().add("account-option-available-value");
+                VBox availableBox = new VBox(2, availableLabel, availableValue);
+                availableBox.setAlignment(Pos.CENTER_RIGHT);
+                availableBox.getStyleClass().add("account-option-available-box");
+
+                Region spacer = new Region();
+                HBox.setHgrow(spacer, Priority.ALWAYS);
+
+                HBox row = new HBox(10, avatar, leftText, spacer, availableBox);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+            }
+        });
+
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                fromAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
+        Label toLabel = new Label("Hacia");
+        toLabel.getStyleClass().add("modal-field-label");
+
+        ComboBox<AccountRepository.Account> toAccountCombo = new ComboBox<>();
+        toAccountCombo.getStyleClass().add("account-combo");
+        toAccountCombo.setPromptText("Selecciona una cuenta");
+        toAccountCombo.setMaxWidth(Double.MAX_VALUE);
+        toAccountCombo.setItems(FXCollections.observableArrayList(accounts == null ? List.of() : accounts));
+
+        final boolean[] accountSelectionLock = new boolean[] { false };
+
+        SVGPath swapIcon = new SVGPath();
+        swapIcon.setContent("M10 2 V10 M6 6 L10 2 L14 6 M10 22 V14 M6 18 L10 22 L14 18");
+        swapIcon.getStyleClass().add("modal-swap-icon");
+
+        Button swapBtn = new Button();
+        swapBtn.setGraphic(swapIcon);
+        swapBtn.getStyleClass().add("modal-swap-btn");
+        swapBtn.setFocusTraversable(false);
+        swapBtn.setOnAction(e -> {
+            AccountRepository.Account fromV = fromAccountCombo.getValue();
+            AccountRepository.Account toV = toAccountCombo.getValue();
+            if (fromV == null || toV == null) {
+                return;
+            }
+            accountSelectionLock[0] = true;
+            try {
+                fromAccountCombo.setValue(toV);
+                toAccountCombo.setValue(fromV);
+            } finally {
+                accountSelectionLock[0] = false;
+            }
+        });
+
+        StackPane swapWrap = new StackPane(swapBtn);
+        swapWrap.getStyleClass().add("modal-swap-wrap");
+        StackPane.setAlignment(swapBtn, Pos.CENTER);
+
+        content.getChildren().add(new VBox(6, fromLabel, fromAccountCombo));
+        content.getChildren().add(swapWrap);
+
+        var toCellFactory = (javafx.util.Callback<javafx.scene.control.ListView<AccountRepository.Account>, javafx.scene.control.ListCell<AccountRepository.Account>>) cb -> new ListCell<>() {
+            @Override
+            protected void updateItem(AccountRepository.Account item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    setDisable(false);
+                    setOpacity(1.0);
+                    return;
+                }
+
+                AccountRepository.Account fromSelected = fromAccountCombo.getValue();
+                boolean disallowed = fromSelected != null
+                    && fromSelected.id() != null
+                    && item.id() != null
+                    && fromSelected.id().equals(item.id());
+                setDisable(disallowed);
+                setOpacity(disallowed ? 0.45 : 1.0);
+
+                if (!disallowed) {
+                    setDisable(false);
+                    setOpacity(1.0);
+                }
+
+                StackPane avatar = buildAccountAvatar(AccountRepository.normalizeType(item.type()), item.color());
+                avatar.setMinSize(32, 32);
+                avatar.setPrefSize(32, 32);
+                avatar.setMaxSize(32, 32);
+
+                Label name = new Label(titleCase(item.name() == null ? "" : item.name()));
+                name.getStyleClass().add("account-option-name");
+
+                Label type = new Label(accountTypeLabel(item.type()));
+                type.getStyleClass().add("account-option-type");
+
+                VBox leftText = new VBox(2, name, type);
+                leftText.setAlignment(Pos.CENTER_LEFT);
+                leftText.setMinWidth(0);
+
+                HBox row = new HBox(10, avatar, leftText);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+            }
+        };
+        toAccountCombo.setCellFactory(toCellFactory);
+        toAccountCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(AccountRepository.Account item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+
+                StackPane avatar = buildAccountAvatar(AccountRepository.normalizeType(item.type()), item.color());
+                avatar.setMinSize(32, 32);
+                avatar.setPrefSize(32, 32);
+                avatar.setMaxSize(32, 32);
+
+                Label name = new Label(titleCase(item.name() == null ? "" : item.name()));
+                name.getStyleClass().add("account-option-name");
+
+                Label type = new Label(accountTypeLabel(item.type()));
+                type.getStyleClass().add("account-option-type");
+
+                VBox leftText = new VBox(2, name, type);
+                leftText.setAlignment(Pos.CENTER_LEFT);
+                leftText.setMinWidth(0);
+
+                HBox row = new HBox(10, avatar, leftText);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+            }
+        });
+
+        if (darkTheme) {
+            var comboCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (comboCssUrl != null) {
+                final String comboCss = comboCssUrl.toExternalForm();
+                toAccountCombo.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!sc.getStylesheets().contains(comboCss))
+                            sc.getStylesheets().add(comboCss);
+                    }
+                }));
+            }
+        }
+
+        fromAccountCombo.valueProperty().addListener((obs, oldV, newV) -> {
+            if (accountSelectionLock[0]) {
+                return;
+            }
+            AccountRepository.Account toV = toAccountCombo.getValue();
+            if (newV != null && toV != null && newV.id() != null && newV.id().equals(toV.id())) {
+                accountSelectionLock[0] = true;
+                try {
+                    AccountRepository.Account fallback = null;
+                    for (AccountRepository.Account a : toAccountCombo.getItems()) {
+                        if (a == null || a.id() == null) {
+                            continue;
+                        }
+                        if (newV.id().equals(a.id())) {
+                            continue;
+                        }
+                        fallback = a;
+                        break;
+                    }
+                    toAccountCombo.setValue(fallback);
+                } finally {
+                    accountSelectionLock[0] = false;
+                }
+            }
+
+            boolean showing = toAccountCombo.isShowing();
+            if (showing) {
+                toAccountCombo.hide();
+            }
+            toAccountCombo.setCellFactory(toCellFactory);
+            AccountRepository.Account selectedTo = toAccountCombo.getValue();
+            ObservableList<AccountRepository.Account> currentItems = toAccountCombo.getItems();
+            toAccountCombo.setItems(null);
+            toAccountCombo.setItems(currentItems);
+            toAccountCombo.setValue(selectedTo);
+            if (showing) {
+                toAccountCombo.show();
+            }
+        });
+
+        toAccountCombo.valueProperty().addListener((obs, oldV, newV) -> {
+            if (accountSelectionLock[0]) {
+                return;
+            }
+            AccountRepository.Account fromV = fromAccountCombo.getValue();
+            if (newV != null && fromV != null && newV.id() != null && newV.id().equals(fromV.id())) {
+                accountSelectionLock[0] = true;
+                try {
+                    AccountRepository.Account fallback = null;
+                    for (AccountRepository.Account a : fromAccountCombo.getItems()) {
+                        if (a == null || a.id() == null) {
+                            continue;
+                        }
+                        if (newV.id().equals(a.id())) {
+                            continue;
+                        }
+                        fallback = a;
+                        break;
+                    }
+                    fromAccountCombo.setValue(fallback);
+                } finally {
+                    accountSelectionLock[0] = false;
+                }
+            }
+
+            toSelectedForFrom.set(newV);
+
+            AccountRepository.Account selectedFrom = fromAccountCombo.getValue();
+            fromAccountCombo.setCellFactory(fromCellFactory);
+            fromAccountCombo.setValue(selectedFrom);
+        });
+
+        content.getChildren().add(new VBox(6, toLabel, toAccountCombo));
+
+        Label amountLabel = new Label("Monto");
+        amountLabel.getStyleClass().add("modal-field-label");
+
+        TextField amountField = new TextField();
+        amountField.getStyleClass().add("modal-amount-input");
+        amountField.setPromptText("$ 0,00");
+
+        final boolean[] amountLock = new boolean[] { false };
+        amountField.textProperty().addListener((obs, oldV, newV) -> {
+            if (amountLock[0]) {
+                return;
+            }
+            amountLock[0] = true;
+            try {
+                String digits = newV == null ? "" : newV.replaceAll("\\D", "");
+                if (digits.isBlank()) {
+                    amountField.setText("");
+                    return;
+                }
+                long cents;
+                try {
+                    cents = Long.parseLong(digits);
+                } catch (NumberFormatException ex) {
+                    cents = 0L;
+                }
+                AccountRepository.Account a = fromAccountCombo.getValue();
+                String currency = a == null ? "COP" : a.currency();
+                amountField.setText(formatMoneySpaced(cents, currency));
+                amountField.positionCaret(amountField.getText().length());
+            } finally {
+                amountLock[0] = false;
+            }
+        });
+
+        content.getChildren().add(new VBox(6, amountLabel, amountField));
+
+        Label descLabel = new Label("Descripción (opcional)");
+        descLabel.getStyleClass().add("modal-field-label");
+
+        TextField descField = new TextField();
+        descField.getStyleClass().add("modal-text-input");
+        descField.setPromptText("Descripción (opcional)");
+        content.getChildren().add(new VBox(6, descLabel, descField));
+
+        Label dateLabel = new Label("Fecha");
+        dateLabel.getStyleClass().add("modal-field-label");
+
+        LocalDate existingDate = Instant.ofEpochSecond(existing.occurredAtEpochSec()).atZone(ZoneId.systemDefault()).toLocalDate();
+        DatePicker datePicker = new DatePicker(existingDate);
+        datePicker.setEditable(false);
+        datePicker.getStyleClass().add("modal-date-picker");
+        datePicker.getEditor().setMouseTransparent(true);
+        datePicker.getEditor().setFocusTraversable(false);
+        if (darkTheme) {
+            var dpCssUrl = TransfersView.class.getResource("/styles/dark.css");
+            if (dpCssUrl != null) {
+                final String dpCss = dpCssUrl.toExternalForm();
+                datePicker.setOnShowing(ev -> Platform.runLater(() -> {
+                    for (Window w : Window.getWindows()) {
+                        if (!(w instanceof PopupWindow pw)) continue;
+                        var sc = pw.getScene();
+                        if (sc == null) continue;
+                        var r = sc.getRoot();
+                        if (r == null) continue;
+                        if (!r.getStyleClass().contains("date-picker-popup")
+                                && r.lookup(".date-picker-popup") == null) continue;
+                        if (!sc.getStylesheets().contains(dpCss))
+                            sc.getStylesheets().add(dpCss);
+                    }
+                }));
+            }
+        }
+
+        Locale esCo = Locale.forLanguageTag("es-CO");
+        DateTimeFormatter longDateFmt = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", esCo);
+        datePicker.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(LocalDate date) {
+                if (date == null) {
+                    return "";
+                }
+                LocalDate today = LocalDate.now();
+                String prefix;
+                if (date.equals(today)) {
+                    prefix = "Hoy";
+                } else if (date.equals(today.minusDays(1))) {
+                    prefix = "Ayer";
+                } else {
+                    String dow = date.getDayOfWeek().getDisplayName(TextStyle.FULL, esCo);
+                    prefix = dow.substring(0, 1).toUpperCase(esCo) + dow.substring(1);
+                }
+                return prefix + ", " + longDateFmt.format(date);
+            }
+
+            @Override
+            public LocalDate fromString(String string) {
+                return null;
+            }
+        });
+
+        SVGPath calIcon = new SVGPath();
+        calIcon.setContent("M8 2 V6 M16 2 V6 M3 10 H21 M5 4 H19 A2 2 0 0 1 21 6 V20 A2 2 0 0 1 19 22 H5 A2 2 0 0 1 3 20 V6 A2 2 0 0 1 5 4 Z");
+        calIcon.getStyleClass().add("modal-date-icon");
+
+        HBox dateRow = new HBox(10, calIcon, datePicker);
+        dateRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(datePicker, Priority.ALWAYS);
+        dateRow.getStyleClass().add("modal-date-wrap");
+
+        content.getChildren().add(new VBox(6, dateLabel, dateRow));
+
+        Text summaryPrefix = new Text("Moverás ");
+        summaryPrefix.getStyleClass().add("modal-summary-text");
+        Text summaryAmount = new Text("$ 0,00");
+        summaryAmount.getStyleClass().add("modal-summary-amount");
+        TextFlow summaryLine1 = new TextFlow(summaryPrefix, summaryAmount);
+        summaryLine1.getStyleClass().add("modal-summary-line");
+
+        Text summaryDesde = new Text("desde ");
+        summaryDesde.getStyleClass().add("modal-summary-text");
+        Text summaryFromName = new Text("-");
+        summaryFromName.getStyleClass().add("modal-summary-from");
+        Text summaryArrow = new Text("  →  ");
+        summaryArrow.getStyleClass().add("modal-summary-text");
+        Text summaryHacia = new Text("hacia ");
+        summaryHacia.getStyleClass().add("modal-summary-text");
+        Text summaryToName = new Text("-");
+        summaryToName.getStyleClass().add("modal-summary-to");
+        TextFlow summaryLine2 = new TextFlow(summaryDesde, summaryFromName, summaryArrow, summaryHacia, summaryToName);
+        summaryLine2.getStyleClass().add("modal-summary-line");
+
+        Label summaryTitle = new Label("Resumen de la transferencia");
+        summaryTitle.getStyleClass().add("modal-summary-title");
+
+        VBox summaryCard = new VBox(8, summaryTitle, summaryLine1, summaryLine2);
+        summaryCard.getStyleClass().add("modal-summary-card");
+        summaryCard.setAlignment(Pos.CENTER);
+        summaryLine1.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        summaryLine2.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+
+        Runnable refreshSummary = () -> {
+            AccountRepository.Account fromAcc = fromAccountCombo.getValue();
+            AccountRepository.Account toAcc = toAccountCombo.getValue();
+
+            String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
+            long cents = 0L;
+            if (!digits.isBlank()) {
+                try {
+                    cents = Long.parseLong(digits);
+                } catch (NumberFormatException ignored) {
+                    cents = 0L;
+                }
+            }
+            String currency = fromAcc == null ? "COP" : fromAcc.currency();
+            summaryAmount.setText(formatMoneySpaced(cents, currency));
+
+            summaryFromName.setText(fromAcc == null ? "-" : (fromAcc.name() == null ? "" : fromAcc.name()));
+            summaryToName.setText(toAcc == null ? "-" : (toAcc.name() == null ? "" : toAcc.name()));
+        };
+        refreshSummary.run();
+        fromAccountCombo.valueProperty().addListener((obs, oldV, newV) -> refreshSummary.run());
+        toAccountCombo.valueProperty().addListener((obs, oldV, newV) -> refreshSummary.run());
+        amountField.textProperty().addListener((obs, oldV, newV) -> refreshSummary.run());
+
+        content.getChildren().add(summaryCard);
+
+        Button cancelBtn = new Button("Cancelar");
+        cancelBtn.getStyleClass().add("modal-btn-cancel");
+        cancelBtn.setMinHeight(44);
+        cancelBtn.setOnAction(e -> modal.close());
+
+        SVGPath lockIcon = new SVGPath();
+        lockIcon.setContent("M7 11 V8 A5 5 0 0 1 17 8 V11 M6 11 H18 V20 H6 Z");
+        lockIcon.getStyleClass().add("modal-lock-icon");
+        Label confirmText = new Label("Guardar cambios");
+        confirmText.getStyleClass().add("modal-btn-primary-text");
+        HBox confirmGraphic = new HBox(8, lockIcon, confirmText);
+        confirmGraphic.setAlignment(Pos.CENTER);
+
+        Button confirmBtn = new Button();
+        confirmBtn.setGraphic(confirmGraphic);
+        confirmBtn.getStyleClass().add("modal-btn-confirm");
+        confirmBtn.setMinHeight(44);
+
+        confirmBtn.setOnAction(ev -> {
+            try {
+                AccountRepository.Account fromAcc = fromAccountCombo.getValue();
+                AccountRepository.Account toAcc = toAccountCombo.getValue();
+                if (fromAcc == null || toAcc == null || fromAcc.id() == null || toAcc.id() == null) {
+                    showModalWarning(darkTheme, "Selecciona las cuentas de origen y destino.");
+                    return;
+                }
+                if (fromAcc.id().equals(toAcc.id())) {
+                    showModalWarning(darkTheme, "El origen y el destino no pueden ser la misma cuenta.");
+                    return;
+                }
+
+                String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
+                long cents = 0L;
+                if (!digits.isBlank()) {
+                    try {
+                        cents = Long.parseLong(digits);
+                    } catch (NumberFormatException ignored) {
+                        cents = 0L;
+                    }
+                }
+                if (cents <= 0L) {
+                    showModalWarning(darkTheme, "Ingresa un monto válido.");
+                    return;
+                }
+
+                LocalDate d = datePicker.getValue();
+                if (d == null) {
+                    showModalWarning(darkTheme, "Selecciona una fecha.");
+                    return;
+                }
+
+                try {
+                    if (!"CREDIT".equalsIgnoreCase(AccountRepository.normalizeType(fromAcc.type()))) {
+                        long availableNow;
+                        try {
+                            availableNow = accountRepo.computeBalanceCents(userUid, fromAcc.id());
+                        } catch (Exception ex) {
+                            availableNow = Long.MAX_VALUE;
+                        }
+
+                        long effectiveAvailable = availableNow;
+                        if (existing.fromAccountId() != null
+                            && existing.fromAccountId().equals(fromAcc.id())) {
+                            effectiveAvailable = Math.addExact(availableNow, existing.amountCents());
+                        }
+                        if (cents > effectiveAvailable) {
+                            showModalWarning(darkTheme, "El monto supera el saldo disponible.");
+                            return;
+                        }
+                    }
+                } catch (Exception ignored) {
+                }
+
+                long occurredAt = d.atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+                String note = descField.getText() == null ? null : descField.getText().trim();
+                if (note != null && note.isBlank()) {
+                    note = null;
+                }
+
+                transferRepo.update(userUid, existing.id(), fromAcc.id(), toAcc.id(), cents, occurredAt, note);
+                try {
+                    AppConfig cfg = AppConfig.loadDefault();
+                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                    sync.syncTransfer(session, transferRepo.getForSyncById(userUid, existing.id()));
+                } catch (Exception ignored) {
+                }
+
+                if (refreshBalances != null) {
+                    refreshBalances.run();
+                }
+                if (reloadHolder != null && reloadHolder.length > 0 && reloadHolder[0] != null) {
+                    reloadHolder[0].run();
+                }
+                modal.close();
+            } catch (Exception ignored) {
+            }
+        });
+
+        cancelBtn.setMaxWidth(Double.MAX_VALUE);
+        confirmBtn.setMaxWidth(Double.MAX_VALUE);
+
+        HBox actionsRow = new HBox(12, cancelBtn, confirmBtn);
+        actionsRow.setAlignment(Pos.CENTER_LEFT);
+        actionsRow.getStyleClass().add("modal-actions-row");
+        HBox.setHgrow(cancelBtn, Priority.ALWAYS);
+        HBox.setHgrow(confirmBtn, Priority.ALWAYS);
+        VBox footer = new VBox(actionsRow);
+        footer.getStyleClass().add("modal-footer");
+
+        VBox rootBox = new VBox(titleBar, content, footer);
+        rootBox.getStyleClass().add("modal-root");
+
+        Scene scene = new Scene(rootBox, 480, Region.USE_COMPUTED_SIZE);
+        java.net.URL cssUrl = TransfersView.class.getResource("/styles/transfers.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
+        }
+        java.net.URL themeCss = TransfersView.class.getResource(darkTheme ? "/styles/dark.css" : "/styles/light.css");
+        if (themeCss != null) {
+            scene.getStylesheets().add(themeCss.toExternalForm());
+        }
+
+        modal.setScene(scene);
+        modal.setWidth(480);
+
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double maxHeight = Math.min(760, bounds.getHeight() * 0.90);
+        modal.setHeight(Math.max(560, maxHeight));
+        modal.centerOnScreen();
+
+        try {
+            if (accounts != null) {
+                for (AccountRepository.Account a : accounts) {
+                    if (a == null || a.id() == null) {
+                        continue;
+                    }
+                    if (existing.fromAccountId() != null && existing.fromAccountId().equals(a.id())) {
+                        fromAccountCombo.setValue(a);
+                    }
+                    if (existing.toAccountId() != null && existing.toAccountId().equals(a.id())) {
+                        toAccountCombo.setValue(a);
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (fromAccountCombo.getValue() == null && accounts != null && !accounts.isEmpty()) {
+            fromAccountCombo.getSelectionModel().selectFirst();
+        }
+        if (toAccountCombo.getValue() == null && accounts != null && !accounts.isEmpty()) {
+            AccountRepository.Account fromSelected = fromAccountCombo.getValue();
+            AccountRepository.Account pick = null;
+            for (AccountRepository.Account a : toAccountCombo.getItems()) {
+                if (a == null || a.id() == null) {
+                    continue;
+                }
+                if (fromSelected != null && fromSelected.id() != null && fromSelected.id().equals(a.id())) {
+                    continue;
+                }
+                pick = a;
+                break;
+            }
+            if (pick != null) {
+                toAccountCombo.setValue(pick);
+            }
+        }
+
+        if (existing.amountCents() > 0L) {
+            amountLock[0] = true;
+            try {
+                AccountRepository.Account fromAcc = fromAccountCombo.getValue();
+                String currency = fromAcc == null ? "COP" : fromAcc.currency();
+                amountField.setText(formatMoneySpaced(existing.amountCents(), currency));
+                amountField.positionCaret(amountField.getText().length());
+            } finally {
+                amountLock[0] = false;
+            }
+        }
+
+        descField.setText(existing.note() == null ? "" : existing.note());
+        refreshSummary.run();
+
         modal.showAndWait();
     }
 

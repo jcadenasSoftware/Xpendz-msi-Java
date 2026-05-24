@@ -422,7 +422,9 @@
     -fx-font-family: "Inter", "Segoe UI", "System", "Helvetica Neue", Arial, sans-serif;
     -fx-background-color: white;
     -fx-background-radius: 12;
+    -fx-background-insets: 0;
     -fx-border-radius: 12;
+    -fx-border-insets: 0;
     -fx-border-color: rgba(0,0,0,0.06);
     -fx-border-width: 1;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.20), 34, 0.22, 0, 10);
@@ -656,6 +658,9 @@
     -fx-border-width: 1 0 0 0;
     -fx-background-color: white;
     -fx-background-radius: 0 0 12 12;
+    -fx-background-insets: 0;
+    -fx-border-radius: 0 0 12 12;
+    -fx-border-insets: 0;
 }
 .modal-btn-cancel {
     -fx-background-color: transparent;

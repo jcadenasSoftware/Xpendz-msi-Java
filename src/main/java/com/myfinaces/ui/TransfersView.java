@@ -1258,13 +1258,13 @@ public final class TransfersView {
         rootBox.getStyleClass().add("modal-root");
 
         Scene scene = new Scene(rootBox, 480, Region.USE_COMPUTED_SIZE);
-        java.net.URL cssUrl = TransfersView.class.getResource("/styles/transfers.css");
-        if (cssUrl != null) {
-            scene.getStylesheets().add(cssUrl.toExternalForm());
-        }
         java.net.URL themeCss = TransfersView.class.getResource(darkTheme ? "/styles/dark.css" : "/styles/light.css");
         if (themeCss != null) {
             scene.getStylesheets().add(themeCss.toExternalForm());
+        }
+        java.net.URL cssUrl = TransfersView.class.getResource("/styles/transfers.css");
+        if (cssUrl != null) {
+            scene.getStylesheets().add(cssUrl.toExternalForm());
         }
 
         modal.setScene(scene);

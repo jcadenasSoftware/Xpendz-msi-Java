@@ -50,7 +50,7 @@ public final class SideDrawer {
     //  D E S I G N   T O K E N S
     // ══════════════════════════════════════════════════════════════════
 
-    private static final double DRAWER_WIDTH = 380;
+    private static final double DRAWER_WIDTH = 460;
     private static final Duration ANIM_IN = Duration.millis(280);
     private static final Duration ANIM_OUT = Duration.millis(200);
 
@@ -62,7 +62,6 @@ public final class SideDrawer {
     private final StackPane drawerContainer;
     private VBox activeDrawer;
     private boolean closeOnClickOutside = true;
-    private boolean darkThemeEnabled = false;
     private final Map<String, DrawerParts> drawersById = new HashMap<>();
 
     private record DrawerParts(VBox panel, VBox body, ScrollPane scroll) {
@@ -90,42 +89,12 @@ public final class SideDrawer {
     }
 
     public void setDarkTheme(boolean enabled) {
-        darkThemeEnabled = enabled;
         if (enabled) {
             if (!drawerContainer.getStyleClass().contains("dark")) {
                 drawerContainer.getStyleClass().add("dark");
             }
         } else {
             drawerContainer.getStyleClass().remove("dark");
-        }
-
-        drawersById.values().forEach(parts -> applyInlineTheme(parts.panel(), parts.body(), parts.scroll()));
-    }
-
-    private void applyInlineTheme(VBox panel, VBox body, ScrollPane scroll) {
-        if (darkThemeEnabled) {
-            String darkBgCss = "-fx-background-color: #0F172A; -fx-background: #0F172A;";
-            panel.setStyle(darkBgCss);
-            body.setStyle(darkBgCss);
-            scroll.setStyle(darkBgCss);
-            scroll.skinProperty().addListener((obs, oldSkin, newSkin) -> {
-                if (newSkin == null) return;
-                Node viewport = scroll.lookup(".viewport");
-                if (viewport instanceof Region vp) {
-                    vp.setStyle(darkBgCss);
-                }
-            });
-        } else {
-            panel.setStyle("");
-            body.setStyle("");
-            scroll.setStyle("");
-            scroll.skinProperty().addListener((obs, oldSkin, newSkin) -> {
-                if (newSkin == null) return;
-                Node viewport = scroll.lookup(".viewport");
-                if (viewport instanceof Region vp) {
-                    vp.setStyle("");
-                }
-            });
         }
     }
 
@@ -183,7 +152,6 @@ public final class SideDrawer {
         panel.setOnMouseClicked(ev -> ev.consume());
 
         drawersById.put(id, new DrawerParts(panel, body, scroll));
-        applyInlineTheme(panel, body, scroll);
 
         drawerContainer.getChildren().add(panel);
         StackPane.setAlignment(panel, Pos.CENTER_RIGHT);

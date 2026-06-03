@@ -212,6 +212,9 @@ public final class LoansView {
         );
         String userUid = session.uid();
 
+        // ── Sistema de overlays reutilizable ──────────────────────
+        ModalOverlay modalOverlay = new ModalOverlay();
+
         // ── Hero summary card (métricas reales) ─────────────────────
         Node[] heroCard = { buildHeroSummaryCard(loanService, userUid, dk) };
 
@@ -229,6 +232,13 @@ public final class LoansView {
         // ── Función para cargar cards desde DB ────────────────────
         Runnable[] refreshContent = { null };
         String[] activeTab = { "lent" };
+
+        // ── Callback compuesto: refrescar hero + cards + balances globales ─────────
+        // Definición inicial, se actualizará después cuando root esté disponible
+        Runnable[] refreshAllRef = { () -> {
+            refreshContent[0].run();
+            try { refreshBalances.run(); } catch (Exception ignored) {}
+        }};
 
         refreshContent[0] = () -> {
             contentContainer.getChildren().clear();
@@ -270,12 +280,12 @@ public final class LoansView {
                         pct, color, id -> { if (openPaymentRef[0] != null) openPaymentRef[0].accept(id); },
                         activeLoanId -> {
                             if (stackRootRef[0] != null) {
-                                showLoanDetailDrawer(stackRootRef[0], loanService, userUid, activeLoanId, dk);
+                                showLoanDetailDrawer(stackRootRef[0], loanService, userUid, activeLoanId, dk, session, modalOverlay, refreshAllRef[0]);
                             }
                         },
                         activeLoanId -> { if (openTopupRef[0] != null) openTopupRef[0].accept(activeLoanId); },
                         activeLoanId -> { if (openArchiveRef[0] != null) openArchiveRef[0].accept(activeLoanId); },
-                        dk
+                        dk, modalOverlay, loanService, userUid, session, refreshAllRef[0]
                     );
                     contentContainer.getChildren().add(card);
                 }
@@ -333,11 +343,8 @@ public final class LoansView {
         root.setFillWidth(true);
         VBox.setVgrow(root, Priority.ALWAYS);
 
-        // ── Sistema de overlays reutilizable ──────────────────────
-        ModalOverlay modalOverlay = new ModalOverlay();
-
-        // Callback compuesto: refrescar hero + cards + balances globales
-        Runnable refreshAll = () -> {
+        // Actualizar refreshAll para que refresque el hero card correctamente
+        refreshAllRef[0] = () -> {
             // Refrescar hero card con métricas reales
             Node newHero = buildHeroSummaryCard(loanService, userUid, dk);
             int heroIdx = root.getChildren().indexOf(heroCard[0]);
@@ -350,10 +357,10 @@ public final class LoansView {
         };
 
         // Registrar modals
-        buildNewLoanModal(modalOverlay, loanService, session, refreshAll);
-        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanService, session, refreshAll);
-        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanService, session, refreshAll);
-        Consumer<String> showArchiveModal = buildArchiveModal(modalOverlay, loanService, session, refreshAll);
+        buildNewLoanModal(modalOverlay, loanService, session, refreshAllRef[0]);
+        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanService, session, refreshAllRef[0]);
+        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanService, session, refreshAllRef[0]);
+        Consumer<String> showArchiveModal = buildArchiveModal(modalOverlay, loanService, session, refreshAllRef[0]);
 
         // Wiring
         btnNew.setOnAction(e -> modalOverlay.show("new-loan"));
@@ -434,7 +441,12 @@ public final class LoansView {
         Consumer<String> onViewDetails,
         Consumer<String> onAddMoney,
         Consumer<String> onArchive,
-        boolean dk
+        boolean dk,
+        ModalOverlay modalOverlay,
+        LoanService loanService,
+        String userUid,
+        AuthSession session,
+        Runnable refreshAll
     ) {
         // ── IZQUIERDA: avatar + info persona ────────────────────
         Label avatarLabel = new Label(initials);
@@ -540,10 +552,25 @@ public final class LoansView {
         btnPay.setStyle(payBase);
         btnPay.setOnMouseEntered(ev -> btnPay.setStyle(payHover));
         btnPay.setOnMouseExited(ev -> btnPay.setStyle(payBase));
-        btnPay.setOnAction(ev -> onRegisterPayment.accept(loanId));
+        btnPay.setOnAction(ev -> {
+            ev.consume();
+            onRegisterPayment.accept(loanId);
+        });
 
-        Button btnDetail = buildCompactAction("fas-eye", dk ? "#94A3B8" : "#64748B", dk);
-        btnDetail.setOnAction(ev -> onViewDetails.accept(loanId));
+        Button btnDetail = buildCompactAction("fas-edit", dk ? "#94A3B8" : "#64748B", dk);
+        btnDetail.setOnAction(ev -> {
+            ev.consume();
+            // Abrir modal de edición directamente
+            try {
+                LoanRepository.Loan loan = loanService.getLoan(userUid, loanId);
+                if (loan != null) {
+                    buildEditLoanModal(modalOverlay, loanService, session, userUid, loanId, loan.accountId(), loan.principalCents(), refreshAll);
+                    modalOverlay.show("edit-loan");
+                }
+            } catch (Exception ex) {
+                // Silencioso en caso de error
+            }
+        });
 
         // Botón Agregar dinero (reemplaza edit)
         Button btnAddMoney = new Button("Agregar");
@@ -568,10 +595,16 @@ public final class LoansView {
         btnAddMoney.setStyle(addBase);
         btnAddMoney.setOnMouseEntered(ev -> btnAddMoney.setStyle(addHover));
         btnAddMoney.setOnMouseExited(ev -> btnAddMoney.setStyle(addBase));
-        btnAddMoney.setOnAction(ev -> onAddMoney.accept(loanId));
+        btnAddMoney.setOnAction(ev -> {
+            ev.consume();
+            onAddMoney.accept(loanId);
+        });
 
         Button btnDelete = buildCompactAction("fas-trash-alt", "#EF4444", dk);
-        btnDelete.setOnAction(ev -> onArchive.accept(loanId));
+        btnDelete.setOnAction(ev -> {
+            ev.consume();
+            onArchive.accept(loanId);
+        });
 
         HBox secondaryActions = new HBox(6, btnDetail, btnAddMoney, btnDelete);
         secondaryActions.setAlignment(Pos.CENTER);
@@ -675,6 +708,14 @@ public final class LoansView {
             hoverUp.stop();
             hoverDown.playFromStart();
         });
+
+        // ── Click en el card abre el drawer de detalle ───────────────
+        card.setOnMouseClicked(ev -> {
+            if (ev.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                onViewDetails.accept(loanId);
+            }
+        });
+        card.setCursor(javafx.scene.Cursor.HAND);
 
         // ── Animated progress bar fill on appearance ─────────────
         // Use an animated fraction multiplier instead of touching the bound prefWidth.
@@ -982,6 +1023,174 @@ public final class LoansView {
         overlay.register("new-loan", 480,
             header, segmentRow, accountBlock, personBlock,
             amountBlock, noteBlock, errorLabel, footer);
+    }
+
+    // ── Modal: Editar préstamo ───────────────────────────────────────────
+    private static void buildEditLoanModal(
+        ModalOverlay overlay, LoanService loanService,
+        AuthSession session, String userUid, String loanId,
+        String currentAccountId, long currentPrincipalCents, Runnable refreshBalances
+    ) {
+        HBox header = overlay.buildHeader("Editar préstamo",
+            "Ajusta el monto del préstamo existente");
+
+        // ── Selector de cuenta ─────────────────────────────────────
+        Label accountLabel = ModalOverlay.fieldLabel("Cuenta", "fas-wallet");
+        ComboBox<AccountRepository.Account> accountCombo = new ComboBox<>();
+        accountCombo.setPromptText("Seleccionar cuenta");
+        accountCombo.setMaxWidth(Double.MAX_VALUE);
+        accountCombo.getStyleClass().add("account-combo");
+        accountCombo.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account a) {
+                return a == null ? "" : a.name() + " · " + a.currency();
+            }
+            @Override
+            public AccountRepository.Account fromString(String s) { return null; }
+        });
+        accountCombo.setCellFactory(accountCellFactory());
+        accountCombo.setButtonCell(accountCellFactory().call(null));
+
+        // Cargar cuentas reales
+        try {
+            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            accountCombo.setItems(FXCollections.observableArrayList(accounts));
+            // Seleccionar la cuenta actual del préstamo
+            if (!accounts.isEmpty()) {
+                accountCombo.getItems().stream()
+                    .filter(a -> a.id().equals(currentAccountId))
+                    .findFirst()
+                    .ifPresentOrElse(
+                        accountCombo.getSelectionModel()::select,
+                        () -> accountCombo.getSelectionModel().selectFirst()
+                    );
+            }
+        } catch (Exception ignored) {}
+
+        Label balanceLabel = new Label();
+        balanceLabel.setStyle(
+            "-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #16A34A;"
+        );
+
+        // Actualizar saldo al cambiar cuenta
+        Runnable refreshAccountBalance = () -> {
+            AccountRepository.Account acc = accountCombo.getValue();
+            if (acc == null) { balanceLabel.setText(""); return; }
+            try {
+                long cents = loanService.getAccountBalance(userUid, acc.id());
+                balanceLabel.setText("Saldo disponible: " + DashboardFormatters.formatMoney(cents, acc.currency()));
+            } catch (Exception ex) { balanceLabel.setText(""); }
+        };
+        accountCombo.getSelectionModel().selectedItemProperty().addListener((o, ov, nv) -> refreshAccountBalance.run());
+        refreshAccountBalance.run();
+
+        VBox accountBlock = new VBox(6, accountLabel, accountCombo, balanceLabel);
+
+        // ── Monto actual ───────────────────────────────────────────
+        Label currentLabel = ModalOverlay.fieldLabel("Monto actual", "fas-info-circle");
+        Label currentAmount = new Label(DashboardFormatters.formatMoney(currentPrincipalCents));
+        currentAmount.setStyle(
+            "-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: #64748B;"
+        );
+        VBox currentBlock = new VBox(6, currentLabel, currentAmount);
+
+        // ── Nuevo monto ─────────────────────────────────────────────
+        Label amountLabel = ModalOverlay.fieldLabel("Nuevo monto", "fas-dollar-sign");
+        TextField amountField = new TextField();
+        amountField.setPromptText("Ej: 100000.00");
+        amountField.getStyleClass().add("modal-text-input");
+        // Pre-llenar con valor numérico sin símbolo de moneda
+        amountField.setText(String.valueOf(currentPrincipalCents / 100.0));
+
+        Label amountError = new Label();
+        amountError.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 11px;");
+        amountError.setVisible(false);
+        amountError.setManaged(false);
+
+        VBox amountBlock = new VBox(6, amountLabel, amountField, amountError);
+
+        // ── Nota ──────────────────────────────────────────────────
+        Label noteLabel = ModalOverlay.fieldLabel("Nota (opcional)", "fas-sticky-note");
+        TextArea noteField = new TextArea();
+        noteField.setPromptText("Razón del ajuste...");
+        noteField.getStyleClass().add("modal-text-input");
+        noteField.setPrefRowCount(2);
+        noteField.setWrapText(true);
+
+        VBox noteBlock = new VBox(6, noteLabel, noteField);
+
+        // ── Error general ──────────────────────────────────────────
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        // ── Footer ─────────────────────────────────────────────────
+        VBox footer = overlay.buildFooter("Guardar cambios", "fas-save", "#2563EB", "#1D4ED8");
+        Button primaryBtn = (Button) footer.getChildren().get(1);
+        Button cancelBtn = (Button) footer.getChildren().get(2);
+
+        primaryBtn.setOnAction(e -> {
+            errorLabel.setText("");
+            errorLabel.setVisible(false);
+            errorLabel.setManaged(false);
+            amountError.setText("");
+            amountError.setVisible(false);
+            amountError.setManaged(false);
+
+            AccountRepository.Account selectedAccount = accountCombo.getValue();
+            if (selectedAccount == null) {
+                errorLabel.setText("Selecciona una cuenta");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                return;
+            }
+
+            String amountText = amountField.getText().trim();
+            if (amountText.isBlank()) {
+                amountError.setText("Ingresa un monto");
+                amountError.setVisible(true);
+                amountError.setManaged(true);
+                return;
+            }
+
+            long newCents;
+            try {
+                // Intentar parsear como número decimal simple
+                java.math.BigDecimal v = new java.math.BigDecimal(amountText);
+                newCents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
+            } catch (Exception ex) {
+                amountError.setText("Monto inválido");
+                amountError.setVisible(true);
+                amountError.setManaged(true);
+                return;
+            }
+
+            if (newCents <= 0) {
+                amountError.setText("El monto debe ser mayor a 0");
+                amountError.setVisible(true);
+                amountError.setManaged(true);
+                return;
+            }
+
+            String note = noteField.getText().trim();
+            if (note.isBlank()) note = null;
+
+            try {
+                loanService.updateLoan(userUid, session, loanId, selectedAccount.id(), newCents, note);
+                overlay.hide();
+                refreshBalances.run();
+            } catch (Exception ex) {
+                errorLabel.setText(ex.getMessage());
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+            }
+        });
+
+        cancelBtn.setOnAction(e -> overlay.hide());
+
+        overlay.register("edit-loan", 440,
+            header, accountBlock, currentBlock, amountBlock, noteBlock, errorLabel, footer);
     }
 
     // ── Modal: Registrar pago ──────────────────────────────────────────
@@ -2382,7 +2591,10 @@ public final class LoansView {
         LoanService loanService,
         String userUid,
         String loanId,
-        boolean dk
+        boolean dk,
+        AuthSession session,
+        ModalOverlay modalOverlay,
+        Runnable refreshAll
     ) {
         try {
             // ── Datos del préstamo ─────────────────────────────────────
@@ -2390,7 +2602,6 @@ public final class LoansView {
             if (loan == null) return;
 
             List<LoanMovementRepository.LoanMovement> movements = loanService.listMovements(userUid, loanId);
-            List<LoanPaymentRepository.LoanPayment> payments = loanService.listPayments(userUid, loanId);
 
             long paidCents = loanService.getPaidCents(userUid, loanId);
             long pendingCents = loan.principalCents() - paidCents;
@@ -2517,6 +2728,43 @@ public final class LoansView {
             HBox.setHgrow(pendingCard, Priority.ALWAYS);
             metricsRow.getChildren().addAll(totalCard, paidCard, pendingCard);
 
+            // ── Referencia para closeDrawer (se define más adelante) ─────
+            final Runnable[] closeDrawerRef = { null };
+
+            // ── Botón Editar (solo si no está cerrado) ────────────────────
+            final Button[] btnEditRef = { null };
+            if (!isClosed) {
+                FontIcon editIcon = new FontIcon("fas-edit");
+                editIcon.setIconSize(12);
+                editIcon.setIconColor(Color.WHITE);
+                Button btnEdit = new Button("Editar préstamo");
+                btnEdit.setGraphic(editIcon);
+                btnEdit.setGraphicTextGap(6);
+                String editBase =
+                    "-fx-background-color: #6366F1; -fx-text-fill: white; "
+                    + "-fx-background-radius: 10; -fx-border-radius: 10; "
+                    + "-fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; "
+                    + "-fx-padding: 8 16 8 16;";
+                String editHover =
+                    "-fx-background-color: #4F46E5; -fx-text-fill: white; "
+                    + "-fx-background-radius: 10; -fx-border-radius: 10; "
+                    + "-fx-font-size: 12px; -fx-font-weight: 700; -fx-cursor: hand; "
+                    + "-fx-padding: 8 16 8 16;";
+                btnEdit.setStyle(editBase);
+                btnEdit.setOnMouseEntered(ev -> btnEdit.setStyle(editHover));
+                btnEdit.setOnMouseExited(ev -> btnEdit.setStyle(editBase));
+                btnEdit.setOnAction(ev -> {
+                    // Construir modal de edición dinámicamente con datos del préstamo
+                    buildEditLoanModal(modalOverlay, loanService, session, userUid, loanId, loan.accountId(), loan.principalCents(), () -> {
+                        refreshAll.run();
+                        // Cerrar drawer después de editar
+                        if (closeDrawerRef[0] != null) closeDrawerRef[0].run();
+                    });
+                    modalOverlay.show("edit-loan");
+                });
+                btnEditRef[0] = btnEdit;
+            }
+
             // ── Timeline de movimientos ─────────────────────────────────
             Label timelineTitle = new Label("Timeline de movimientos");
             timelineTitle.setStyle(
@@ -2560,14 +2808,26 @@ public final class LoansView {
             createdLbl.setPadding(new Insets(16, 0, 0, 0));
 
             // ── Ensamblar contenido ────────────────────────────────────
-            drawer.getChildren().addAll(
-                header,
-                personRow,
-                metricsRow,
-                timelineTitle,
-                timelineScroll,
-                createdLbl
-            );
+            if (btnEditRef[0] != null) {
+                drawer.getChildren().addAll(
+                    header,
+                    personRow,
+                    metricsRow,
+                    btnEditRef[0],
+                    timelineTitle,
+                    timelineScroll,
+                    createdLbl
+                );
+            } else {
+                drawer.getChildren().addAll(
+                    header,
+                    personRow,
+                    metricsRow,
+                    timelineTitle,
+                    timelineScroll,
+                    createdLbl
+                );
+            }
 
             // ── Contenedor final con backdrop ──────────────────────────
             // Usar AnchorPane para anclar drawer a la derecha
@@ -2595,8 +2855,14 @@ public final class LoansView {
             // Agregar al root (al frente)
             root.getChildren().add(drawerContainer);
 
+            // ── Handler de ESC (declarado antes para poder removerlo) ───────
+            final boolean[] drawerOpen = { true };
+
             // ── Función de cierre ───────────────────────────────────────
             Runnable closeDrawer = () -> {
+                if (!drawerOpen[0]) return; // Evitar cierre múltiple
+                drawerOpen[0] = false;
+
                 // Animación drawer → derecha (fuera de pantalla)
                 TranslateTransition slideOut = new TranslateTransition(Duration.millis(280), drawer);
                 slideOut.setToX(450);
@@ -2616,9 +2882,21 @@ public final class LoansView {
                 slideOut.play();
             };
 
+            closeDrawerRef[0] = closeDrawer;
+
             // Cerrar al hacer click en backdrop
             backdrop.setOnMouseClicked(e -> closeDrawer.run());
             btnClose.setOnAction(e -> closeDrawer.run());
+
+            // ── Cerrar al presionar ESC ─────────────────────────────────
+            javafx.event.EventHandler<javafx.scene.input.KeyEvent> escHandler = e -> {
+                if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE && drawerOpen[0]) {
+                    closeDrawer.run();
+                }
+            };
+            if (root.getScene() != null) {
+                root.getScene().addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, escHandler);
+            }
 
             // ── Animación de entrada ───────────────────────────────────
             drawerContainer.setVisible(true);

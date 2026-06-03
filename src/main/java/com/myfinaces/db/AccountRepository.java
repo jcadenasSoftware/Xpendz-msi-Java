@@ -399,9 +399,17 @@ public final class AccountRepository {
             "  COALESCE((SELECT SUM(CASE " +
             "    WHEN kind = 'INCOME' THEN amount_cents " +
             "    WHEN kind = 'LOAN_BORROWED_IN' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_BORROWED_TOPUP' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_BORROWED_CORRECTION' THEN amount_cents " +
             "    WHEN kind = 'LOAN_REPAYMENT_PRINCIPAL_IN' THEN amount_cents " +
             "    WHEN kind = 'EXPENSE' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_LENT_OUT' THEN -amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_TOPUP' THEN -amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_CORRECTION' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_CORRECTION_IN' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_CORRECTION_OUT' THEN -amount_cents " +
+            "    WHEN kind = 'LOAN_BORROWED_CORRECTION_IN' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_BORROWED_CORRECTION_OUT' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_REPAYMENT_PRINCIPAL_OUT' THEN -amount_cents " +
             "    ELSE 0 END)" +
             "          FROM transactions WHERE user_uid = ? AND account_id = ?), 0)" +

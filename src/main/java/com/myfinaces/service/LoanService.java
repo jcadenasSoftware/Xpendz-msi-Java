@@ -78,6 +78,13 @@ public final class LoanService {
         boolean loanClosed
     ) {}
 
+    public record UpdateLoanResult(
+        String loanId,
+        String transactionId,
+        String movementId,
+        LoanRepository.Loan loan
+    ) {}
+
     // ══════════════════════════════════════════════════════════════════
     //  C R E A T E   L O A N  (find-or-accumulate)
     // ══════════════════════════════════════════════════════════════════
@@ -301,6 +308,111 @@ public final class LoanService {
         syncInBackground(session, userUid, txId, loanId, paymentId, movId);
 
         return new PaymentResult(paymentId, txId, movId, closed);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  U P D A T E   L O A N
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Edita un préstamo existente con integración financiera.
+     * <p>
+     * Permite modificar el monto principal del préstamo. La diferencia
+     * se registra como una transacción de corrección para mantener
+     * la integridad financiera.
+     * <p>
+     * PRESTAR (LENT):
+     * - Si aumenta el monto: crea transacción LOAN_LENT_CORRECTION (resta saldo)
+     * - Si disminuye el monto: crea transacción LOAN_LENT_CORRECTION (suma saldo, valor negativo)
+     * <p>
+     * PEDIR PRESTADO (BORROWED):
+     * - Si aumenta el monto: crea transacción LOAN_BORROWED_CORRECTION (suma saldo)
+     * - Si disminuye el monto: crea transacción LOAN_BORROWED_CORRECTION (resta saldo, valor negativo)
+     */
+    public UpdateLoanResult updateLoan(
+        String userUid,
+        AuthSession session,
+        String loanId,
+        String accountId,
+        long newPrincipalCents,
+        String notes
+    ) throws SQLException {
+        Objects.requireNonNull(userUid);
+        Objects.requireNonNull(loanId);
+
+        if (newPrincipalCents <= 0) {
+            throw new IllegalArgumentException("El monto debe ser mayor a 0");
+        }
+
+        // Obtener préstamo existente
+        LoanRepository.Loan loan = loanRepo.getByIdOrNull(userUid, loanId);
+        if (loan == null) {
+            throw new IllegalStateException("Préstamo no encontrado");
+        }
+
+        long oldPrincipal = loan.principalCents();
+        long diffCents = newPrincipalCents - oldPrincipal;
+
+        if (diffCents == 0) {
+            // Sin cambios, solo actualizar notas si se proporcionaron
+            if (notes != null && !notes.isBlank()) {
+                loanRepo.update(
+                    userUid, loanId, loan.type(), loan.counterpartyName(),
+                    loan.principalCents(), loan.currency(),
+                    loan.status(), appendNote(loan.notes(), notes)
+                );
+                LoanRepository.Loan updated = loanRepo.getByIdOrNull(userUid, loanId);
+                return new UpdateLoanResult(loanId, null, null, updated);
+            }
+            return new UpdateLoanResult(loanId, null, null, loan);
+        }
+
+        String loanCategoryId = ensureLoanCategory(userUid, session);
+        long now = Instant.now().getEpochSecond();
+
+        // Determinar tipo de corrección
+        boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
+        boolean isIncrease = diffCents > 0;
+        String kind;
+        if (isLent) {
+            kind = isIncrease
+                ? TransactionKind.LOAN_LENT_CORRECTION_OUT.name()
+                : TransactionKind.LOAN_LENT_CORRECTION_IN.name();
+        } else {
+            kind = isIncrease
+                ? TransactionKind.LOAN_BORROWED_CORRECTION_IN.name()
+                : TransactionKind.LOAN_BORROWED_CORRECTION_OUT.name();
+        }
+
+        // Crear transacción de corrección (amountCents debe ser >= 0)
+        long txAmount = Math.abs(diffCents);
+        String txNote = isLent
+            ? "Corrección de préstamo otorgado a: " + loan.counterpartyName()
+            : "Corrección de deuda con: " + loan.counterpartyName();
+        String txId = txRepo.create(
+            userUid, accountId, loanCategoryId, kind,
+            txAmount, now, txNote
+        );
+
+        // Actualizar préstamo con nuevo monto + cuenta
+        loanRepo.update(
+            userUid, loanId, loan.type(), loan.counterpartyName(),
+            newPrincipalCents, loan.currency(),
+            loan.status(), appendNote(loan.notes(), notes)
+        );
+
+        // Registrar movimiento de corrección
+        String movId = movementRepo.create(
+            userUid, loanId,
+            LoanMovementRepository.MOV_TOPUP, // Reutilizamos TOPUP para correcciones
+            diffCents, accountId, txId, notes, now
+        );
+
+        // Sync
+        LoanRepository.Loan updated = loanRepo.getByIdOrNull(userUid, loanId);
+        syncInBackground(session, userUid, txId, loanId, null, movId);
+
+        return new UpdateLoanResult(loanId, txId, movId, updated);
     }
 
     // ══════════════════════════════════════════════════════════════════

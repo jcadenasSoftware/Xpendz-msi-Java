@@ -358,6 +358,10 @@ public final class DashboardView {
         StackPane contentHost = new StackPane(dashboardContent);
         contentHost.setMinWidth(0);
 
+        SideDrawer sideDrawer = new SideDrawer();
+        sideDrawer.setDarkTheme(darkTheme.get());
+        darkTheme.addListener((obs, oldV, newV) -> sideDrawer.setDarkTheme(Boolean.TRUE.equals(newV)));
+
         onViewAllMovementsRef.set(accountId -> {
             javafx.scene.Node txPane = DashboardTransactionsDialog.buildTransactionsPane(
                 session, txRepo, accountRepo, categoryRepo, darkTheme::get, refreshBalancesRef.get() != null ? refreshBalancesRef.get() : () -> {}, accountId
@@ -396,7 +400,10 @@ public final class DashboardView {
         summary.getStyleClass().add("nav-button");
         summary.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(summary, new FontIcon("fas-clipboard-list"));
-        summary.setOnAction(e -> showSummaryDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, darkTheme.get()));
+        summary.setOnAction(e -> {
+            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, goalRepo, darkTheme::get, refreshBalances, sideDrawer);
+            contentHost.getChildren().setAll(summaryPane);
+        });
 
         Button goals = new Button("Metas");
         goals.getStyleClass().add("btn-primary");
@@ -492,7 +499,8 @@ public final class DashboardView {
 
         summary.setOnAction(e -> {
             setActiveButton.accept(summary);
-            showSummaryDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, darkTheme.get());
+            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, goalRepo, darkTheme::get, refreshBalances, sideDrawer);
+            contentHost.getChildren().setAll(summaryPane);
         });
 
         loans.setOnAction(e -> {
@@ -527,16 +535,13 @@ public final class DashboardView {
         // Set home button as active by default
         setActiveButton.accept(home);
 
-        SideDrawer accountDrawer = new SideDrawer();
-        accountDrawer.setDarkTheme(darkTheme.get());
-        darkTheme.addListener((obs, oldV, newV) -> accountDrawer.setDarkTheme(Boolean.TRUE.equals(newV)));
-        NewAccountDrawer.install(accountDrawer, session, accountRepo, () -> {
+        NewAccountDrawer.install(sideDrawer, session, accountRepo, () -> {
             refreshBalances.run();
         }, darkTheme.get());
-        StackPane contentWithAccountDrawer = accountDrawer.wrapContent(contentHost);
+        StackPane contentWithDrawer = sideDrawer.wrapContent(contentHost);
 
         addAccount.setOnAction(e -> {
-            accountDrawer.show("new-account");
+            sideDrawer.show("new-account");
         });
 
         java.util.function.Consumer<Runnable> flushAndThen = (after) -> {
@@ -699,7 +704,7 @@ public final class DashboardView {
         BorderPane root = new BorderPane();
         root.getStyleClass().add("app-root");
         root.setLeft(sidebarScroll);
-        root.setCenter(contentWithAccountDrawer);
+        root.setCenter(contentWithDrawer);
         root.addEventFilter(KeyEvent.KEY_PRESSED, ev -> {
             if (ev.getCode() == KeyCode.F5) {
                 doRefreshNow.run();

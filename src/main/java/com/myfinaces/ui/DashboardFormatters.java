@@ -59,6 +59,70 @@ public final class DashboardFormatters {
         };
     }
 
+    public static String formatTransactionDisplayText(String kind, String note, String fallbackCategoryName) {
+        String trimmedNote = note == null ? "" : note.trim();
+        if (trimmedNote.isBlank()) {
+            String fallback = fallbackCategoryName == null ? "" : fallbackCategoryName.trim();
+            return fallback.isBlank() ? "Movimiento" : fallback;
+        }
+
+        String normalizedKind = kind == null ? "" : kind.trim().toUpperCase(Locale.ROOT);
+        if ("LOAN_LENT_OUT".equals(normalizedKind)) {
+            return translateLoanPrefix(trimmedNote, "LOAN_LENT_OUT", "Préstamo otorgado a:");
+        }
+        if ("LOAN_BORROWED_IN".equals(normalizedKind)) {
+            return translateLoanPrefix(trimmedNote, "LOAN_BORROWED_IN", "Préstamo recibido de:");
+        }
+
+        return trimmedNote;
+    }
+
+    private static String translateLoanPrefix(String text, String rawPrefix, String translatedPrefix) {
+        String normalized = text.trim();
+        
+        String normalizedSpanish = normalizeSpanishPrefix(normalized, translatedPrefix);
+        if (normalizedSpanish != null) {
+            return normalizedSpanish;
+        }
+        
+        String[] candidates = {
+            rawPrefix + ":",
+            rawPrefix + " :",
+            rawPrefix
+        };
+
+        for (String candidate : candidates) {
+            if (normalized.regionMatches(true, 0, candidate, 0, candidate.length())) {
+                String remainder = normalized.substring(candidate.length()).trim();
+                return remainder.isBlank() ? translatedPrefix : translatedPrefix + " " + remainder;
+            }
+        }
+
+        return translatedPrefix + " " + normalized;
+    }
+
+    private static String normalizeSpanishPrefix(String text, String preferredPrefix) {
+        String normalized = text.trim().toLowerCase(Locale.ROOT);
+        String[][] spanishPrefixes = {
+            {"préstamo otorgado a:", "Préstamo otorgado a:"},
+            {"préstamo recibido de:", "Préstamo recibido de:"},
+            {"dinero recibido de:", "Préstamo recibido de:"},
+            {"dinero prestado a:", "Préstamo otorgado a:"},
+            {"préstamo a:", "Préstamo otorgado a:"},
+            {"préstamo de:", "Préstamo recibido de:"}
+        };
+
+        for (String[] prefixPair : spanishPrefixes) {
+            String lowercasePrefix = prefixPair[0];
+            String normalizedPrefix = prefixPair[1];
+            if (normalized.startsWith(lowercasePrefix)) {
+                String remainder = text.substring(lowercasePrefix.length()).trim();
+                return remainder.isBlank() ? normalizedPrefix : normalizedPrefix + " " + remainder;
+            }
+        }
+        return null;
+    }
+
     public static BigDecimal parseAmount(String raw) {
         String s = raw == null ? "" : raw.trim();
         if (s.isBlank()) {

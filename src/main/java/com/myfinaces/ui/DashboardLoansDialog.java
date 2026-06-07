@@ -587,7 +587,7 @@ public final class DashboardLoansDialog {
             return Optional.empty();
         }
 
-        long epoch = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        long epoch = date.getValue().atTime(java.time.LocalTime.now().withNano(0)).atZone(ZoneId.systemDefault()).toEpochSecond();
         String n = note.getText() == null ? null : note.getText().trim();
         if (n != null && n.isBlank()) {
             n = null;

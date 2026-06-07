@@ -679,7 +679,7 @@ public final class DashboardTransactionsDialog {
                     lastDate = d;
                 }
 
-                String txTitleText = (t.note() != null && !t.note().trim().isBlank()) ? t.note().trim() : t.categoryName();
+                String txTitleText = DashboardFormatters.formatTransactionDisplayText(t.kind(), t.note(), t.categoryName());
                 Label txTitle = new Label(txTitleText);
                 txTitle.getStyleClass().add("tx-item-title");
                 txTitle.setMaxWidth(Double.MAX_VALUE);
@@ -849,6 +849,18 @@ public final class DashboardTransactionsDialog {
         boolean delete,
         NewTransaction updated
     ) {
+    }
+
+    private static long toEpochSecondKeepingTime(LocalDate date, LocalTime time) {
+        if (date == null) {
+            throw new IllegalArgumentException("date");
+        }
+        LocalTime safeTime = time == null ? LocalTime.MIDNIGHT : time.withNano(0);
+        return date.atTime(safeTime).atZone(ZoneId.systemDefault()).toEpochSecond();
+    }
+
+    private static long toEpochSecondForNewTransaction(LocalDate date) {
+        return toEpochSecondKeepingTime(date, LocalTime.now());
     }
 
     private static Optional<NewTransaction> showCreateTransactionDialog(
@@ -1390,7 +1402,7 @@ public final class DashboardTransactionsDialog {
             return Optional.empty();
         }
 
-        long occurredAt = dateField.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        long occurredAt = toEpochSecondForNewTransaction(dateField.getValue());
         CategoryRepository.Category chosen = subCategory.getValue() != null ? subCategory.getValue() : rootCategory.getValue();
         return Optional.of(new NewTransaction(
             account.getValue().id(),
@@ -2012,7 +2024,10 @@ public final class DashboardTransactionsDialog {
             return Optional.empty();
         }
 
-        long occurredAt = dateField.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        LocalTime existingTime = Instant.ofEpochSecond(existing.occurredAtEpochSec())
+            .atZone(ZoneId.systemDefault())
+            .toLocalTime();
+        long occurredAt = toEpochSecondKeepingTime(dateField.getValue(), existingTime);
         CategoryRepository.Category chosen = subCategory.getValue() != null ? subCategory.getValue() : rootCategory.getValue();
         return Optional.of(new EditTransactionResult(false, new NewTransaction(
             account.getValue().id(),

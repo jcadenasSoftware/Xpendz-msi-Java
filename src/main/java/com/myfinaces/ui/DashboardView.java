@@ -395,7 +395,7 @@ public final class DashboardView {
             contentHost.getChildren().setAll(txPane);
         });
 
-        Button summary = new Button("Resumen");
+        Button summary = new Button("Resumen financiero");
         summary.getStyleClass().add("btn-primary");
         summary.getStyleClass().add("nav-button");
         summary.setMaxWidth(Double.MAX_VALUE);
@@ -423,7 +423,7 @@ public final class DashboardView {
             contentHost.getChildren().setAll(loansPane);
         });
 
-        Button budget = new Button("Presupuesto");
+        Button budget = new Button("Presupuesto y Metas");
         budget.getStyleClass().add("btn-primary");
         budget.getStyleClass().add("nav-button");
         budget.setMaxWidth(Double.MAX_VALUE);
@@ -432,13 +432,6 @@ public final class DashboardView {
             Node budgetPane = BudgetView.buildBudgetView(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme::get, refreshBalances);
             contentHost.getChildren().setAll(budgetPane);
         });
-
-        Button charts = new Button("Gráficos");
-        charts.getStyleClass().add("btn-primary");
-        charts.getStyleClass().add("nav-button");
-        charts.setMaxWidth(Double.MAX_VALUE);
-        setButtonIcon(charts, new FontIcon("fas-chart-pie"));
-        charts.setOnAction(e -> showChartsDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, transferRepo, darkTheme.get()));
 
         Button transfers = new Button("Transferencias");
         transfers.getStyleClass().add("btn-primary");
@@ -471,7 +464,7 @@ public final class DashboardView {
 
         // Helper method to set active button
         java.util.function.Consumer<Button> setActiveButton = (activeBtn) -> {
-            Button[] navButtons = {home, transactions, transfers, summary, loans, budget, charts, categories};
+            Button[] navButtons = {home, transactions, transfers, summary, loans, budget, categories};
             for (Button btn : navButtons) {
                 btn.getStyleClass().remove("active");
             }
@@ -513,11 +506,6 @@ public final class DashboardView {
             setActiveButton.accept(budget);
             Node budgetPane = BudgetView.buildBudgetView(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme::get, refreshBalances);
             contentHost.getChildren().setAll(budgetPane);
-        });
-
-        charts.setOnAction(e -> {
-            setActiveButton.accept(charts);
-            showChartsDialog(session.uid(), txRepo, accountRepo, categoryRepo, goalRepo, transferRepo, darkTheme.get());
         });
 
         transfers.setOnAction(e -> {
@@ -576,8 +564,8 @@ public final class DashboardView {
                             sync.syncTransfers(session, transferRepo);
 
                             try {
-                                List<LoanRepository.Loan> pendingLoans = loanRepo.listPendingForSync(session.uid());
-                                for (LoanRepository.Loan l : pendingLoans) {
+                                List<LoanRepository.Loan> allLoans = loanRepo.listAllByUser(session.uid());
+                                for (LoanRepository.Loan l : allLoans) {
                                     sync.syncLoan(session, l);
                                     try {
                                         loanRepo.markSynced(session.uid(), l.id());
@@ -586,9 +574,8 @@ public final class DashboardView {
                                 }
                             } catch (Exception ignored) {
                             }
-
                             try {
-                                List<LoanPaymentRepository.LoanPayment> payments = loanPaymentRepo.listPendingForSync(session.uid());
+                                List<LoanPaymentRepository.LoanPayment> payments = loanPaymentRepo.listAllByUser(session.uid());
                                 for (LoanPaymentRepository.LoanPayment p : payments) {
                                     sync.syncLoanPayment(session, p);
                                     try {
@@ -597,8 +584,7 @@ public final class DashboardView {
                                     }
                                 }
                             } catch (Exception ignored) {
-                            }
-                        } catch (Exception ignored) {
+                            }                        } catch (Exception ignored) {
                         }
                     }, "final-sync-worker");
                     worker.setDaemon(true);
@@ -686,7 +672,6 @@ public final class DashboardView {
             summary,
             loans,
             budget,
-            charts,
             addAccount,
             categories,
             syncNow,
@@ -769,6 +754,25 @@ public final class DashboardView {
         return first + rest;
     }
 
+    private static boolean isMonthlyIncomeKind(String kind) {
+        if (kind == null) {
+            return false;
+        }
+        String k = kind.trim().toUpperCase(Locale.ROOT);
+        return "INCOME".equals(k)
+            || "LOAN_BORROWED_IN".equals(k)
+            || "LOAN_REPAYMENT_PRINCIPAL_IN".equals(k);
+    }
+
+    private static boolean isMonthlyExpenseKind(String kind) {
+        if (kind == null) {
+            return false;
+        }
+        String k = kind.trim().toUpperCase(Locale.ROOT);
+        return "EXPENSE".equals(k)
+            || "LOAN_LENT_OUT".equals(k)
+            || "LOAN_REPAYMENT_PRINCIPAL_OUT".equals(k);
+    }
     private static void refreshBalances(
         AuthSession session,
         AccountRepository accountRepo,
@@ -910,10 +914,9 @@ public final class DashboardView {
                     if (t == null || t.kind() == null) {
                         continue;
                     }
-                    String k = t.kind().trim().toUpperCase();
-                    if ("INCOME".equals(k)) {
+                    if (isMonthlyIncomeKind(t.kind())) {
                         monthIncomeCents += Math.max(0L, t.amountCents());
-                    } else if ("EXPENSE".equals(k)) {
+                    } else if (isMonthlyExpenseKind(t.kind())) {
                         monthExpenseCents += Math.max(0L, t.amountCents());
                     }
                 }
@@ -1491,10 +1494,9 @@ public final class DashboardView {
                 if (t == null || t.kind() == null) {
                     continue;
                 }
-                String k = t.kind().trim().toUpperCase(Locale.ROOT);
-                if ("INCOME".equals(k)) {
+                if (isMonthlyIncomeKind(t.kind())) {
                     inc += Math.max(0L, t.amountCents());
-                } else if ("EXPENSE".equals(k)) {
+                } else if (isMonthlyExpenseKind(t.kind())) {
                     exp += Math.max(0L, t.amountCents());
                 }
             }
@@ -1843,18 +1845,6 @@ public final class DashboardView {
         DashboardBudgetDialog.showBudgetDialog(session, budgetRepo, goalRepo, categoryRepo, accountRepo, transferRepo, darkTheme, refreshBalances, initialTabIndex);
     }
 
-    private static void showChartsDialog(
-        String userUid,
-        TransactionRepository txRepo,
-        AccountRepository accountRepo,
-        CategoryRepository categoryRepo,
-        GoalRepository goalRepo,
-        TransferRepository transferRepo,
-        boolean darkTheme
-    ) {
-        DashboardChartsDialog.showChartsDialog(userUid, txRepo, accountRepo, categoryRepo, goalRepo, transferRepo, darkTheme);
-    }
-
     private static void showTransfersDialog(
         AuthSession session,
         TransferRepository transferRepo,
@@ -2028,11 +2018,10 @@ public final class DashboardView {
             long epoch = t.occurredAtEpochSec();
             java.time.LocalDate d = java.time.Instant.ofEpochSecond(epoch).atZone(zone).toLocalDate();
             int idx = Math.max(0, Math.min(daysInMonth - 1, d.getDayOfMonth() - 1));
-            String k = t.kind().trim().toUpperCase();
             long amt = t.amountCents();
-            if ("INCOME".equals(k)) {
+            if (isMonthlyIncomeKind(t.kind())) {
                 daily[idx] += Math.max(0L, amt);
-            } else if ("EXPENSE".equals(k)) {
+            } else if (isMonthlyExpenseKind(t.kind())) {
                 daily[idx] -= Math.max(0L, amt);
             }
         }
@@ -2180,3 +2169,6 @@ public final class DashboardView {
         return DashboardFormatters.formatMoney(cents, currencyCode);
     }
 }
+
+
+

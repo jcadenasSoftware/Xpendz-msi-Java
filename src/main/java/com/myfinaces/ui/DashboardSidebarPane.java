@@ -20,6 +20,30 @@ public final class DashboardSidebarPane {
     private DashboardSidebarPane() {
     }
 
+    private static Label sectionLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().addAll("text-secondary", "sidebar-section", "sidebar-group-title");
+        return label;
+    }
+
+    private static VBox sectionCard(String cardStyleClass, Node... nodes) {
+        VBox card = new VBox(6);
+        card.getChildren().addAll(nodes);
+        card.getStyleClass().add("sidebar-section-card");
+        if (cardStyleClass != null && !cardStyleClass.isBlank()) {
+            card.getStyleClass().add(cardStyleClass);
+        }
+        card.setFillWidth(true);
+        return card;
+    }
+
+    private static VBox sectionBlock(String title, String cardStyleClass, Node... nodes) {
+        VBox block = new VBox(6, sectionLabel(title), sectionCard(cardStyleClass, nodes));
+        block.getStyleClass().add("sidebar-group");
+        block.setFillWidth(true);
+        return block;
+    }
+
     public static ScrollPane build(
         String userName,
         String userEmail,
@@ -29,7 +53,6 @@ public final class DashboardSidebarPane {
         Button summary,
         Button loans,
         Button budget,
-        Button charts,
         Button addAccount,
         Button categories,
         Button syncNow,
@@ -59,7 +82,7 @@ public final class DashboardSidebarPane {
             initials = sb.toString();
         }
 
-        Circle avatarBg = new Circle(18);
+        Circle avatarBg = new Circle(16);
         avatarBg.getStyleClass().add("sidebar-avatar-bg");
         Label avatarText = new Label(initials);
         avatarText.getStyleClass().add("sidebar-avatar-text");
@@ -78,18 +101,19 @@ public final class DashboardSidebarPane {
 
         VBox userText = new VBox(2, userNameLabel, userEmailLabel);
         userText.getStyleClass().add("sidebar-user-text");
-        HBox userRow = new HBox(10, avatar, userText);
+        HBox userRow = new HBox(8, avatar, userText);
         userRow.setAlignment(Pos.CENTER_LEFT);
         userRow.getStyleClass().add("sidebar-user-row");
 
-        VBox userBox = new VBox(4, userRow, syncStatus);
+        VBox userBox = new VBox(2, userRow, syncStatus);
         userBox.getStyleClass().add("sidebar-user");
 
-        VBox menu = new VBox(4);
+        VBox menu = new VBox(8);
         menu.getStyleClass().add("sidebar");
-        menu.setPadding(new Insets(6));
+        menu.setPadding(new Insets(10, 8, 10, 8));
         menu.setPrefWidth(300);
         menu.setMinWidth(300);
+        menu.setFillWidth(true);
 
         ImageView logo = new ImageView();
         try {
@@ -104,7 +128,7 @@ public final class DashboardSidebarPane {
         }
         logo.setPreserveRatio(true);
         logo.setSmooth(true);
-        logo.setFitWidth(48);
+        logo.setFitWidth(40);
 
         StackPane logoBadge = new StackPane(logo);
         logoBadge.getStyleClass().add("sidebar-logo-badge");
@@ -112,32 +136,36 @@ public final class DashboardSidebarPane {
         Label appName = new Label("Xpendz");
         appName.getStyleClass().add("sidebar-app-name");
 
-        HBox brandRow = new HBox(10, logoBadge, appName);
+        HBox brandRow = new HBox(8, logoBadge, appName);
         brandRow.setAlignment(Pos.CENTER);
         brandRow.setMaxWidth(Double.MAX_VALUE);
         brandRow.getStyleClass().add("sidebar-brand-row");
 
         VBox menuTop = new VBox(6, brandRow, userBox);
+        menuTop.getStyleClass().add("sidebar-top");
 
-        Label sectionMain = new Label("INICIO");
-        sectionMain.getStyleClass().addAll("text-secondary", "sidebar-section");
-        VBox navMain = new VBox(6, home, transactions, transfers);
-        navMain.getStyleClass().add("sidebar-actions");
+        home.getStyleClass().add("sidebar-primary-button");
+        summary.getStyleClass().add("sidebar-primary-button");
 
-        Label sectionMgmt = new Label("GESTIÓN");
-        sectionMgmt.getStyleClass().addAll("text-secondary", "sidebar-section");
-        VBox navMgmt = new VBox(6, budget, loans, addAccount, categories);
-        navMgmt.getStyleClass().add("sidebar-actions");
+        addAccount.getStyleClass().remove("nav-button");
+        addAccount.getStyleClass().remove("btn-primary");
+        addAccount.getStyleClass().add("btn-secondary");
+        addAccount.getStyleClass().add("sidebar-quick-action");
+        addAccount.setMinHeight(26);
 
-        Label sectionAnalysis = new Label("ANÁLISIS");
-        sectionAnalysis.getStyleClass().addAll("text-secondary", "sidebar-section");
-        VBox navAnalysis = new VBox(6, charts, summary);
-        navAnalysis.getStyleClass().add("sidebar-actions");
+        syncNow.getStyleClass().add("sidebar-system-button");
+        logout.getStyleClass().addAll("sidebar-system-button", "sidebar-system-danger");
+        exit.getStyleClass().addAll("sidebar-system-button", "sidebar-system-danger");
 
-        Label sectionSystem = new Label("SISTEMA");
-        sectionSystem.getStyleClass().addAll("text-secondary", "sidebar-section");
-        VBox navSystem = new VBox(6, syncNow, logout, exit);
-        navSystem.getStyleClass().add("sidebar-actions");
+        VBox navMain = sectionBlock("PRINCIPAL", "sidebar-primary-card", home, summary);
+        VBox navQuick = sectionBlock("ACCIÓN RÁPIDA", "sidebar-quick-card", addAccount);
+
+        Button[] movementButtons = {transactions, transfers};
+        VBox navMovements = sectionBlock("MOVIMIENTOS", "sidebar-nav-card", movementButtons);
+
+        VBox navMgmt = sectionBlock("ORGANIZACIÓN", "sidebar-nav-card", categories, budget, loans);
+
+        VBox navSystem = sectionBlock("SISTEMA", "sidebar-system-card", syncNow, logout, exit);
 
         Label footerCopyright = new Label("© " + java.time.Year.now().getValue() + " Xpendz");
         footerCopyright.getStyleClass().add("sidebar-footer-text");
@@ -167,11 +195,9 @@ public final class DashboardSidebarPane {
         menu.getChildren().addAll(
             menuTop,
             navMain,
-            sectionMgmt,
+            navQuick,
+            navMovements,
             navMgmt,
-            sectionAnalysis,
-            navAnalysis,
-            sectionSystem,
             navSystem,
             spacer,
             footer

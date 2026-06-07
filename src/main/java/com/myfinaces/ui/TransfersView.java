@@ -1218,7 +1218,7 @@ public final class TransfersView {
                 } catch (Exception ignored) {
                 }
 
-                long occurredAt = d.atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+                long occurredAt = d.atTime(LocalTime.now().withNano(0)).atZone(ZoneId.systemDefault()).toEpochSecond();
                 String note = descField.getText() == null ? null : descField.getText().trim();
                 if (note != null && note.isBlank()) {
                     note = null;
@@ -1930,7 +1930,11 @@ public final class TransfersView {
                 } catch (Exception ignored) {
                 }
 
-                long occurredAt = d.atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+                LocalTime existingTime = Instant.ofEpochSecond(existing.occurredAtEpochSec())
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalTime()
+                    .withNano(0);
+                long occurredAt = d.atTime(existingTime).atZone(ZoneId.systemDefault()).toEpochSecond();
                 String note = descField.getText() == null ? null : descField.getText().trim();
                 if (note != null && note.isBlank()) {
                     note = null;
@@ -1968,6 +1972,9 @@ public final class TransfersView {
 
         VBox rootBox = new VBox(titleBar, content, footer);
         rootBox.getStyleClass().add("modal-root");
+        if (darkTheme) {
+            rootBox.getStyleClass().add("dark");
+        }
 
         Scene scene = new Scene(rootBox, 480, Region.USE_COMPUTED_SIZE);
         java.net.URL cssUrl = TransfersView.class.getResource("/styles/transfers.css");

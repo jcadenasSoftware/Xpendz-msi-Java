@@ -665,6 +665,9 @@
     -fx-font-size: 13px;
     -fx-font-weight: 600;
 }
+.modal-root.dark .modal-date-picker .text-field {
+    -fx-text-fill: #E5E7EB;
+}
 .modal-date-picker .arrow-button {
     -fx-background-color: transparent;
     -fx-padding: 0 4 0 8;

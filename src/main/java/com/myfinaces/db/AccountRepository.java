@@ -405,7 +405,7 @@ public final class AccountRepository {
             "    WHEN kind = 'EXPENSE' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_LENT_OUT' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_LENT_TOPUP' THEN -amount_cents " +
-            "    WHEN kind = 'LOAN_LENT_CORRECTION' THEN amount_cents " +
+            "    WHEN kind = 'LOAN_LENT_CORRECTION' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_LENT_CORRECTION_IN' THEN amount_cents " +
             "    WHEN kind = 'LOAN_LENT_CORRECTION_OUT' THEN -amount_cents " +
             "    WHEN kind = 'LOAN_BORROWED_CORRECTION_IN' THEN amount_cents " +
@@ -433,3 +433,4 @@ public final class AccountRepository {
         }
     }
 }
+

@@ -18,6 +18,23 @@ public final class TransactionRepository {
         this.db = db;
     }
 
+    private static List<String> expandedReportKinds(String kind) {
+        if (kind == null) {
+            return List.of();
+        }
+        String k = kind.trim().toUpperCase();
+        if (k.isBlank()) {
+            return List.of();
+        }
+        if ("INCOME".equals(k)) {
+            return List.of("INCOME", "LOAN_BORROWED_IN", "LOAN_REPAYMENT_PRINCIPAL_IN");
+        }
+        if ("EXPENSE".equals(k)) {
+            return List.of("EXPENSE", "LOAN_LENT_OUT", "LOAN_REPAYMENT_PRINCIPAL_OUT");
+        }
+        return List.of(k);
+    }
+
     public record TransactionRow(
         String id,
         String userUid,
@@ -86,7 +103,8 @@ public final class TransactionRepository {
         Objects.requireNonNull(categoryId, "categoryId");
 
         int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
-        boolean hasKind = kind != null && !kind.isBlank();
+        List<String> kinds = expandedReportKinds(kind);
+        boolean hasKinds = !kinds.isEmpty();
 
         StringBuilder sql = new StringBuilder(
             "SELECT DISTINCT t.account_id AS account_id " +
@@ -95,8 +113,15 @@ public final class TransactionRepository {
             "  AND CAST(strftime('%Y', t.occurred_at_epoch_sec, 'unixepoch', 'localtime') AS INTEGER) = ? " +
             "  AND t.category_id = ?"
         );
-        if (hasKind) {
-            sql.append(" AND t.kind = ?");
+        if (hasKinds) {
+            sql.append(" AND t.kind IN (");
+            for (int i = 0; i < kinds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+            }
+            sql.append(")");
         }
         sql.append(" ORDER BY account_id ASC");
 
@@ -105,8 +130,10 @@ public final class TransactionRepository {
             ps.setString(idx++, userUid);
             ps.setInt(idx++, y);
             ps.setString(idx++, categoryId);
-            if (hasKind) {
-                ps.setString(idx++, kind);
+            if (hasKinds) {
+                for (String reportKind : kinds) {
+                    ps.setString(idx++, reportKind);
+                }
             }
 
             List<String> out = new ArrayList<>();
@@ -595,7 +622,8 @@ public final class TransactionRepository {
         Objects.requireNonNull(userUid, "userUid");
 
         int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
-        boolean hasKind = kind != null && !kind.isBlank();
+        List<String> kinds = expandedReportKinds(kind);
+        boolean hasKinds = !kinds.isEmpty();
 
         StringBuilder sql = new StringBuilder(
             "WITH RECURSIVE cat_root(id, root_id, root_name) AS (" +
@@ -624,9 +652,16 @@ public final class TransactionRepository {
             sql.append(" AND t.account_id = ?");
             args.add(accountId);
         }
-        if (hasKind) {
-            sql.append(" AND t.kind = ?");
-            args.add(kind);
+        if (hasKinds) {
+            sql.append(" AND t.kind IN (");
+            for (int i = 0; i < kinds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+            }
+            sql.append(")");
+            args.addAll(kinds);
         }
 
         sql.append(" GROUP BY cr.root_id, cr.root_name, month ORDER BY cr.root_name ASC, month ASC");
@@ -668,7 +703,8 @@ public final class TransactionRepository {
         Objects.requireNonNull(userUid, "userUid");
 
         int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
-        boolean hasKind = kind != null && !kind.isBlank();
+        List<String> kinds = expandedReportKinds(kind);
+        boolean hasKinds = !kinds.isEmpty();
 
         StringBuilder sql = new StringBuilder(
             "WITH RECURSIVE cat_root(id, root_id, root_name) AS (" +
@@ -702,9 +738,16 @@ public final class TransactionRepository {
             sql.append(" AND t.account_id = ?");
             args.add(accountId);
         }
-        if (hasKind) {
-            sql.append(" AND t.kind = ?");
-            args.add(kind);
+        if (hasKinds) {
+            sql.append(" AND t.kind IN (");
+            for (int i = 0; i < kinds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+            }
+            sql.append(")");
+            args.addAll(kinds);
         }
 
         sql.append(" GROUP BY cr.root_id, cr.root_name, category_id, category_name, month " +
@@ -748,7 +791,8 @@ public final class TransactionRepository {
         Objects.requireNonNull(userUid, "userUid");
 
         int y = year <= 0 ? java.time.LocalDate.now().getYear() : year;
-        boolean hasKind = kind != null && !kind.isBlank();
+        List<String> kinds = expandedReportKinds(kind);
+        boolean hasKinds = !kinds.isEmpty();
 
         StringBuilder sql = new StringBuilder(
             "WITH RECURSIVE cat_root(id, root_id, root_name) AS (" +
@@ -780,9 +824,16 @@ public final class TransactionRepository {
         args.add(userUid);
         args.add(y);
 
-        if (hasKind) {
-            sql.append(" AND t.kind = ?");
-            args.add(kind);
+        if (hasKinds) {
+            sql.append(" AND t.kind IN (");
+            for (int i = 0; i < kinds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+            }
+            sql.append(")");
+            args.addAll(kinds);
         }
 
         sql.append(

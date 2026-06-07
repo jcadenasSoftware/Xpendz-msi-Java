@@ -128,6 +128,40 @@ public final class LoanRepository {
         }
     }
 
+    public List<Loan> listAllByUser(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        String sql =
+            "SELECT id, user_uid, type, counterparty_name, account_id, principal_cents, currency, status, notes, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loans WHERE user_uid = ? ORDER BY updated_at_epoch_sec DESC, created_at_epoch_sec DESC";
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, userUid);
+
+            List<Loan> out = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Loan(
+                        rs.getString("id"),
+                        rs.getString("user_uid"),
+                        rs.getString("type"),
+                        rs.getString("counterparty_name"),
+                        rs.getString("account_id"),
+                        rs.getLong("principal_cents"),
+                        rs.getString("currency"),
+                        rs.getString("status"),
+                        rs.getString("notes"),
+                        rs.getLong("occurred_at_epoch_sec"),
+                        rs.getLong("created_at_epoch_sec"),
+                        rs.getLong("updated_at_epoch_sec"),
+                        rs.getString("updated_by")
+                    ));
+                }
+            }
+            return out;
+        }
+    }
+
     public Loan getByIdOrNull(String userUid, String loanId) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(loanId, "loanId");

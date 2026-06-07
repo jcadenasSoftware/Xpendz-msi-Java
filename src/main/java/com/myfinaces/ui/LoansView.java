@@ -2602,6 +2602,7 @@ public final class LoansView {
             if (loan == null) return;
 
             List<LoanMovementRepository.LoanMovement> movements = loanService.listMovements(userUid, loanId);
+            movements.sort((a, b) -> Long.compare(b.occurredAtEpochSec(), a.occurredAtEpochSec()));
 
             long paidCents = loanService.getPaidCents(userUid, loanId);
             long pendingCents = loan.principalCents() - paidCents;

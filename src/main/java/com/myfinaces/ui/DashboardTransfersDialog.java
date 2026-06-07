@@ -24,6 +24,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.Scene;
+import javafx.stage.PopupWindow;
+import javafx.stage.Window;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -462,10 +465,72 @@ public final class DashboardTransfersDialog {
         dialog.setTitle("Nueva transferencia");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         UiDialogs.applyAppTheme(dialog, darkTheme);
+        if (!dialog.getDialogPane().getStyleClass().contains("new-tx-dialog")) {
+            dialog.getDialogPane().getStyleClass().add("new-tx-dialog");
+        }
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().setHeader(null);
+        dialog.getDialogPane().setPadding(Insets.EMPTY);
         dialog.getDialogPane().setMinWidth(620);
         dialog.getDialogPane().setPrefWidth(620);
 
+        BorderPane header = new BorderPane();
+        header.getStyleClass().add("new-tx-header");
+        header.setStyle(darkTheme
+            ? "-fx-background-color: #0F172A; -fx-padding: 12 16 12 16; -fx-border-color: rgba(255, 255, 255, 0.08); -fx-border-width: 0 0 1 0;"
+            : "-fx-background-color: white; -fx-padding: 12 16 12 16; -fx-border-color: rgba(15, 23, 42, 0.08); -fx-border-width: 0 0 1 0;");
+
+        Label headerTitle = new Label("Nueva transferencia");
+        headerTitle.getStyleClass().add("new-tx-title");
+        headerTitle.setStyle(darkTheme
+            ? "-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: rgba(241, 245, 249, 0.96);"
+            : "-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: rgba(15, 23, 42, 0.92);");
+
+        HBox headerTitleBox = new HBox(headerTitle);
+        headerTitleBox.setAlignment(Pos.CENTER_LEFT);
+        headerTitleBox.getStyleClass().add("new-tx-title-box");
+
+        Button closeBtn = new Button();
+        closeBtn.getStyleClass().add("new-tx-close");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-background-radius: 10; -fx-min-width: 34; -fx-min-height: 34; -fx-padding: 0; -fx-cursor: hand;");
+        org.kordamp.ikonli.javafx.FontIcon closeIcon = new org.kordamp.ikonli.javafx.FontIcon("fas-times");
+        closeIcon.getStyleClass().add("new-tx-close-icon");
+        closeIcon.setStyle(darkTheme ? "-fx-fill: rgba(241, 245, 249, 0.72);" : "-fx-fill: rgba(15, 23, 42, 0.55);");
+        closeBtn.setGraphic(closeIcon);
+        closeBtn.setOnAction(e -> dialog.setResult(ButtonType.CANCEL));
+
+        header.setCenter(headerTitleBox);
+        header.setRight(closeBtn);
+        BorderPane.setAlignment(headerTitleBox, Pos.CENTER);
+        BorderPane.setAlignment(closeBtn, Pos.CENTER);
+        BorderPane.setMargin(closeBtn, new Insets(0, 8, 0, 0));
+
         DatePicker date = new DatePicker(LocalDate.now());
+        date.getStyleClass().add("field-date");
+        date.setMaxWidth(Double.MAX_VALUE);
+
+        String datePickerCssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
+        var datePickerCssUrl = UiDialogs.class.getResource(datePickerCssPath);
+        String datePickerCss = datePickerCssUrl == null ? null : datePickerCssUrl.toExternalForm();
+        date.setOnShowing(ev -> {
+            if (datePickerCss == null) return;
+            Platform.runLater(() -> {
+                for (Window w : Window.getWindows()) {
+                    if (!(w instanceof PopupWindow pw)) continue;
+                    try {
+                        var sc = pw.getScene();
+                        if (sc == null || sc.getRoot() == null) continue;
+                        var rootNode = sc.getRoot();
+                        boolean isPopup = rootNode.getStyleClass().contains("date-picker-popup")
+                            || rootNode.lookup(".date-picker-popup") != null;
+                        if (!isPopup) continue;
+                        if (!sc.getStylesheets().contains(datePickerCss)) {
+                            sc.getStylesheets().add(datePickerCss);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            });
+        });
 
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
@@ -552,9 +617,10 @@ public final class DashboardTransfersDialog {
         grid.setPrefWidth(580);
 
         Label lDate = new Label("Fecha");
-        lDate.getStyleClass().add("account-name");
-        grid.add(lDate, 0, 0);
-        grid.add(date, 1, 0);
+        lDate.getStyleClass().add("field-label");
+        VBox dateBox = new VBox(4, lDate, date);
+        dateBox.setFillWidth(true);
+        grid.add(dateBox, 0, 0, 2, 1);
 
         Label lFrom = new Label("Origen");
         lFrom.getStyleClass().add("account-name");
@@ -583,7 +649,23 @@ public final class DashboardTransfersDialog {
 
         grid.add(error, 0, 6, 2, 1);
 
-        dialog.getDialogPane().setContent(grid);
+        VBox content = new VBox(12);
+        content.getStyleClass().add("new-tx-content");
+        content.setPadding(new Insets(12, 18, 12, 18));
+        content.getChildren().add(grid);
+
+        ScrollPane contentScroll = new ScrollPane(content);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.getStyleClass().add("new-tx-scroll");
+        contentScroll.setMaxHeight(420);
+        contentScroll.setPrefHeight(Region.USE_COMPUTED_SIZE);
+
+        VBox root = new VBox(header, contentScroll);
+        root.getStyleClass().add("new-tx-root");
+        root.setFillWidth(true);
+        dialog.getDialogPane().setContent(root);
         dialog.setResultConverter(btn -> btn);
         Optional<ButtonType> result = dialog.showAndWait();
         if (result.isEmpty() || result.get() != ButtonType.OK) {
@@ -625,7 +707,7 @@ public final class DashboardTransfersDialog {
         } catch (Exception ignored) {
         }
 
-        long occurredAt = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        long occurredAt = date.getValue().atTime(java.time.LocalTime.now().withNano(0)).atZone(ZoneId.systemDefault()).toEpochSecond();
         return Optional.of(new NewTransfer(
             from.getValue().id(),
             to.getValue().id(),
@@ -645,11 +727,71 @@ public final class DashboardTransfersDialog {
         dialog.setTitle("Editar transferencia");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         UiDialogs.applyAppTheme(dialog, darkTheme);
+        if (!dialog.getDialogPane().getStyleClass().contains("new-tx-dialog")) {
+            dialog.getDialogPane().getStyleClass().add("new-tx-dialog");
+        }
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().setHeader(null);
+        dialog.getDialogPane().setPadding(Insets.EMPTY);
         dialog.getDialogPane().setMinWidth(620);
         dialog.getDialogPane().setPrefWidth(620);
 
+        BorderPane header = new BorderPane();
+        header.getStyleClass().add("new-tx-header");
+        header.setStyle(darkTheme
+            ? "-fx-background-color: #0F172A; -fx-padding: 12 16 12 16; -fx-border-color: rgba(255, 255, 255, 0.08); -fx-border-width: 0 0 1 0;"
+            : "-fx-background-color: white; -fx-padding: 12 16 12 16; -fx-border-color: rgba(15, 23, 42, 0.08); -fx-border-width: 0 0 1 0;");
+
+        Label headerTitle = new Label("Editar transferencia");
+        headerTitle.getStyleClass().add("new-tx-title");
+        headerTitle.setStyle(darkTheme
+            ? "-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: rgba(241, 245, 249, 0.96);"
+            : "-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: rgba(15, 23, 42, 0.92);");
+
+        HBox headerTitleBox = new HBox(headerTitle);
+        headerTitleBox.setAlignment(Pos.CENTER_LEFT);
+        headerTitleBox.getStyleClass().add("new-tx-title-box");
+
+        Button closeBtn = new Button();
+        closeBtn.getStyleClass().add("new-tx-close");
+        org.kordamp.ikonli.javafx.FontIcon closeIcon = new org.kordamp.ikonli.javafx.FontIcon("fas-times");
+        closeIcon.getStyleClass().add("new-tx-close-icon");
+        closeBtn.setGraphic(closeIcon);
+        closeBtn.setOnAction(e -> dialog.setResult(ButtonType.CANCEL));
+
+        header.setCenter(headerTitleBox);
+        header.setRight(closeBtn);
+        BorderPane.setAlignment(headerTitleBox, Pos.CENTER);
+        BorderPane.setAlignment(closeBtn, Pos.CENTER);
+        BorderPane.setMargin(closeBtn, new Insets(0, 8, 0, 0));
+
         LocalDate existingDate = Instant.ofEpochSecond(existing.occurredAtEpochSec()).atZone(ZoneId.systemDefault()).toLocalDate();
         DatePicker date = new DatePicker(existingDate);
+        date.getStyleClass().add("field-date");
+        date.setMaxWidth(Double.MAX_VALUE);
+
+        String datePickerCssPath = darkTheme ? "/styles/dark.css" : "/styles/light.css";
+        var datePickerCssUrl = UiDialogs.class.getResource(datePickerCssPath);
+        String datePickerCss = datePickerCssUrl == null ? null : datePickerCssUrl.toExternalForm();
+        date.setOnShowing(ev -> {
+            if (datePickerCss == null) return;
+            Platform.runLater(() -> {
+                for (Window w : Window.getWindows()) {
+                    if (!(w instanceof PopupWindow pw)) continue;
+                    try {
+                        var sc = pw.getScene();
+                        if (sc == null || sc.getRoot() == null) continue;
+                        var rootNode = sc.getRoot();
+                        boolean isPopup = rootNode.getStyleClass().contains("date-picker-popup")
+                            || rootNode.lookup(".date-picker-popup") != null;
+                        if (!isPopup) continue;
+                        if (!sc.getStylesheets().contains(datePickerCss)) {
+                            sc.getStylesheets().add(datePickerCss);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            });
+        });
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
         TextField amount = new TextField(new java.math.BigDecimal(existing.amountCents()).movePointLeft(2).toPlainString());
@@ -716,9 +858,10 @@ public final class DashboardTransfersDialog {
         grid.setPrefWidth(580);
 
         Label lDate = new Label("Fecha");
-        lDate.getStyleClass().add("account-name");
-        grid.add(lDate, 0, 0);
-        grid.add(date, 1, 0);
+        lDate.getStyleClass().add("field-label");
+        VBox dateBox = new VBox(4, lDate, date);
+        dateBox.setFillWidth(true);
+        grid.add(dateBox, 0, 0, 2, 1);
 
         Label lFrom = new Label("Origen");
         lFrom.getStyleClass().add("account-name");
@@ -747,7 +890,23 @@ public final class DashboardTransfersDialog {
 
         grid.add(error, 0, 6, 2, 1);
 
-        dialog.getDialogPane().setContent(grid);
+        VBox content = new VBox(12);
+        content.getStyleClass().add("new-tx-content");
+        content.setPadding(new Insets(12, 18, 12, 18));
+        content.getChildren().add(grid);
+
+        ScrollPane contentScroll = new ScrollPane(content);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.getStyleClass().add("new-tx-scroll");
+        contentScroll.setMaxHeight(420);
+        contentScroll.setPrefHeight(Region.USE_COMPUTED_SIZE);
+
+        VBox root = new VBox(header, contentScroll);
+        root.getStyleClass().add("new-tx-root");
+        root.setFillWidth(true);
+        dialog.getDialogPane().setContent(root);
         dialog.setResultConverter(btn -> btn);
         Optional<ButtonType> result = dialog.showAndWait();
         if (result.isEmpty() || result.get() != ButtonType.OK) {
@@ -776,7 +935,11 @@ public final class DashboardTransfersDialog {
             return Optional.empty();
         }
 
-        long occurredAt = date.getValue().atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+        java.time.LocalTime existingTime = Instant.ofEpochSecond(existing.occurredAtEpochSec())
+            .atZone(ZoneId.systemDefault())
+            .toLocalTime()
+            .withNano(0);
+        long occurredAt = date.getValue().atTime(existingTime).atZone(ZoneId.systemDefault()).toEpochSecond();
         return Optional.of(new NewTransfer(
             from.getValue().id(),
             to.getValue().id(),

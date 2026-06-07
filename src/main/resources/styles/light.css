@@ -238,6 +238,49 @@
     -fx-letter-spacing: 0.6px;
 }
 
+.sidebar-top {
+    -fx-padding: 0 0 0 0;
+}
+
+.sidebar-group {
+    -fx-spacing: 4;
+}
+
+.sidebar-group-title {
+    -fx-padding: 0 2 0 4;
+}
+
+.sidebar-section-card {
+    -fx-padding: 6;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-spacing: 4;
+}
+
+.sidebar-primary-card {
+    -fx-background-color: rgba(255, 255, 255, 0.10);
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1;
+}
+
+.sidebar-nav-card {
+    -fx-background-color: rgba(255, 255, 255, 0.06);
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+}
+
+.sidebar-quick-card {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+}
+
+.sidebar-system-card {
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+}
+
 .sidebar .text-secondary {
     -fx-text-fill: rgba(255, 255, 255, 0.85);
 }
@@ -247,9 +290,9 @@
 }
 
 .sidebar .nav-button {
-    -fx-padding: 6 10 6 10;
-    -fx-min-height: 34;
-    -fx-font-size: 14px;
+    -fx-padding: 5 8 5 8;
+    -fx-min-height: 30;
+    -fx-font-size: 13px;
     -fx-text-alignment: left;
     -fx-alignment: center-left;
 }
@@ -271,6 +314,69 @@
     -fx-border-color: rgba(255, 255, 255, 0.40);
     -fx-border-width: 2;
     -fx-border-radius: 10;
+}
+
+.sidebar .sidebar-primary-button {
+    -fx-background-color: rgba(255, 255, 255, 0.16);
+    -fx-font-size: 14px;
+    -fx-font-weight: 800;
+    -fx-min-height: 34;
+    -fx-padding: 6 10 6 10;
+    -fx-background-radius: 11;
+}
+
+.sidebar .sidebar-primary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.24);
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+    -fx-border-radius: 11;
+}
+
+.sidebar .sidebar-primary-button.active {
+    -fx-background-color: rgba(255, 255, 255, 0.50);
+    -fx-border-color: rgba(255, 255, 255, 0.46);
+    -fx-border-width: 1;
+    -fx-border-radius: 11;
+}
+
+.sidebar .sidebar-quick-action {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-min-height: 26;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 9;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+}
+
+.sidebar .sidebar-quick-action:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.20);
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+}
+
+.sidebar .sidebar-system-button {
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-min-height: 24;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 9;
+}
+
+.sidebar .sidebar-system-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-border-color: rgba(255, 255, 255, 0.14);
+    -fx-border-radius: 10;
+}
+
+.sidebar .sidebar-system-danger {
+    -fx-background-color: rgba(220, 38, 38, 0.12);
+    -fx-text-fill: rgba(255, 255, 255, 0.95);
+    -fx-border-color: rgba(220, 38, 38, 0.18);
+    -fx-border-width: 1;
+}
+
+.sidebar .sidebar-system-danger:hover {
+    -fx-background-color: rgba(220, 38, 38, 0.22);
+    -fx-border-color: rgba(220, 38, 38, 0.26);
 }
 
 .sidebar .btn-secondary {

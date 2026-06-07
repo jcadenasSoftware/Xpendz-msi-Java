@@ -185,7 +185,7 @@ public final class SummaryView {
     }
 
     private static BorderPane buildHeaderContainer() {
-        Label title = new Label("Resumen");
+        Label title = new Label("Resumen financiero");
         title.getStyleClass().add("tx-header-title");
 
         Label subtitle = new Label("Centro financiero y analítica (en preparación)");

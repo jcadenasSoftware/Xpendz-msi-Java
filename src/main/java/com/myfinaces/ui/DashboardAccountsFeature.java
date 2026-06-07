@@ -462,8 +462,8 @@ public final class DashboardAccountsFeature {
                             signed = "EXPENSE".equalsIgnoreCase(t.kind()) ? -t.amountCents() : t.amountCents();
                             cur = accountCurrency.getOrDefault(t.accountId(), existing.currency());
                             String catNameDisplay = (t.categoryName() != null && !t.categoryName().isBlank()) ? t.categoryName() : "Movimiento";
-                            titleText = catNameDisplay;
-                            String rawNote = (t.note() != null && !t.note().isBlank()) ? t.note() : "";
+                            titleText = DashboardFormatters.formatTransactionDisplayText(t.kind(), t.note(), catNameDisplay);
+                            String rawNote = (t.note() != null && !t.note().isBlank()) ? t.note().trim() : "";
                             noteText = rawNote.isEmpty() ? catNameDisplay : rawNote;
                             iconLiteral = "fas-hand-holding-usd";
                         } else if (it.tr != null) {

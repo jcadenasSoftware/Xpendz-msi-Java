@@ -401,7 +401,7 @@ public final class DashboardView {
         summary.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(summary, new FontIcon("fas-clipboard-list"));
         summary.setOnAction(e -> {
-            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, goalRepo, darkTheme::get, refreshBalances, sideDrawer);
+            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, budgetRepo, goalRepo, loanRepo, loanPaymentRepo, darkTheme::get, refreshBalances, sideDrawer);
             contentHost.getChildren().setAll(summaryPane);
         });
 
@@ -492,7 +492,7 @@ public final class DashboardView {
 
         summary.setOnAction(e -> {
             setActiveButton.accept(summary);
-            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, goalRepo, darkTheme::get, refreshBalances, sideDrawer);
+            Node summaryPane = SummaryView.buildSummaryView(session, txRepo, accountRepo, categoryRepo, budgetRepo, goalRepo, loanRepo, loanPaymentRepo, darkTheme::get, refreshBalances, sideDrawer);
             contentHost.getChildren().setAll(summaryPane);
         });
 

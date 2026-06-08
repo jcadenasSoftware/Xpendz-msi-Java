@@ -50,7 +50,7 @@ public final class SideDrawer {
     //  D E S I G N   T O K E N S
     // ══════════════════════════════════════════════════════════════════
 
-    private static final double DRAWER_WIDTH = 460;
+    private static final double DRAWER_WIDTH = 400;
     private static final Duration ANIM_IN = Duration.millis(280);
     private static final Duration ANIM_OUT = Duration.millis(200);
 

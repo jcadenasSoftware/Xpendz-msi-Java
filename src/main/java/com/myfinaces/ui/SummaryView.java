@@ -2,9 +2,13 @@ package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.db.AccountRepository;
+import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanPaymentRepository;
+import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
+import com.myfinaces.service.pdf.ReportPdfService;
 import javafx.application.Platform;
 import javafx.event.EventHandler;
 import java.net.URL;
@@ -72,14 +76,21 @@ public final class SummaryView {
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
+        BudgetRepository budgetRepo,
         GoalRepository goalRepo,
+        LoanRepository loanRepo,
+        LoanPaymentRepository loanPaymentRepo,
         BooleanSupplier darkTheme,
         Runnable refreshBalances,
         SideDrawer sideDrawer
     ) {
         String userUid = session.uid();
+        String userName = session.displayName() == null || session.displayName().isBlank() ? session.email() : session.displayName();
 
         SummaryInsightDrawer insightDrawer = new SummaryInsightDrawer(sideDrawer, txRepo, darkTheme);
+        ReportPdfService reportPdfService = new ReportPdfService(txRepo, accountRepo, categoryRepo, budgetRepo, loanRepo, loanPaymentRepo, goalRepo);
+        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef = new AtomicReference<>();
+        SummaryPdfDrawer pdfDrawer = new SummaryPdfDrawer(sideDrawer, darkTheme, reportPdfService, reportContextRef::get);
 
         VBox root = new VBox(0);
         root.setPadding(new Insets(20));
@@ -101,7 +112,7 @@ public final class SummaryView {
         Node insightsSection = SummarySectionContainer.buildWithSpacing(SummaryInsightsSection.build(userUid, txRepo, categoryRepo), 16);
         Node chartsSection = SummarySectionContainer.buildWithSpacing(SummaryTrendsSection.build(userUid, txRepo, categoryRepo), 16);
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp = viewSwitcher.selectedViewProperty();
-        AnalysisParts analysisParts = buildAnalysisSection(userUid, txRepo, accountRepo, categoryRepo, goalRepo, refreshBalances, viewModeProp, insightDrawer);
+        AnalysisParts analysisParts = buildAnalysisSection(userUid, userName, txRepo, accountRepo, categoryRepo, goalRepo, refreshBalances, viewModeProp, insightDrawer, pdfDrawer, reportContextRef);
 
         // Create compact versions for different views
         Node compactChartsSection = SummarySectionContainer.buildWithSpacing(buildCompactChartsSection(userUid, txRepo), 12);
@@ -311,18 +322,21 @@ public final class SummaryView {
 
     private static AnalysisParts buildAnalysisSection(
         String userUid,
+        String userName,
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
         GoalRepository goalRepo,
         Runnable refreshBalances,
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp,
-        SummaryInsightDrawer insightDrawer
+        SummaryInsightDrawer insightDrawer,
+        SummaryPdfDrawer pdfDrawer,
+        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef
     ) {
         Label sectionTitle = new Label("Análisis");
         sectionTitle.getStyleClass().add("account-name");
 
-        MonthlySummaryParts parts = buildMonthlySummaryPane(userUid, txRepo, accountRepo, categoryRepo, viewModeProp, insightDrawer);
+        MonthlySummaryParts parts = buildMonthlySummaryPane(userUid, userName, txRepo, accountRepo, categoryRepo, viewModeProp, insightDrawer, pdfDrawer, reportContextRef);
         Node goalsPane = buildGoalsPane(userUid, accountRepo, goalRepo, refreshBalances);
 
         return new AnalysisParts(sectionTitle, parts.filtersRow(), parts.tablesCard(), goalsPane);
@@ -330,11 +344,14 @@ public final class SummaryView {
 
     private static MonthlySummaryParts buildMonthlySummaryPane(
         String userUid,
+        String userName,
         TransactionRepository txRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp,
-        SummaryInsightDrawer insightDrawer
+        SummaryInsightDrawer insightDrawer,
+        SummaryPdfDrawer pdfDrawer,
+        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef
     ) {
         ComboBox<Integer> year = new ComboBox<>();
         ComboBox<String> kind = new ComboBox<>();
@@ -639,17 +656,6 @@ public final class SummaryView {
         filtersCard.setMinWidth(0);
         HBox.setHgrow(filtersCard, Priority.ALWAYS);
 
-        Button toggleFilters = new Button("Ocultar filtros");
-        toggleFilters.getStyleClass().add("summary-action-btn");
-        toggleFilters.getStyleClass().add("summary-action-btn-primary");
-        toggleFilters.setMaxWidth(Double.MAX_VALUE);
-        toggleFilters.setOnAction(e -> {
-            boolean show = !filtersCard.isVisible();
-            filtersCard.setVisible(show);
-            filtersCard.setManaged(show);
-            toggleFilters.setText(show ? "Ocultar filtros" : "Mostrar filtros");
-        });
-
         SummaryFinancialTable.Parts tableParts = SummaryFinancialTable.create();
         GridPane fixedTable = tableParts.fixedTable();
         GridPane monthsTable = tableParts.monthsTable();
@@ -677,7 +683,19 @@ public final class SummaryView {
             int currentMonth = LocalDate.now().getMonthValue();
             AccountRepository.Account a = account.getValue();
             String accountId = a == null ? null : a.id();
-            String currencyCode = "COP";
+            String currencyCode = a == null || a.currency() == null || a.currency().isBlank() ? "COP" : a.currency();
+            CategoryRepository.Category rootFilter = rootCategory.getValue();
+            SummaryPdfDrawer.ReportContext reportContext = new SummaryPdfDrawer.ReportContext(
+                userUid,
+                userName,
+                currencyCode,
+                y,
+                accountId,
+                k,
+                rootFilter == null ? null : rootFilter.id(),
+                new HashSet<>(selectedSubIds)
+            );
+            reportContextRef.set(reportContext);
 
             if (viewModeProp != null && viewModeProp.get() == SummaryViewSwitcher.ViewMode.HEATMAP) {
                 Node heatmap = SummaryHeatmapView.build(userUid, txRepo, y, k, a, currencyCode, (sel) -> {
@@ -744,7 +762,6 @@ public final class SummaryView {
 
             List<List<String>> exportRows = new ArrayList<>();
 
-            CategoryRepository.Category rootFilter = rootCategory.getValue();
             Set<String> subFilterIds = bySubcategory ? new HashSet<>(selectedSubIds) : Set.of();
 
             List<CategoryRepository.Category> roots;
@@ -1642,8 +1659,9 @@ public final class SummaryView {
         exportPdf.getStyleClass().add("summary-action-btn");
         exportPdf.getStyleClass().add("summary-action-btn-primary");
         exportPdf.setMaxWidth(Double.MAX_VALUE);
+        exportPdf.setOnAction(e -> pdfDrawer.show());
 
-        VBox actionsRow = new VBox(8, toggleFilters, exportCsv, exportPdf);
+        VBox actionsRow = new VBox(8, exportCsv, exportPdf);
         actionsRow.getStyleClass().add("summary-actions-row");
         actionsRow.setAlignment(Pos.CENTER_RIGHT);
         actionsRow.setMaxWidth(Double.MAX_VALUE);

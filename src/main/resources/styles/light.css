@@ -2206,28 +2206,30 @@
 }
 
 .summary-action-btn.button {
-    -fx-background-color: rgba(255, 255, 255, 0.92);
-    -fx-background-radius: 10;
-    -fx-border-color: rgba(15, 23, 42, 0.12);
-    -fx-border-radius: 10;
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 8;
     -fx-border-width: 1;
-    -fx-text-fill: rgba(15, 23, 42, 0.78);
-    -fx-font-size: 12px;
+    -fx-text-fill: rgba(15, 23, 42, 0.85);
+    -fx-font-size: 13px;
     -fx-font-weight: 600;
-    -fx-padding: 8 12;
-    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.06), 10, 0.12, 0, 2);
+    -fx-padding: 10 14;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.04), 8, 0.08, 0, 1);
 }
 
 .summary-action-btn.button:hover {
-    -fx-background-color: rgba(37, 99, 235, 0.06);
-    -fx-border-color: rgba(37, 99, 235, 0.18);
+    -fx-background-color: rgba(37, 99, 235, 0.04);
+    -fx-border-color: rgba(37, 99, 235, 0.12);
+    -fx-text-fill: rgba(15, 23, 42, 0.95);
 }
 
 .summary-action-btn-primary.button {
     -fx-background-color: #2563EB;
-    -fx-border-color: #1D4ED8;
+    -fx-border-color: #2563EB;
     -fx-text-fill: #FFFFFF;
-    -fx-font-weight: 800;
+    -fx-font-weight: 700;
+    -fx-padding: 10 16;
 }
 
 .summary-action-btn-primary.button .text {
@@ -2236,12 +2238,12 @@
 
 .summary-action-btn-primary.button:hover {
     -fx-background-color: #1D4ED8;
-    -fx-border-color: #1E40AF;
+    -fx-border-color: #1D4ED8;
 }
 
 .summary-action-btn-primary.button:pressed {
     -fx-background-color: #1E40AF;
-    -fx-border-color: #1E3A8A;
+    -fx-border-color: #1E40AF;
 }
 
 .summary-filters-card {
@@ -3508,13 +3510,175 @@
 
 .sid-avatar {
     -fx-background-color: rgba(37, 99, 235, 0.10);
-    -fx-background-radius: 999;
+    -fx-background-radius: 50%;
     -fx-border-color: rgba(37, 99, 235, 0.18);
-    -fx-border-radius: 999;
+    -fx-border-radius: 50%;
 }
 
 .sid-avatar-icon {
     -fx-icon-color: rgba(37, 99, 235, 0.90);
+}
+
+.sid-pdf-icon {
+    -fx-icon-color: #EF4444;
+}
+
+.sid-card-title {
+    -fx-font-size: 13.5px;
+    -fx-font-weight: 700;
+    -fx-text-fill: rgba(15, 23, 42, 0.92);
+}
+
+.sid-card-desc {
+    -fx-font-size: 11px;
+    -fx-font-weight: 400;
+    -fx-text-fill: rgba(15, 23, 42, 0.62);
+}
+
+.sid-report-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(15, 23, 42, 0.08);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.04), 8, 0.08, 0, 1);
+}
+
+.sid-report-card:hover {
+    -fx-background-color: rgba(37, 99, 235, 0.03);
+    -fx-border-color: rgba(37, 99, 235, 0.15);
+}
+
+.sid-card-btn {
+    -fx-background-color: rgba(255, 255, 255, 0.98);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(37, 99, 235, 0.16);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-text-fill: #2563EB;
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-padding: 7 14;
+    -fx-alignment: center;
+}
+
+.sid-card-btn:hover {
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+    -fx-border-color: rgba(37, 99, 235, 0.28);
+}
+
+.sid-report-status {
+    -fx-background-color: rgba(37, 99, 235, 0.04);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(37, 99, 235, 0.12);
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+}
+
+.sid-report-status-shell {
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.08), 16, 0.18, 0, 2);
+}
+
+.sid-report-status-header {
+    -fx-padding: 0 0 2 0;
+}
+
+.sid-report-status-summary {
+    -fx-padding: 2 0 0 0;
+}
+
+.sid-report-status-chip {
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-font-size: 10px;
+    -fx-font-weight: 800;
+    -fx-padding: 4 10;
+}
+
+.sid-report-status-chip-idle {
+    -fx-background-color: rgba(37, 99, 235, 0.10);
+    -fx-border-color: rgba(37, 99, 235, 0.16);
+    -fx-text-fill: #2563EB;
+}
+
+.sid-report-status-chip-loading {
+    -fx-background-color: rgba(37, 99, 235, 0.14);
+    -fx-border-color: rgba(37, 99, 235, 0.26);
+    -fx-text-fill: #1D4ED8;
+}
+
+.sid-report-status-chip-success {
+    -fx-background-color: rgba(22, 163, 74, 0.14);
+    -fx-border-color: rgba(22, 163, 74, 0.26);
+    -fx-text-fill: #15803D;
+}
+
+.sid-report-status-chip-error {
+    -fx-background-color: rgba(220, 38, 38, 0.14);
+    -fx-border-color: rgba(220, 38, 38, 0.26);
+    -fx-text-fill: #B91C1C;
+}
+
+.sid-report-status-message-box {
+    -fx-background-color: rgba(255, 255, 255, 0.78);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(37, 99, 235, 0.10);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 10 12;
+}
+
+.sid-report-status-loading .sid-report-status-message-box {
+    -fx-background-color: rgba(37, 99, 235, 0.06);
+    -fx-border-color: rgba(37, 99, 235, 0.16);
+}
+
+.sid-report-status-success .sid-report-status-message-box {
+    -fx-background-color: rgba(22, 163, 74, 0.06);
+    -fx-border-color: rgba(22, 163, 74, 0.16);
+}
+
+.sid-report-status-error .sid-report-status-message-box {
+    -fx-background-color: rgba(220, 38, 38, 0.06);
+    -fx-border-color: rgba(220, 38, 38, 0.16);
+}
+
+.sid-status-action-btn {
+    -fx-background-color: linear-gradient(to bottom right, #2563EB, #1D4ED8);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(37, 99, 235, 0.18);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-padding: 9 14;
+}
+
+.sid-status-action-btn:hover {
+    -fx-background-color: linear-gradient(to bottom right, #1D4ED8, #1E40AF);
+    -fx-border-color: rgba(37, 99, 235, 0.30);
+}
+
+.sid-report-status-loading {
+    -fx-background-color: rgba(37, 99, 235, 0.06);
+    -fx-border-color: rgba(37, 99, 235, 0.22);
+}
+
+.sid-report-status-success {
+    -fx-background-color: rgba(22, 163, 74, 0.06);
+    -fx-border-color: rgba(22, 163, 74, 0.22);
+}
+
+.sid-report-status-error {
+    -fx-background-color: rgba(220, 38, 38, 0.06);
+    -fx-border-color: rgba(220, 38, 38, 0.22);
+}
+
+.sid-report-status-message {
+    -fx-font-size: 11px;
+    -fx-text-fill: rgba(15, 23, 42, 0.68);
 }
 
 .sid-variation-badge {
@@ -3557,6 +3721,39 @@
     -fx-background-radius: 10;
     -fx-border-color: rgba(37, 99, 235, 0.12);
     -fx-border-radius: 10;
+}
+
+.sid-report-badge {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-alignment: center;
+}
+
+.sid-report-badge-transactions {
+    -fx-background-color: linear-gradient(to bottom right, #2F6BFF, #1D4ED8);
+    -fx-border-color: rgba(37, 99, 235, 0.18);
+}
+
+.sid-report-badge-balance {
+    -fx-background-color: linear-gradient(to bottom right, #2DD4A6, #10B981);
+    -fx-border-color: rgba(16, 185, 129, 0.18);
+}
+
+.sid-report-badge-monthly {
+    -fx-background-color: linear-gradient(to bottom right, #F472B6, #EC4899);
+    -fx-border-color: rgba(236, 72, 153, 0.18);
+}
+
+.sid-report-icon {
+    -fx-icon-color: #FFFFFF;
+}
+
+.sid-quick-section-title {
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 900;
+    -fx-text-fill: rgba(15, 23, 42, 0.58);
+    -fx-padding: 2 0 4 2;
+    -fx-letter-spacing: 0.8px;
 }
 
 .sid-quick-icon {

@@ -209,7 +209,7 @@ if (Test-Path $cfgDir) {
 $distDir = Join-Path $projectDir 'dist'
 if (!(Test-Path $distDir)) { New-Item -ItemType Directory -Path $distDir | Out-Null }
 
-$iconPath = Join-Path $projectDir 'build-resources\app.ico'
+$iconPath = Join-Path $projectDir 'build-resources\xpendz.ico'
 $iconArgs = @()
 if (Test-Path $iconPath) {
     $iconArgs = @('--icon', $iconPath)

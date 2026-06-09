@@ -171,7 +171,7 @@ $appVer = $ver
 if (![string]::IsNullOrWhiteSpace($AppVersionOverride)) {
     $appVer = $AppVersionOverride.Trim()
 }
-Write-Host "Building Mis Finanzas version $appVer" -ForegroundColor Cyan
+Write-Host "Building Xpendz version $appVer" -ForegroundColor Cyan
 
 # Build jar + copy dependencies to target/lib + copy config to target/config
 # If Maven is not available in PATH, build from NetBeans first (Clean and Build),
@@ -237,7 +237,7 @@ try {
 $jpackageArgs = @(
     '--type', 'msi',
     '--dest', $distDir,
-    '--name', 'MisFinanzas',
+    '--name', 'Xpendz',
     '--app-version', $appVer,
     '--vendor', 'JCadenas Software',
     '--input', $jpIn,
@@ -279,9 +279,9 @@ Write-Host "Running jpackage..." -ForegroundColor Cyan
 $jpackageCmd = Resolve-JPackageCmd
 & $jpackageCmd @jpackageArgs
 
-$expected = Join-Path $distDir ("MisFinanzas-$appVer.msi")
+$expected = Join-Path $distDir ("Xpendz-$appVer.msi")
 if (!(Test-Path $expected)) {
-    $latest = Get-ChildItem -Path $distDir -Filter 'MisFinanzas-*.msi' -File -ErrorAction SilentlyContinue |
+    $latest = Get-ChildItem -Path $distDir -Filter 'Xpendz-*.msi' -File -ErrorAction SilentlyContinue |
         Sort-Object -Property LastWriteTime -Descending |
         Select-Object -First 1
     if ($null -ne $latest) {

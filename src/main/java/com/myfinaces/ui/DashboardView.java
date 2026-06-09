@@ -619,44 +619,36 @@ public final class DashboardView {
         };
 
         logout.setOnAction(e -> {
-            Alert confirm = buildAlert(
-                AlertType.CONFIRMATION,
+            ModernDialogs.action(
                 "Cerrar sesión",
-                "¿Cerrar sesión?",
                 "Se guardarán tus cambios antes de cerrar sesión.",
-                darkTheme.get(),
-                "fas-sign-out-alt"
+                "Cerrar sesión",
+                () -> {
+                    flushAndThen.accept(() -> {
+                        shutdownSyncScheduler.run();
+                        listener.onLogout();
+                    });
+                },
+                ModernDialog.DialogType.INFO,
+                darkTheme::get
             );
-            confirm.showAndWait().ifPresent(btn -> {
-                if (btn != ButtonType.OK) {
-                    return;
-                }
-                flushAndThen.accept(() -> {
-                    shutdownSyncScheduler.run();
-                    listener.onLogout();
-                });
-            });
         });
 
         exit.setOnAction(e -> {
-            Alert confirm = buildAlert(
-                AlertType.CONFIRMATION,
-                "Salir",
-                "¿Salir de la aplicación?",
+            ModernDialogs.action(
+                "Salir de la aplicación",
                 "Se guardarán tus cambios antes de salir.",
-                darkTheme.get(),
-                "fas-power-off"
+                "Salir",
+                () -> {
+                    flushAndThen.accept(() -> {
+                        shutdownSyncScheduler.run();
+                        Platform.exit();
+                        System.exit(0);
+                    });
+                },
+                ModernDialog.DialogType.DANGER,
+                darkTheme::get
             );
-            confirm.showAndWait().ifPresent(btn -> {
-                if (btn != ButtonType.OK) {
-                    return;
-                }
-                flushAndThen.accept(() -> {
-                    shutdownSyncScheduler.run();
-                    Platform.exit();
-                    System.exit(0);
-                });
-            });
         });
 
         autoSyncRef.set(scheduler.scheduleAtFixedRate(() -> {
@@ -1309,31 +1301,28 @@ public final class DashboardView {
                 } else if (res.get().action() == DashboardAccountsFeature.EditAccountAction.VIEW_SUMMARY) {
                     DashboardAccountsFeature.showAccountSummaryDialog(session.uid(), a, txRepo, transferRepo, accountRepo, isDarkNow);
                 } else if (res.get().action() == DashboardAccountsFeature.EditAccountAction.DELETE) {
-                    Alert confirm = buildAlert(
-                        AlertType.CONFIRMATION,
+                    ModernDialogs.action(
                         "Eliminar cuenta",
-                        "¿Eliminar cuenta?",
                         "Esta acción también eliminará sus transacciones y transferencias asociadas.",
-                        isDarkNow
-                    );
-                    confirm.showAndWait().ifPresent(btn -> {
-                        if (btn != ButtonType.OK) {
-                            return;
-                        }
-                        try {
-                            accountRepo.delete(session.uid(), a.id());
+                        "Eliminar",
+                        () -> {
                             try {
-                                AppConfig cfg = AppConfig.loadDefault();
-                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                                sync.deleteAccount(session, a.id());
+                                accountRepo.delete(session.uid(), a.id());
+                                try {
+                                    AppConfig cfg = AppConfig.loadDefault();
+                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                    sync.deleteAccount(session, a.id());
+                                } catch (Exception ignored) {
+                                }
+                                if (refreshAll != null) {
+                                    refreshAll.run();
+                                }
                             } catch (Exception ignored) {
                             }
-                            if (refreshAll != null) {
-                                refreshAll.run();
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    });
+                        },
+                        ModernDialog.DialogType.DANGER,
+                        () -> isDarkNow
+                    );
                 }
             } catch (IllegalStateException ex) {
                 if ("account_has_movements".equals(ex.getMessage())) {

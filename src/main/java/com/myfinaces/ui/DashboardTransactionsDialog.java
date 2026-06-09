@@ -763,15 +763,7 @@ public final class DashboardTransactionsDialog {
                 };
 
                 Runnable doDelete = () -> {
-                    Dialog<ButtonType> confirm = new Dialog<>();
-                    confirm.setTitle("Eliminar");
-                    UiDialogs.applyAppTheme(confirm, darkTheme);
-                    confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-                    confirm.setContentText("¿Eliminar esta transacción?");
-                    confirm.showAndWait().ifPresent(btn -> {
-                        if (btn != ButtonType.OK) {
-                            return;
-                        }
+                    if (ModernDialogs.confirmDelete("esta transacción", () -> darkTheme)) {
                         try {
                             txRepo.delete(userUid, t.id());
                             try {
@@ -784,7 +776,7 @@ public final class DashboardTransactionsDialog {
                             refreshTransactions(session, userUid, txRepo, txBox, accountId, rootCategoryId, fromDate, toDate, kindFilter, query, incomeValue, expenseValue, balanceValue, darkTheme, accountRepo, categoryRepo, refreshBalances);
                         } catch (Exception ignored) {
                         }
-                    });
+                    }
                 };
 
                 MenuItem edit = new MenuItem("Editar");
@@ -1299,6 +1291,14 @@ public final class DashboardTransactionsDialog {
 
         // Foco automático en monto al abrir
         dialog.setOnShown(e -> Platform.runLater(() -> amountField.requestFocus()));
+
+        // Add ESC key handler to close dialog
+        dialog.getDialogPane().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                dialog.setResult(cancelBtnType);
+                ev.consume();
+            }
+        });
 
         // Botones
         javafx.scene.Node okNode = dialog.getDialogPane().lookupButton(saveBtnType);
@@ -1911,13 +1911,7 @@ public final class DashboardTransactionsDialog {
             delBtn.getStyleClass().removeAll("btn-secondary", "btn-primary");
             delBtn.getStyleClass().add("btn-danger");
             delBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
-                Dialog<ButtonType> confirm = new Dialog<>();
-                confirm.setTitle("Eliminar");
-                UiDialogs.applyAppTheme(confirm, darkTheme);
-                confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-                confirm.setContentText("¿Eliminar esta transacción?");
-                Optional<ButtonType> res = confirm.showAndWait();
-                if (res.isEmpty() || res.get() != ButtonType.OK) {
+                if (!ModernDialogs.confirmDelete("esta transacción", () -> darkTheme)) {
                     ev.consume();
                 }
             });
@@ -1992,6 +1986,14 @@ public final class DashboardTransactionsDialog {
         }
 
         dialog.setResultConverter(btn -> btn);
+        
+        dialog.getDialogPane().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                dialog.setResult(cancelBtnType);
+                ev.consume();
+            }
+        });
+        
         Optional<ButtonType> result = dialog.showAndWait();
         if (result.isEmpty() || result.get() == cancelBtnType) {
             return Optional.empty();

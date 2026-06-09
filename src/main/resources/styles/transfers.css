@@ -518,8 +518,19 @@
     -fx-padding: 4;
 }
 
+.account-combo:focused {
+    -fx-border-color: #60A5FA;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(96, 165, 250, 0.25), 6, 0.2, 0, 1);
+}
+
 .modal-root.dark .account-combo {
     -fx-background-color: rgba(255, 255, 255, 0.05);
+}
+
+.modal-root.dark .account-combo:focused {
+    -fx-border-color: #93C5FD;
+    -fx-effect: dropshadow(gaussian, rgba(147, 197, 253, 0.25), 6, 0.2, 0, 1);
 }
 .account-combo .list-cell {
     -fx-padding: 10;
@@ -748,6 +759,11 @@
 .modal-btn-cancel:hover {
     -fx-background-color: rgba(0,0,0,0.03);
 }
+.modal-btn-cancel:focused {
+    -fx-border-color: #60A5FA;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(96, 165, 250, 0.25), 6, 0.2, 0, 1);
+}
 .modal-btn-confirm {
     -fx-background-color: -modal-color-primary;
     -fx-background-radius: 10;
@@ -759,6 +775,11 @@
 }
 .modal-btn-confirm:hover {
     -fx-background-color: #1D4ED8;
+}
+.modal-btn-confirm:focused {
+    -fx-border-color: #93C5FD;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(147, 197, 253, 0.25), 6, 0.2, 0, 1);
 }
 .modal-btn-confirm .label,
 .modal-btn-confirm .modal-btn-primary-text {

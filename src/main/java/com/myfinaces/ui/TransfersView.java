@@ -351,19 +351,13 @@ public final class TransfersView {
 
         Consumer<TransferUiRow> onDelete = row -> {
             if (row == null || row.transferId() == null) return;
-            Dialog<ButtonType> confirm = new Dialog<>();
-            confirm.setTitle("Eliminar");
-            UiDialogs.applyAppTheme(confirm, darkTheme.getAsBoolean());
-            confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-            confirm.setContentText("¿Eliminar esta transferencia?");
-            confirm.showAndWait().ifPresent(btn -> {
-                if (btn != ButtonType.OK) return;
+            if (ModernDialogs.confirmDelete("esta transferencia", darkTheme::getAsBoolean)) {
                 try {
                     transferRepo.delete(session.uid(), row.transferId());
                     if (refreshBalances != null) refreshBalances.run();
                     reloadHolder[0].run();
                 } catch (Exception ignored) {}
-            });
+            }
         };
         Consumer<TransferUiRow> onEdit = row -> {
             if (row == null || row.transferId() == null) return;
@@ -625,6 +619,7 @@ public final class TransfersView {
         fromAccountCombo.setPromptText("Selecciona una cuenta");
         fromAccountCombo.setMaxWidth(Double.MAX_VALUE);
         fromAccountCombo.setItems(FXCollections.observableArrayList(accounts == null ? List.of() : accounts));
+        fromAccountCombo.setFocusTraversable(true);
 
         ObjectProperty<AccountRepository.Account> toSelectedForFrom = new SimpleObjectProperty<>(null);
 
@@ -763,6 +758,7 @@ public final class TransfersView {
         toAccountCombo.setPromptText("Selecciona una cuenta");
         toAccountCombo.setMaxWidth(Double.MAX_VALUE);
         toAccountCombo.setItems(FXCollections.observableArrayList(accounts == null ? List.of() : accounts));
+        toAccountCombo.setFocusTraversable(true);
 
         SVGPath swapIcon = new SVGPath();
         swapIcon.setContent("M10 2 V10 M6 6 L10 2 L14 6 M10 22 V14 M6 18 L10 22 L14 18");
@@ -1028,6 +1024,7 @@ public final class TransfersView {
         TextField descField = new TextField();
         descField.getStyleClass().add("modal-text-input");
         descField.setPromptText("Descripción (opcional)");
+        descField.setFocusTraversable(true);
 
         VBox descSection = new VBox(6, descLabel, descField);
         descSection.getStyleClass().add("modal-field-section");
@@ -1041,6 +1038,32 @@ public final class TransfersView {
         datePicker.getStyleClass().add("modal-date-picker");
         datePicker.getEditor().setMouseTransparent(true);
         datePicker.getEditor().setFocusTraversable(false);
+        datePicker.setFocusTraversable(true);
+        datePicker.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ENTER || ev.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                if (!datePicker.isShowing()) {
+                    Platform.runLater(() -> {
+                        datePicker.show();
+                        // Focus the popup content
+                        Platform.runLater(() -> {
+                            for (Window w : Window.getWindows()) {
+                                if (w instanceof javafx.stage.PopupWindow pw) {
+                                    var sc = pw.getScene();
+                                    if (sc != null && sc.getRoot() != null) {
+                                        if (sc.getRoot().getStyleClass().contains("date-picker-popup") 
+                                            || sc.getRoot().lookup(".date-picker-popup") != null) {
+                                            sc.getRoot().requestFocus();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
+                    ev.consume();
+                }
+            }
+        });
         if (darkTheme) {
             var dpCssUrl = TransfersView.class.getResource("/styles/dark.css");
             if (dpCssUrl != null) {
@@ -1159,6 +1182,7 @@ public final class TransfersView {
         Button cancelBtn = new Button("Cancelar");
         cancelBtn.getStyleClass().add("modal-btn-cancel");
         cancelBtn.setMinHeight(40);
+        cancelBtn.setFocusTraversable(true);
         cancelBtn.setOnAction(e -> modal.close());
 
         SVGPath lockIcon = new SVGPath();
@@ -1173,6 +1197,8 @@ public final class TransfersView {
         confirmBtn.setGraphic(confirmGraphic);
         confirmBtn.getStyleClass().add("modal-btn-confirm");
         confirmBtn.setMinHeight(40);
+        confirmBtn.setFocusTraversable(true);
+        confirmBtn.setDefaultButton(true);
 
         confirmBtn.setOnAction(ev -> {
             try {
@@ -1256,6 +1282,7 @@ public final class TransfersView {
 
         VBox rootBox = new VBox(titleBar, content, footer);
         rootBox.getStyleClass().add("modal-root");
+        rootBox.setFocusTraversable(true);
         if (darkTheme) {
             rootBox.getStyleClass().add("dark");
         }
@@ -1271,8 +1298,16 @@ public final class TransfersView {
             scene.getStylesheets().add(cssUrl.toExternalForm());
         }
 
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                modal.close();
+                ev.consume();
+            }
+        });
+
         modal.setScene(scene);
         modal.setWidth(480);
+        modal.setOnShown(e -> Platform.runLater(fromAccountCombo::requestFocus));
 
         Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
         double maxHeight = Math.min(760, bounds.getHeight() * 0.90);
@@ -1331,6 +1366,8 @@ public final class TransfersView {
         HBox titleBar = new HBox(8, titleText, titleSpacer, closeBtn);
         titleBar.setAlignment(Pos.CENTER_LEFT);
         titleBar.getStyleClass().add("modal-title-bar");
+        titleBar.setPadding(new Insets(12, 16, 12, 16));
+        titleBar.setStyle("-fx-padding: 12 16 12 16;");
 
         VBox content = new VBox(10);
         content.setPadding(new Insets(14));
@@ -1744,6 +1781,32 @@ public final class TransfersView {
         datePicker.getStyleClass().add("modal-date-picker");
         datePicker.getEditor().setMouseTransparent(true);
         datePicker.getEditor().setFocusTraversable(false);
+        datePicker.setFocusTraversable(true);
+        datePicker.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ENTER || ev.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                if (!datePicker.isShowing()) {
+                    Platform.runLater(() -> {
+                        datePicker.show();
+                        // Focus the popup content
+                        Platform.runLater(() -> {
+                            for (Window w : Window.getWindows()) {
+                                if (w instanceof javafx.stage.PopupWindow pw) {
+                                    var sc = pw.getScene();
+                                    if (sc != null && sc.getRoot() != null) {
+                                        if (sc.getRoot().getStyleClass().contains("date-picker-popup") 
+                                            || sc.getRoot().lookup(".date-picker-popup") != null) {
+                                            sc.getRoot().requestFocus();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
+                    ev.consume();
+                }
+            }
+        });
         if (darkTheme) {
             var dpCssUrl = TransfersView.class.getResource("/styles/dark.css");
             if (dpCssUrl != null) {
@@ -1985,6 +2048,13 @@ public final class TransfersView {
         if (themeCss != null) {
             scene.getStylesheets().add(themeCss.toExternalForm());
         }
+
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                modal.close();
+                ev.consume();
+            }
+        });
 
         modal.setScene(scene);
         modal.setWidth(480);

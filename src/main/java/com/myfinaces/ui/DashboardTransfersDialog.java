@@ -391,15 +391,7 @@ public final class DashboardTransfersDialog {
                 };
 
                 Runnable doDelete = () -> {
-                    Dialog<ButtonType> confirm = new Dialog<>();
-                    confirm.setTitle("Eliminar");
-                    UiDialogs.applyAppTheme(confirm, darkTheme);
-                    confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-                    confirm.setContentText("¿Eliminar esta transferencia?");
-                    confirm.showAndWait().ifPresent(btn -> {
-                        if (btn != ButtonType.OK) {
-                            return;
-                        }
+                    if (ModernDialogs.confirmDelete("esta transferencia", () -> darkTheme)) {
                         try {
                             transferRepo.delete(userUid, tr.id());
                             try {
@@ -412,7 +404,7 @@ public final class DashboardTransfersDialog {
                             refreshTransfers(session, userUid, transferRepo, box, accountId, fromDate, toDate, darkTheme, accountRepo, refreshBalances);
                         } catch (Exception ignored) {
                         }
-                    });
+                    }
                 };
 
                 Region spacer = new Region();
@@ -474,6 +466,14 @@ public final class DashboardTransfersDialog {
         dialog.getDialogPane().setMinWidth(620);
         dialog.getDialogPane().setPrefWidth(620);
 
+        // Add ESC key handler to close dialog
+        dialog.getDialogPane().addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                dialog.setResult(ButtonType.CANCEL);
+                ev.consume();
+            }
+        });
+
         BorderPane header = new BorderPane();
         header.getStyleClass().add("new-tx-header");
         header.setStyle(darkTheme
@@ -498,6 +498,12 @@ public final class DashboardTransfersDialog {
         closeIcon.setStyle(darkTheme ? "-fx-fill: rgba(241, 245, 249, 0.72);" : "-fx-fill: rgba(15, 23, 42, 0.55);");
         closeBtn.setGraphic(closeIcon);
         closeBtn.setOnAction(e -> dialog.setResult(ButtonType.CANCEL));
+        closeBtn.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                dialog.setResult(ButtonType.CANCEL);
+                ev.consume();
+            }
+        });
 
         header.setCenter(headerTitleBox);
         header.setRight(closeBtn);
@@ -540,6 +546,39 @@ public final class DashboardTransfersDialog {
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
         note.setPrefWidth(340);
+
+        // Add ESC key handlers to all form fields
+        Runnable escHandler = () -> dialog.setResult(ButtonType.CANCEL);
+        date.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                escHandler.run();
+                ev.consume();
+            }
+        });
+        from.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                escHandler.run();
+                ev.consume();
+            }
+        });
+        to.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                escHandler.run();
+                ev.consume();
+            }
+        });
+        amount.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                escHandler.run();
+                ev.consume();
+            }
+        });
+        note.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                escHandler.run();
+                ev.consume();
+            }
+        });
 
         Label balanceLabel = new Label();
         balanceLabel.getStyleClass().add("account-name");

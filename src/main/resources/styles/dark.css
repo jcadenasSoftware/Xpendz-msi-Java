@@ -231,11 +231,11 @@
 }
 
 .sidebar-top {
-    -fx-padding: 0 0 2 0;
+    -fx-padding: 0 0 0 0;
 }
 
 .sidebar-group {
-    -fx-spacing: 6;
+    -fx-spacing: 4;
 }
 
 .sidebar-group-title {
@@ -243,10 +243,10 @@
 }
 
 .sidebar-section-card {
-    -fx-padding: 8;
-    -fx-background-radius: 16;
-    -fx-border-radius: 16;
-    -fx-spacing: 6;
+    -fx-padding: 6;
+    -fx-background-radius: 14;
+    -fx-border-radius: 14;
+    -fx-spacing: 4;
 }
 
 .sidebar-primary-card {
@@ -282,9 +282,9 @@
 }
 
 .sidebar .nav-button {
-    -fx-padding: 6 10 6 10;
-    -fx-min-height: 34;
-    -fx-font-size: 14px;
+    -fx-padding: 5 8 5 8;
+    -fx-min-height: 30;
+    -fx-font-size: 13px;
     -fx-text-alignment: left;
     -fx-alignment: center-left;
 }
@@ -310,32 +310,32 @@
 
 .sidebar .sidebar-primary-button {
     -fx-background-color: rgba(255, 255, 255, 0.12);
-    -fx-font-size: 15px;
+    -fx-font-size: 14px;
     -fx-font-weight: 800;
-    -fx-min-height: 38;
-    -fx-padding: 8 12 8 12;
-    -fx-background-radius: 12;
+    -fx-min-height: 34;
+    -fx-padding: 6 10 6 10;
+    -fx-background-radius: 11;
 }
 
 .sidebar .sidebar-primary-button:hover {
     -fx-background-color: rgba(255, 255, 255, 0.18);
     -fx-border-color: rgba(255, 255, 255, 0.16);
-    -fx-border-radius: 12;
+    -fx-border-radius: 11;
 }
 
 .sidebar .sidebar-primary-button.active {
     -fx-background-color: rgba(59, 130, 246, 0.62);
     -fx-border-color: rgba(59, 130, 246, 0.78);
     -fx-border-width: 1;
-    -fx-border-radius: 12;
+    -fx-border-radius: 11;
 }
 
 .sidebar .sidebar-quick-action {
-    -fx-font-size: 13px;
+    -fx-font-size: 12px;
     -fx-font-weight: 700;
-    -fx-min-height: 30;
-    -fx-padding: 5 10 5 10;
-    -fx-background-radius: 10;
+    -fx-min-height: 26;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 9;
     -fx-border-color: rgba(255, 255, 255, 0.10);
     -fx-border-width: 1;
 }
@@ -346,17 +346,17 @@
 }
 
 .sidebar .sidebar-system-button {
-    -fx-font-size: 12px;
+    -fx-font-size: 11px;
     -fx-font-weight: 700;
-    -fx-min-height: 28;
-    -fx-padding: 5 10 5 10;
-    -fx-background-radius: 10;
+    -fx-min-height: 24;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 9;
 }
 
 .sidebar .sidebar-system-button:hover {
     -fx-background-color: rgba(255, 255, 255, 0.14);
     -fx-border-color: rgba(255, 255, 255, 0.12);
-    -fx-border-radius: 10;
+    -fx-border-radius: 9;
 }
 
 .sidebar .sidebar-system-danger {
@@ -372,7 +372,7 @@
 }
 
 .sidebar .btn-secondary {
-    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-color: rgba(255, 255, 255, 0.15);
     -fx-text-fill: #E5E7EB;
 }
 
@@ -1164,6 +1164,14 @@
     -fx-background-color: #2563EB;
 }
 
+.btn-primary:focused {
+    -fx-background-color: #2563EB;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.40), 8, 0.25, 0, 2);
+    -fx-border-color: #93C5FD;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+}
+
 .btn-primary .icon {
     -fx-icon-color: white;
 }
@@ -1198,6 +1206,14 @@
     -fx-background-color: #273246;
 }
 
+.btn-secondary:focused {
+    -fx-background-color: #273246;
+    -fx-effect: dropshadow(gaussian, rgba(229, 231, 235, 0.25), 8, 0.25, 0, 2);
+    -fx-border-color: #93C5FD;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
+}
+
 .btn-accent {
     -fx-background-color: rgba(59, 130, 246, 0.22);
     -fx-text-fill: #E5E7EB;
@@ -1221,6 +1237,14 @@
     -fx-text-fill: white;
     -fx-background-radius: 8;
     -fx-padding: 8 12;
+}
+
+.btn-danger:focused {
+    -fx-background-color: #DC2626;
+    -fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.40), 8, 0.25, 0, 2);
+    -fx-border-color: #FCA5A5;
+    -fx-border-width: 2;
+    -fx-border-radius: 8;
 }
 
 .btn-danger .icon {
@@ -2819,6 +2843,15 @@
     -fx-padding: 0 4;
 }
 
+.summary-export-card-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: 800;
+    -fx-text-fill: rgba(248, 250, 252, 0.66);
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-padding: 0 0 2 0;
+}
+
 .summary-action-btn.button {
     -fx-background-color: rgba(15, 23, 42, 0.85);
     -fx-background-radius: 8;
@@ -4333,4 +4366,278 @@
 .summary-row-skeleton {
     -fx-background-color: transparent;
     -fx-padding: 8 12;
+}
+
+/* Modern Dialog Styles */
+.dark .modern-dialog {
+    -fx-background-color: #0F172A;
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(147, 197, 253, 0.14);
+    -fx-border-radius: 18;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 24, 0.18, 0, 3);
+}
+
+.dark .modern-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.dark .modern-dialog-hero {
+    -fx-padding: 0;
+}
+
+.dark .modern-dialog-accent-strip {
+    -fx-background-color: linear-gradient(to right, #60A5FA, #3B82F6);
+    -fx-background-radius: 999;
+    -fx-min-height: 4;
+    -fx-pref-height: 4;
+}
+
+.dark .modern-dialog-title-block {
+    -fx-spacing: 4;
+}
+
+.dark .modern-dialog-eyebrow {
+    -fx-background-color: rgba(59, 130, 246, 0.14);
+    -fx-background-radius: 999;
+    -fx-border-color: rgba(96, 165, 250, 0.20);
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-padding: 5 10;
+    -fx-font-size: 10.5px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #93C5FD;
+}
+
+.dark .modern-dialog-message-card,
+.dark .modern-dialog-custom-card {
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+    -fx-background-radius: 16;
+    -fx-border-color: rgba(148, 163, 184, 0.12);
+    -fx-border-radius: 16;
+    -fx-border-width: 1;
+    -fx-padding: 12 14;
+}
+
+.dark .modern-dialog-message-card {
+    -fx-background-color: rgba(59, 130, 246, 0.08);
+    -fx-border-color: rgba(96, 165, 250, 0.16);
+}
+
+.dark .modern-dialog-description {
+    -fx-font-size: 14px;
+    -fx-text-fill: rgba(248, 250, 252, 0.92);
+    -fx-line-spacing: 1.25;
+}
+
+.dark .modern-dialog-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #FFFFFF;
+}
+
+.dark .modern-dialog-icon-container {
+    -fx-alignment: center;
+    -fx-padding: 2;
+}
+
+.dark .modern-dialog-header {
+    -fx-padding: 0 0 4 0;
+}
+
+.dark .modern-dialog-icon-circle {
+    -fx-fill: rgba(59, 130, 246, 0.28);
+}
+
+.dark .modern-dialog-icon {
+    -fx-icon-color: #60A5FA;
+}
+
+.dark .modern-dialog-primary-btn {
+    -fx-background-color: #3B82F6;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-border-radius: 999;
+    -fx-border-width: 0;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-padding: 12 28;
+    -fx-min-height: 44;
+    -fx-min-width: 120;
+    -fx-cursor: hand;
+}
+
+.dark .modern-dialog-primary-btn:hover {
+    -fx-background-color: #2563EB;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.28), 20, 0.20, 0, 4);
+}
+
+.dark .modern-dialog-secondary-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-color: rgba(148, 163, 184, 0.28);
+    -fx-border-radius: 999;
+    -fx-border-width: 1.5;
+    -fx-text-fill: rgba(248, 250, 252, 0.84);
+    -fx-font-size: 14px;
+    -fx-font-weight: 600;
+    -fx-padding: 12 28;
+    -fx-min-height: 44;
+    -fx-min-width: 120;
+    -fx-cursor: hand;
+}
+
+.dark .modern-dialog-secondary-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: rgba(148, 163, 184, 0.40);
+    -fx-text-fill: rgba(248, 250, 252, 0.94);
+}
+
+.dark .modern-dialog-close-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-border-radius: 999;
+    -fx-border-width: 0;
+    -fx-text-fill: rgba(248, 250, 252, 0.45);
+    -fx-padding: 6;
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-max-width: 28;
+    -fx-max-height: 28;
+}
+
+.dark .modern-dialog-close-btn:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-text-fill: rgba(248, 250, 252, 0.68);
+}
+
+.dark .modern-dialog > .button-bar {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.dark .modern-dialog > .button-bar > .container {
+    -fx-padding: 4 18 8 18;
+}
+
+/* Dialog Type Variants */
+.dark .modern-dialog-info .modern-dialog-icon-circle {
+    -fx-fill: rgba(59, 130, 246, 0.16);
+}
+
+.dark .modern-dialog-info .modern-dialog-icon {
+    -fx-icon-color: #93C5FD;
+}
+
+.dark .modern-dialog-success .modern-dialog-icon-circle {
+    -fx-fill: rgba(22, 163, 74, 0.16);
+}
+
+.dark .modern-dialog-success .modern-dialog-icon {
+    -fx-icon-color: #86EFAC;
+}
+
+.dark .modern-dialog-success .modern-dialog-primary-btn {
+    -fx-background-color: linear-gradient(to bottom right, #15803D, #166534);
+    -fx-border-color: rgba(74, 222, 128, 0.18);
+}
+
+.dark .modern-dialog-success .modern-dialog-primary-btn:hover {
+    -fx-background-color: linear-gradient(to bottom right, #166534, #14532D);
+    -fx-border-color: rgba(74, 222, 128, 0.30);
+}
+
+.dark .modern-dialog-warning .modern-dialog-icon-circle {
+    -fx-fill: rgba(217, 119, 6, 0.16);
+}
+
+.dark .modern-dialog-warning .modern-dialog-icon {
+    -fx-icon-color: #FCD34D;
+}
+
+.dark .modern-dialog-warning .modern-dialog-primary-btn {
+    -fx-background-color: linear-gradient(to bottom right, #D97706, #B45309);
+    -fx-border-color: rgba(251, 191, 36, 0.18);
+}
+
+.dark .modern-dialog-warning .modern-dialog-primary-btn:hover {
+    -fx-background-color: linear-gradient(to bottom right, #B45309, #92400E);
+    -fx-border-color: rgba(251, 191, 36, 0.30);
+}
+
+.dark .modern-dialog-danger .modern-dialog-icon-circle {
+    -fx-fill: rgba(220, 38, 38, 0.16);
+}
+
+.dark .modern-dialog-danger .modern-dialog-icon {
+    -fx-icon-color: #FCA5A5;
+}
+
+.dark .modern-dialog-danger .modern-dialog-primary-btn {
+    -fx-background-color: linear-gradient(to bottom right, #F97316, #DC2626);
+    -fx-border-color: rgba(248, 113, 113, 0.22);
+    -fx-effect: dropshadow(gaussian, rgba(248, 113, 113, 0.24), 16, 0.18, 0, 3);
+}
+
+.dark .modern-dialog-danger .modern-dialog-primary-btn:hover {
+    -fx-background-color: linear-gradient(to bottom right, #EF4444, #B91C1C);
+    -fx-border-color: rgba(248, 113, 113, 0.34);
+}
+
+.dark .modern-dialog-danger .modern-dialog-secondary-btn {
+    -fx-background-color: rgba(15, 23, 42, 0.66);
+    -fx-border-color: rgba(251, 191, 36, 0.18);
+    -fx-text-fill: rgba(248, 250, 252, 0.82);
+}
+
+.dark .modern-dialog-danger .modern-dialog-secondary-btn:hover {
+    -fx-background-color: rgba(15, 23, 42, 0.82);
+    -fx-border-color: rgba(251, 191, 36, 0.28);
+}
+
+.dark .modern-dialog-confirm .modern-dialog-icon-circle {
+    -fx-fill: rgba(59, 130, 246, 0.16);
+}
+
+.dark .modern-dialog-confirm .modern-dialog-icon {
+    -fx-icon-color: #93C5FD;
+}
+
+.dark .modern-dialog-confirm .modern-dialog-accent-strip {
+    -fx-background-color: linear-gradient(to right, #60A5FA, #3B82F6);
+}
+
+.dark .modern-dialog-confirm .modern-dialog-eyebrow {
+    -fx-background-color: rgba(59, 130, 246, 0.14);
+    -fx-border-color: rgba(96, 165, 250, 0.20);
+    -fx-text-fill: #93C5FD;
+}
+
+.dark .modern-dialog-warning .modern-dialog-accent-strip,
+.dark .modern-dialog-danger .modern-dialog-accent-strip {
+    -fx-background-color: linear-gradient(to right, #F59E0B, #EF4444);
+}
+
+.dark .modern-dialog-warning .modern-dialog-eyebrow {
+    -fx-background-color: rgba(217, 119, 6, 0.16);
+    -fx-border-color: rgba(251, 191, 36, 0.20);
+    -fx-text-fill: #FCD34D;
+}
+
+.dark .modern-dialog-danger .modern-dialog-eyebrow {
+    -fx-background-color: rgba(220, 38, 38, 0.16);
+    -fx-border-color: rgba(248, 113, 113, 0.20);
+    -fx-text-fill: #FCA5A5;
+}
+
+.dark .modern-dialog-success .modern-dialog-accent-strip {
+    -fx-background-color: linear-gradient(to right, #34D399, #16A34A);
+}
+
+.dark .modern-dialog-success .modern-dialog-eyebrow {
+    -fx-background-color: rgba(22, 163, 74, 0.16);
+    -fx-border-color: rgba(74, 222, 128, 0.20);
+    -fx-text-fill: #86EFAC;
 }

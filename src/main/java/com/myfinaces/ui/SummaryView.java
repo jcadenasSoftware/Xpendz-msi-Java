@@ -1661,16 +1661,21 @@ public final class SummaryView {
         exportPdf.setMaxWidth(Double.MAX_VALUE);
         exportPdf.setOnAction(e -> pdfDrawer.show());
 
+        Label actionsTitle = new Label("Exportar reportes");
+        actionsTitle.getStyleClass().add("summary-export-card-title");
+        actionsTitle.setMaxWidth(Double.MAX_VALUE);
+        actionsTitle.setAlignment(Pos.CENTER);
+
         VBox actionsRow = new VBox(8, exportCsv, exportPdf);
         actionsRow.getStyleClass().add("summary-actions-row");
-        actionsRow.setAlignment(Pos.CENTER_RIGHT);
+        actionsRow.setAlignment(Pos.CENTER);
         actionsRow.setMaxWidth(Double.MAX_VALUE);
 
-        VBox actionsCard = new VBox(10, actionsRow);
+        VBox actionsCard = new VBox(10, actionsTitle, actionsRow);
         actionsCard.getStyleClass().add("summary-filters-card");
         actionsCard.setPadding(new Insets(12));
         actionsCard.setMinWidth(180);
-        actionsCard.setAlignment(Pos.TOP_RIGHT);
+        actionsCard.setAlignment(Pos.TOP_CENTER);
 
         HBox filtersAndActionsRow = new HBox(12, filtersCard, actionsCard);
         filtersAndActionsRow.setAlignment(Pos.CENTER_LEFT);

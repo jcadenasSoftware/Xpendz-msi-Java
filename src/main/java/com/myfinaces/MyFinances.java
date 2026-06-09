@@ -91,6 +91,7 @@ public class MyFinances extends Application {
         if (scene.getWindow() instanceof Stage stage) {
             stage.setMaximized(false);
             stage.setResizable(false);
+            stage.setOnCloseRequest(null);
         }
         var root = LoginView.create(authService, googleClientId, googleClientSecret, sessionRepo, session -> {
             try {

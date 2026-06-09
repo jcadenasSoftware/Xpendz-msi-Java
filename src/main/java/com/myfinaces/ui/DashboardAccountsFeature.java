@@ -23,6 +23,7 @@ import javafx.util.StringConverter;
 import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
@@ -199,6 +200,7 @@ public final class DashboardAccountsFeature {
         di.setIconSize(13);
         bDelete.setGraphic(di);
         bDelete.setMinWidth(140);
+        bDelete.setFocusTraversable(true);
 
         Button bCancel = new Button("Cancelar");
         bCancel.getStyleClass().add("btn-secondary");
@@ -206,6 +208,7 @@ public final class DashboardAccountsFeature {
         ci.setIconSize(13);
         bCancel.setGraphic(ci);
         bCancel.setMinWidth(120);
+        bCancel.setFocusTraversable(true);
 
         Button bSave = new Button("Guardar cambios");
         bSave.getStyleClass().add("btn-primary");
@@ -213,6 +216,8 @@ public final class DashboardAccountsFeature {
         si.setIconSize(13);
         bSave.setGraphic(si);
         bSave.setMinWidth(160);
+        bSave.setFocusTraversable(true);
+        bSave.setDefaultButton(true);
 
         // ── Header title ─────────────────────────────────────────────
         Label title = new Label("Editar cuenta");
@@ -560,6 +565,14 @@ public final class DashboardAccountsFeature {
         modal.setScene(scene);
 
         final java.util.concurrent.atomic.AtomicReference<EditAccountResult> resultRef = new java.util.concurrent.atomic.AtomicReference<>(null);
+
+        // Add ESC key handler to close dialog
+        scene.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ESCAPE) {
+                resultRef.set(null);
+                modal.close();
+            }
+        });
 
         bCancel.setOnAction(e -> {
             resultRef.set(null);

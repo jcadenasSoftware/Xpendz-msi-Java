@@ -657,10 +657,15 @@ public final class SummaryView {
         HBox.setHgrow(filtersCard, Priority.ALWAYS);
 
         SummaryFinancialTable.Parts tableParts = SummaryFinancialTable.create();
+        GridPane fixedHeaderTable = tableParts.fixedHeaderTable();
         GridPane fixedTable = tableParts.fixedTable();
+        GridPane monthsHeaderTable = tableParts.monthsHeaderTable();
         GridPane monthsTable = tableParts.monthsTable();
 
+        SummaryFinancialTable.applyDefaultColumnConstraints(fixedHeaderTable);
         SummaryFinancialTable.applyDefaultColumnConstraints(fixedTable);
+        SummaryFinancialTable.applyMonthColumnConstraints(monthsHeaderTable);
+        SummaryFinancialTable.applyMonthColumnConstraints(monthsTable);
 
         Node tablesCard = SummaryFinancialTable.wrapAsCard(tableParts.host());
         VBox.setVgrow(tablesCard, Priority.ALWAYS);
@@ -862,18 +867,18 @@ public final class SummaryView {
                 for (int col = 0; col < monthNames.length; col++) {
                     Label h = SummaryTableCell.header(monthNames[col], col == currentMonth);
                     if (col == 0) {
-                        fixedTable.add(h, 0, 0);
+                        fixedHeaderTable.add(h, 0, 0);
                     } else if (col >= 1 && col <= 12) {
-                        monthsTable.add(h, col - 1, 0);
+                        monthsHeaderTable.add(h, col - 1, 0);
                     } else if (col == 13) {
-                        fixedTable.add(h, 1, 0);
+                        fixedHeaderTable.add(h, 1, 0);
                     } else if (col == 14) {
-                        monthsTable.add(h, 12, 0);
+                        monthsHeaderTable.add(h, 12, 0);
                     }
                 }
 
                 long[] totalByMonth = new long[13];
-                int rowIdx = 1;
+                int rowIdx = 0;
                 long grandTotal = 0;
                 for (CategoryRepository.Category r : roots) {
                     if (rootFilter != null && !rootFilter.id().equals(r.id())) {
@@ -886,6 +891,7 @@ public final class SummaryView {
                     Node rootName = SummaryTableCell.categoryWithIcon(r.name(), true, false, icon);
                     String zebra = (rowIdx % 2 == 0) ? "summary-row-even" : "summary-row-odd";
                     rootName.getStyleClass().add(zebra);
+                    rootName.getStyleClass().add("summary-root-row-cell");
                     fixedTable.add(rootName, 0, rowIdx);
 
                     if (insightDrawer != null) {
@@ -948,6 +954,7 @@ public final class SummaryView {
                     for (int m = 1; m <= 12; m++) {
                         Label v = new Label(" ");
                         v.getStyleClass().add(zebra);
+                        v.getStyleClass().add("summary-root-row-cell");
                         if (m == currentMonth) {
                             v.getStyleClass().add("summary-current-month");
                         }
@@ -955,10 +962,12 @@ public final class SummaryView {
                     }
                     Label rootTotalCell = new Label(" ");
                     rootTotalCell.getStyleClass().add(zebra);
+                    rootTotalCell.getStyleClass().add("summary-root-row-cell");
                     rootTotalCell.getStyleClass().add("summary-total-col");
                     fixedTable.add(rootTotalCell, 1, rowIdx);
                     Label rootAvgCell = new Label(" ");
                     rootAvgCell.getStyleClass().add(zebra);
+                    rootAvgCell.getStyleClass().add("summary-root-row-cell");
                     rootAvgCell.getStyleClass().add("summary-avg-col");
                     monthsTable.add(rootAvgCell, 12, rowIdx);
 
@@ -1273,6 +1282,7 @@ public final class SummaryView {
                 }
 
                 Label totalName = SummaryTableCell.category("TOTAL", true, true);
+                totalName.getStyleClass().add("summary-total-row-cell");
                 fixedTable.add(totalName, 0, rowIdx);
                 for (int m = 1; m <= 12; m++) {
                     Label v = new Label(DashboardFormatters.formatMoney(totalByMonth[m], currencyCode));
@@ -1280,6 +1290,7 @@ public final class SummaryView {
                     v.setMinWidth(100);
                     v.setAlignment(Pos.CENTER_RIGHT);
                     v.getStyleClass().add("summary-total-amount");
+                    v.getStyleClass().add("summary-total-row-cell");
                     if (m == currentMonth) {
                         v.getStyleClass().add("summary-current-month");
                     }
@@ -1292,6 +1303,7 @@ public final class SummaryView {
                 grand.setAlignment(Pos.CENTER_RIGHT);
                 grand.getStyleClass().add("summary-total-amount");
                 grand.getStyleClass().add("summary-total-col");
+                grand.getStyleClass().add("summary-total-row-cell");
                 fixedTable.add(grand, 1, rowIdx);
 
                 long avgTotalBase = grandTotal;
@@ -1309,6 +1321,7 @@ public final class SummaryView {
                 grandAvg.setAlignment(Pos.CENTER_RIGHT);
                 grandAvg.getStyleClass().add("summary-total-amount");
                 grandAvg.getStyleClass().add("summary-avg-col");
+                grandAvg.getStyleClass().add("summary-total-row-cell");
                 monthsTable.add(grandAvg, 12, rowIdx);
 
                 List<String> totalExportRow = new ArrayList<>();
@@ -1365,25 +1378,20 @@ public final class SummaryView {
             exportRows.add(List.of(monthNames));
 
             for (int col = 0; col < monthNames.length; col++) {
-                Label h = new Label(monthNames[col]);
-                h.getStyleClass().add("account-name");
-                h.getStyleClass().add("summary-header-cell");
-                if (col == currentMonth) {
-                    h.getStyleClass().add("summary-current-month");
-                }
+                Label h = SummaryTableCell.header(monthNames[col], col == currentMonth);
                 if (col == 0) {
-                    fixedTable.add(h, 0, 0);
+                    fixedHeaderTable.add(h, 0, 0);
                 } else if (col >= 1 && col <= 12) {
-                    monthsTable.add(h, col - 1, 0);
+                    monthsHeaderTable.add(h, col - 1, 0);
                 } else if (col == 13) {
-                    fixedTable.add(h, 1, 0);
+                    fixedHeaderTable.add(h, 1, 0);
                 } else if (col == 14) {
-                    monthsTable.add(h, 12, 0);
+                    monthsHeaderTable.add(h, 12, 0);
                 }
             }
 
             long[] totalByMonth = new long[13];
-            int rowIdx = 1;
+            int rowIdx = 0;
             long grandTotal = 0;
             for (CategoryRepository.Category r : roots) {
                 if (rootFilter != null && !rootFilter.id().equals(r.id())) {
@@ -1397,6 +1405,7 @@ public final class SummaryView {
                 Node name = SummaryTableCell.categoryWithIcon(r.name(), true, false, icon);
                 String zebra = (rowIdx % 2 == 0) ? "summary-row-even" : "summary-row-odd";
                 name.getStyleClass().add(zebra);
+                name.getStyleClass().add("summary-root-row-cell");
                 fixedTable.add(name, 0, rowIdx);
 
                 long rowTotal = 0;
@@ -1406,6 +1415,7 @@ public final class SummaryView {
                     rowTotal += months[m];
                     Label v = SummaryTableCell.amountPlain(DashboardFormatters.formatMoney(months[m], currencyCode), m == currentMonth);
                     v.getStyleClass().add(zebra);
+                    v.getStyleClass().add("summary-root-row-cell");
                     monthsTable.add(v, m - 1, rowIdx);
                     monthCells.add(v);
                 }
@@ -1413,6 +1423,7 @@ public final class SummaryView {
                 grandTotal += rowTotal;
                 Label totalCell = SummaryTableCell.amountPlain(DashboardFormatters.formatMoney(rowTotal, currencyCode), false);
                 totalCell.getStyleClass().addAll("summary-total-col", zebra);
+                totalCell.getStyleClass().add("summary-root-row-cell");
                 fixedTable.add(totalCell, 1, rowIdx);
 
                 long avgBase = rowTotal;
@@ -1426,6 +1437,7 @@ public final class SummaryView {
                 long avgCents = monthsElapsed <= 0 ? 0 : (avgBase / monthsElapsed);
                 Label avgCell = SummaryTableCell.amountPlain(DashboardFormatters.formatMoney(avgCents, currencyCode), false);
                 avgCell.getStyleClass().addAll("summary-avg-col", zebra);
+                avgCell.getStyleClass().add("summary-root-row-cell");
                 monthsTable.add(avgCell, 12, rowIdx);
 
                 if (insightDrawer != null) {
@@ -1539,6 +1551,7 @@ public final class SummaryView {
             }
 
             Label totalName = SummaryTableCell.category("TOTAL", true, true);
+            totalName.getStyleClass().add("summary-total-row-cell");
             fixedTable.add(totalName, 0, rowIdx);
             for (int m = 1; m <= 12; m++) {
                 Label v = new Label(DashboardFormatters.formatMoney(totalByMonth[m], currencyCode));
@@ -1546,6 +1559,7 @@ public final class SummaryView {
                 v.setMinWidth(100);
                 v.setAlignment(Pos.CENTER_RIGHT);
                 v.getStyleClass().add("summary-total-amount");
+                v.getStyleClass().add("summary-total-row-cell");
                 if (m == currentMonth) {
                     v.getStyleClass().add("summary-current-month");
                 }
@@ -1558,6 +1572,7 @@ public final class SummaryView {
             grand.setAlignment(Pos.CENTER_RIGHT);
             grand.getStyleClass().add("summary-total-amount");
             grand.getStyleClass().add("summary-total-col");
+            grand.getStyleClass().add("summary-total-row-cell");
             fixedTable.add(grand, 1, rowIdx);
 
             int totalMonthCount = 0;
@@ -1573,6 +1588,7 @@ public final class SummaryView {
             grandAvg.setAlignment(Pos.CENTER_RIGHT);
             grandAvg.getStyleClass().add("summary-total-amount");
             grandAvg.getStyleClass().add("summary-avg-col");
+            grandAvg.getStyleClass().add("summary-total-row-cell");
             monthsTable.add(grandAvg, 12, rowIdx);
 
             List<String> totalExportRow = new ArrayList<>();

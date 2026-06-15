@@ -31,7 +31,8 @@ public final class SummaryTableCell {
 
     public static HBox categoryWithIcon(String text, boolean root, boolean totalRow, Ikon icon) {
         FontIcon iconNode = new FontIcon(icon);
-        iconNode.setIconSize(14);
+        iconNode.setIconSize(13);
+        iconNode.getStyleClass().add("summary-category-icon");
         Label l = new Label(text);
         l.getStyleClass().add(root ? "summary-root-name" : "summary-sub-name");
         if (totalRow) {

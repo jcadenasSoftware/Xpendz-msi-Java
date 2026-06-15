@@ -45,10 +45,12 @@ public final class SummaryHeatmapView {
             List<String> ids = null;
             try {
                 ids = new java.util.ArrayList<>();
-                ids.add(sel.categoryId());
-                for (CategoryRepository.Category c : categoryRepo.listChildren(userUid, sel.categoryId())) {
-                    if (c != null && c.id() != null) {
-                        ids.add(c.id());
+                if (sel.categoryId() != null && !sel.categoryId().isBlank()) {
+                    ids.add(sel.categoryId());
+                    for (CategoryRepository.Category c : categoryRepo.listChildren(userUid, sel.categoryId())) {
+                        if (c != null && c.id() != null) {
+                            ids.add(c.id());
+                        }
                     }
                 }
             } catch (Exception ignored) {

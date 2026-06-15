@@ -244,6 +244,7 @@ public final class SummaryInsightDrawer {
     private List<TransactionRepository.TransactionRow> loadTransactions(Context ctx) throws Exception {
         boolean hasSingle = ctx.categoryId() != null && !ctx.categoryId().isBlank();
         boolean hasMany = ctx.categoryIds() != null && !ctx.categoryIds().isEmpty();
+        
         if (!hasSingle && !hasMany) {
             return List.of();
         }

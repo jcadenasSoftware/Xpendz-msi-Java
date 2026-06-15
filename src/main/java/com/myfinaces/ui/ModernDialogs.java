@@ -1,6 +1,7 @@
 package com.myfinaces.ui;
 
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.Dialog;
 import javafx.scene.Node;
 import javafx.stage.Window;
@@ -54,7 +55,8 @@ public final class ModernDialogs {
             .build();
 
         dialog.showAndWait();
-        return dialog.getResult() == ButtonType.OK;
+        ButtonType result = dialog.getResult();
+        return result != null && result.getButtonData() == ButtonBar.ButtonData.OK_DONE;
     }
 
     /**
@@ -82,7 +84,8 @@ public final class ModernDialogs {
             .build();
 
         dialog.showAndWait();
-        return dialog.getResult() == ButtonType.OK;
+        ButtonType result = dialog.getResult();
+        return result != null && result.getButtonData() == ButtonBar.ButtonData.OK_DONE;
     }
 
     /**

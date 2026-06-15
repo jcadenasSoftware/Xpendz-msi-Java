@@ -476,9 +476,7 @@ public final class DashboardTransactionsDialog {
             txAccountFilter.getItems().add(null);
             List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
             accounts.sort(
-                Comparator
-                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+                Comparator.comparing((AccountRepository.Account a) -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             txAccountFilter.getItems().addAll(accounts);
             if (preselectedAccountId != null) {
@@ -1140,9 +1138,7 @@ public final class DashboardTransactionsDialog {
             account.getItems().add(null);
             List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
             accounts.sort(
-                Comparator
-                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+                Comparator.comparing((AccountRepository.Account a) -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             account.getItems().addAll(accounts);
             if (!account.getItems().isEmpty()) {
@@ -1673,9 +1669,7 @@ public final class DashboardTransactionsDialog {
             account.getItems().add(null);
             List<AccountRepository.Account> accounts = new ArrayList<>(accountRepo.list(userUid));
             accounts.sort(
-                Comparator
-                    .comparing((AccountRepository.Account a) -> accountTypeLabel(a == null ? null : a.type()), String.CASE_INSENSITIVE_ORDER)
-                    .thenComparing(a -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
+                Comparator.comparing((AccountRepository.Account a) -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             account.getItems().addAll(accounts);
             if (existing.accountId() != null) {
@@ -1910,9 +1904,10 @@ public final class DashboardTransactionsDialog {
         if (deleteNode instanceof Button delBtn) {
             delBtn.getStyleClass().removeAll("btn-secondary", "btn-primary");
             delBtn.getStyleClass().add("btn-danger");
-            delBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
-                if (!ModernDialogs.confirmDelete("esta transacción", () -> darkTheme)) {
-                    ev.consume();
+            delBtn.setOnAction(ev -> {
+                if (ModernDialogs.confirmDelete("esta transacción", () -> darkTheme)) {
+                    dialog.setResult(deleteBtnType);
+                    dialog.close();
                 }
             });
         }

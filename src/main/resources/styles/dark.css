@@ -1302,24 +1302,31 @@
     -fx-border-color: rgba(255, 255, 255, 0.08);
     -fx-border-radius: 16;
     -fx-border-width: 1;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.40), 22, 0.18, 0, 8);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.44), 28, 0.20, 0, 10);
     background-color: rgba(15, 23, 42, 0.82);
 }
 
 .summary-table .label {
-    -fx-padding: 8 16;
+    -fx-padding: 10 16;
+}
+
+.summary-table-header-row {
+    -fx-background-color: rgba(15, 23, 42, 0.95);
+    -fx-background-radius: 14 14 0 0;
+    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.06) transparent;
+    -fx-border-width: 0 0 1 0;
 }
 
 .summary-header-cell {
     -fx-background-color: transparent;
     -fx-background-radius: 0;
-    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.10) transparent;
+    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.12) transparent;
     -fx-border-radius: 0;
     -fx-border-width: 0 0 1 0;
-    -fx-text-fill: rgba(248, 250, 252, 0.55);
+    -fx-text-fill: rgba(248, 250, 252, 0.62);
     -fx-font-size: 11px;
     -fx-font-weight: 800;
-    -fx-padding: 10 12 12 12;
+    -fx-padding: 12 12 13 12;
     -fx-cursor: default;
     -fx-alignment: center;
 }
@@ -1340,6 +1347,209 @@
     -fx-background-color: rgba(255, 255, 255, 0.06);
     -fx-border-color: rgba(59, 130, 246, 0.12);
     -fx-border-width: 1;
+}
+
+.summary-category-icon {
+    -fx-icon-color: rgba(248, 250, 252, 0.50);
+    -fx-opacity: 0.88;
+}
+
+.summary-sub-name {
+    -fx-font-weight: 500;
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(248, 250, 252, 0.70);
+    -fx-padding: 10 16 10 26;
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-border-radius: 6;
+}
+
+.summary-sub-name-inline {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.summary-sub-chevron {
+    -fx-icon-color: rgba(248, 250, 252, 0.45);
+    -fx-opacity: 0.85;
+}
+
+.summary-sub-name:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-border-color: rgba(59, 130, 246, 0.10);
+    -fx-border-width: 1;
+    -fx-text-fill: rgba(248, 250, 252, 0.84);
+}
+
+.summary-total-name {
+    -fx-font-weight: 800;
+    -fx-font-size: 14px;
+    -fx-text-fill: rgba(248, 250, 252, 0.96);
+}
+
+.summary-amount-cell {
+    -fx-font-variant-numeric: tabular-nums;
+    -fx-font-weight: 500;
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(248, 250, 252, 0.78);
+    -fx-padding: 11 12;
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+}
+
+.summary-total-amount {
+    -fx-font-weight: 700;
+    -fx-font-size: 13px;
+    -fx-text-fill: rgba(248, 250, 252, 0.94);
+    -fx-padding: 11 6;
+}
+
+.summary-total-row-cell {
+    -fx-border-color: rgba(255, 255, 255, 0.10) transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-background-color: rgba(59, 130, 246, 0.06);
+    background-color: rgba(59, 130, 246, 0.06);
+}
+
+.summary-total-row-cell.summary-current-month {
+    -fx-background-color: rgba(59, 130, 246, 0.14);
+    background-color: rgba(59, 130, 246, 0.14);
+}
+
+.summary-root-row-cell {
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.05) transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.summary-row-even {
+    -fx-background-color: rgba(255, 255, 255, 0.025);
+    background-color: rgba(255, 255, 255, 0.025);
+    -fx-cursor: hand;
+    -fx-padding: 0 0;
+    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.06) transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-background-radius: 0;
+}
+
+.summary-row-odd {
+    -fx-background-color: transparent;
+    background-color: transparent;
+    -fx-cursor: hand;
+    -fx-padding: 0 0;
+    -fx-border-color: transparent transparent rgba(255, 255, 255, 0.06) transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-background-radius: 0;
+}
+
+.summary-total-col {
+    -fx-background-color: rgba(59, 130, 246, 0.08);
+    -fx-background-radius: 0;
+    background-color: rgba(59, 130, 246, 0.08);
+}
+
+.summary-avg-col {
+    -fx-background-color: rgba(255, 255, 255, 0.04);
+    -fx-background-radius: 0;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.summary-current-month {
+    -fx-background-color: rgba(59, 130, 246, 0.14);
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 0;
+    -fx-border-width: 0;
+    -fx-text-fill: rgba(96, 165, 250, 0.98);
+    -fx-font-weight: 600;
+    -fx-padding: 10 12;
+    -fx-cursor: default;
+    -fx-alignment: center;
+}
+
+.summary-row-hover {
+    -fx-background-color: rgba(59, 130, 246, 0.08);
+    -fx-background-radius: 0;
+    -fx-effect: null;
+    background-color: rgba(59, 130, 246, 0.08);
+    -fx-scale-x: 1.0;
+    -fx-scale-y: 1.0;
+    -fx-scale-z: 1.0;
+}
+
+.summary-row-selected {
+    -fx-background-color: rgba(59, 130, 246, 0.12);
+    -fx-background-radius: 0;
+    background-color: rgba(59, 130, 246, 0.12);
+    -fx-scale-x: 1.0;
+    -fx-scale-y: 1.0;
+    -fx-scale-z: 1.0;
+}
+
+.summary-cell-strong {
+    -fx-font-weight: 700;
+}
+
+.summary-menu-strong {
+    -fx-font-weight: 700;
+}
+
+.summary-table-host {
+    -fx-background-color: transparent;
+    background-color: transparent;
+}
+
+.summary-table {
+    -fx-background-color: transparent;
+    background-color: transparent;
+}
+
+.summary-table .label {
+    -fx-padding: 10 14;
+}
+
+.summary-table-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    background-color: transparent;
+}
+
+.summary-table-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.summary-table-fixed-scroll {
+    -fx-border-color: rgba(255, 255, 255, 0.06);
+    -fx-border-width: 0 1 0 0;
+}
+
+.summary-table-fixed-scroll,
+.summary-table-months-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    background-color: transparent;
+}
+
+.summary-table-fixed-scroll .viewport,
+.summary-table-months-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.summary-table-fixed {
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.summary-table-fixed-header,
+.summary-table-months-header {
+    -fx-background-color: rgba(15, 23, 42, 0.96);
+    background-color: rgba(15, 23, 42, 0.96);
 }
 
 /* New Transaction Modal */

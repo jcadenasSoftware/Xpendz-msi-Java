@@ -689,6 +689,11 @@ public final class FirestoreSyncService {
         fields.put("name", stringField(a.name()));
         fields.put("type", stringField(a.type()));
         fields.put("currency", stringField(a.currency()));
+        if (a.color() == null || a.color().isBlank()) {
+            fields.put("colorHex", nullField());
+        } else {
+            fields.put("colorHex", stringField(a.color()));
+        }
         fields.put("createdAtEpochSec", intField(a.createdAtEpochSec()));
         fields.put("updatedAtEpochSec", intField(a.updatedAtEpochSec()));
         fields.put("updatedBy", stringField(DeviceId.get()));
@@ -913,7 +918,10 @@ public final class FirestoreSyncService {
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
 
-            String color = readStringField(fields, "color");
+            String color = readStringField(fields, "colorHex");
+            if (color == null || color.isBlank()) {
+                color = readStringField(fields, "color");
+            }
             out.add(new AccountRepository.Account(id, userUid, name, t, cur, color, cAt, uAt));
         }
 

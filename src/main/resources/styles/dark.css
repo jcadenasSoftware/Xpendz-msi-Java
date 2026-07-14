@@ -1023,6 +1023,42 @@
     -fx-background-insets: 0;
 }
 
+.loan-history-menu {
+    -fx-background-color: #0F172A;
+    -fx-background-insets: 0;
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(148, 163, 184, 0.24);
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-padding: 6 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 22, 0.18, 0, 6);
+}
+
+.loan-history-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 9 14;
+}
+
+.loan-history-menu .menu-item .label {
+    -fx-text-fill: #E2E8F0;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.loan-history-menu .menu-item:hover,
+.loan-history-menu .menu-item:focused {
+    -fx-background-color: rgba(59, 130, 246, 0.18);
+}
+
+.loan-history-menu .menu-item.destructive:hover,
+.loan-history-menu .menu-item.destructive:focused {
+    -fx-background-color: rgba(239, 68, 68, 0.18);
+}
+
+.loan-history-menu .menu-item .graphic {
+    -fx-padding: 0 10 0 0;
+}
+
 .combo-box-popup .list-view .list-cell,
 .choice-box .context-menu .menu-item {
     -fx-text-fill: #E5E7EB;
@@ -1166,10 +1202,23 @@
 
 .btn-primary:focused {
     -fx-background-color: #2563EB;
+    -fx-text-fill: white;
     -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.40), 8, 0.25, 0, 2);
     -fx-border-color: #93C5FD;
     -fx-border-width: 2;
     -fx-border-radius: 8;
+    -fx-padding: 8 14;
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #1D4ED8;
+    -fx-text-fill: white;
+}
+
+.btn-primary:disabled {
+    -fx-background-color: rgba(59, 130, 246, 0.3);
+    -fx-text-fill: rgba(255, 255, 255, 0.5);
+    -fx-opacity: 0.6;
 }
 
 .btn-primary .icon {
@@ -1280,7 +1329,8 @@
 }
 
 .loan-amount-block > .label {
-    -fx-font-size: 12px;
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
 }
 
 .money-neutral {
@@ -2081,6 +2131,31 @@
     -fx-font-weight: 700;
     -fx-background-radius: 10;
     -fx-padding: 10 18;
+}
+
+.new-tx-dialog .btn-primary,
+.new-tx-dialog .tx-save-btn {
+    -fx-background-color: linear-gradient(to bottom, #3B82F6, #2563EB);
+    -fx-text-fill: white;
+    -fx-font-weight: 700;
+    -fx-background-radius: 12;
+    -fx-padding: 10 18;
+}
+
+.new-tx-dialog .btn-primary:hover,
+.new-tx-dialog .tx-save-btn:hover {
+    -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
+}
+
+.new-tx-dialog .btn-primary:focused,
+.new-tx-dialog .tx-save-btn:focused {
+    -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.40), 8, 0.25, 0, 2);
+    -fx-border-color: #93C5FD;
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-padding: 10 20;
 }
 
 .summary-sub-name {
@@ -4850,4 +4925,5 @@
     -fx-background-color: rgba(22, 163, 74, 0.16);
     -fx-border-color: rgba(74, 222, 128, 0.20);
     -fx-text-fill: #86EFAC;
+}
 }

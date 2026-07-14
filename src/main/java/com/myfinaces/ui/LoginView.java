@@ -217,19 +217,51 @@ public final class LoginView {
             progress.setVisible(false);
         };
 
-        login.setOnAction(e -> runAuthTask(
-            status,
-            disableInputs,
-            enableInputs,
-            new Task<>() {
-                @Override
-                protected AuthSession call() throws Exception {
-                    return authService.signInWithEmailPassword(email.getText().trim(), password.getText());
+        Runnable performLogin = () -> {
+            runAuthTask(
+                status,
+                disableInputs,
+                enableInputs,
+                new Task<>() {
+                    @Override
+                    protected AuthSession call() throws Exception {
+                        return authService.signInWithEmailPassword(email.getText().trim(), password.getText());
+                    }
+                },
+                sessionRepo,
+                listener,
+                email,
+                password
+            );
+        };
+
+        login.setOnAction(e -> performLogin.run());
+
+        email.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                password.requestFocus();
+            }
+        });
+
+        password.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                if (!login.isDisable()) {
+                    performLogin.run();
                 }
-            },
-            sessionRepo,
-            listener
-        ));
+            }
+        });
+
+        email.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (!status.getText().isEmpty()) {
+                status.setText("");
+            }
+        });
+
+        password.textProperty().addListener((obs, oldVal, newVal) -> {
+            if (!status.getText().isEmpty()) {
+                status.setText("");
+            }
+        });
 
         registerLink.setOnAction(e -> runAuthTask(
             status,
@@ -242,7 +274,9 @@ public final class LoginView {
                 }
             },
             sessionRepo,
-            listener
+            listener,
+            email,
+            password
         ));
 
         google.setOnAction(e -> {
@@ -272,7 +306,7 @@ public final class LoginView {
                     sessionRepo.save(session);
                     listener.onLoginSuccess(session);
                 } catch (Exception ex) {
-                    status.setText(ex.getMessage());
+                    status.setText(mapFirebaseErrorToFriendlyMessage(ex.getMessage()));
                 } finally {
                     enableInputs.run();
                 }
@@ -280,7 +314,7 @@ public final class LoginView {
 
             task.setOnFailed(evt -> {
                 Throwable ex = task.getException();
-                status.setText(ex == null ? "Error desconocido" : ex.getMessage());
+                status.setText(mapFirebaseErrorToFriendlyMessage(ex == null ? null : ex.getMessage()));
                 enableInputs.run();
             });
 
@@ -320,13 +354,47 @@ public final class LoginView {
         button.setGraphicTextGap(4);
     }
 
+    private static String mapFirebaseErrorToFriendlyMessage(String errorMessage) {
+        if (errorMessage == null || errorMessage.isBlank()) {
+            return "Ha ocurrido un error inesperado. Inténtalo nuevamente.";
+        }
+
+        String lower = errorMessage.toLowerCase();
+
+        if (lower.contains("invalid_login_credentials") || lower.contains("wrong-password") || lower.contains("user-not-found")) {
+            return "Correo electrónico o contraseña incorrectos.";
+        }
+        if (lower.contains("invalid_email") || lower.contains("invalid-email")) {
+            return "El formato del correo electrónico no es válido.";
+        }
+        if (lower.contains("user_disabled") || lower.contains("user-disabled")) {
+            return "Tu cuenta ha sido deshabilitada.";
+        }
+        if (lower.contains("too_many_requests") || lower.contains("too-many-requests")) {
+            return "Demasiados intentos. Por favor, espera unos minutos e inténtalo nuevamente.";
+        }
+        if (lower.contains("network") || lower.contains("connection") || lower.contains("timeout")) {
+            return "No fue posible conectar con el servidor. Inténtalo nuevamente.";
+        }
+        if (lower.contains("email_already_in_use") || lower.contains("email-already-in-use")) {
+            return "El correo electrónico ya está registrado.";
+        }
+        if (lower.contains("weak_password") || lower.contains("weak-password")) {
+            return "La contraseña es demasiado débil.";
+        }
+
+        return "Ha ocurrido un error inesperado. Inténtalo nuevamente.";
+    }
+
     private static void runAuthTask(
         Label status,
         Runnable disableInputs,
         Runnable enableInputs,
         Task<AuthSession> task,
         SessionRepository sessionRepo,
-        Listener listener
+        Listener listener,
+        TextField email,
+        PasswordField password
     ) {
         status.setText("");
 
@@ -338,7 +406,16 @@ public final class LoginView {
                 sessionRepo.save(session);
                 listener.onLoginSuccess(session);
             } catch (Exception ex) {
-                status.setText(ex.getMessage());
+                String friendlyMessage = mapFirebaseErrorToFriendlyMessage(ex.getMessage());
+                status.setText(friendlyMessage);
+                Platform.runLater(() -> {
+                    if (friendlyMessage.contains("correo") || friendlyMessage.contains("formato")) {
+                        email.requestFocus();
+                    } else {
+                        password.requestFocus();
+                        password.selectAll();
+                    }
+                });
             } finally {
                 enableInputs.run();
             }
@@ -346,7 +423,16 @@ public final class LoginView {
 
         task.setOnFailed(evt -> {
             Throwable ex = task.getException();
-            status.setText(ex == null ? "Error desconocido" : ex.getMessage());
+            String friendlyMessage = mapFirebaseErrorToFriendlyMessage(ex == null ? null : ex.getMessage());
+            status.setText(friendlyMessage);
+            Platform.runLater(() -> {
+                if (friendlyMessage.contains("correo") || friendlyMessage.contains("formato")) {
+                    email.requestFocus();
+                } else {
+                    password.requestFocus();
+                    password.selectAll();
+                }
+            });
             enableInputs.run();
         });
 

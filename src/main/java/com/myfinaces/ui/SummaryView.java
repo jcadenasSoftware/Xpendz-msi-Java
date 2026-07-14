@@ -59,7 +59,8 @@ public final class SummaryView {
 
     private record MonthlySummaryParts(
         Node filtersRow,
-        Node tablesCard
+        Node tablesCard,
+        Runnable refreshHeatmap
     ) {
     }
 
@@ -67,6 +68,7 @@ public final class SummaryView {
         Node sectionTitle,
         Node filtersRow,
         Node tablesCard,
+        Runnable refreshHeatmap,
         Node goalsPane
     ) {
     }
@@ -112,7 +114,23 @@ public final class SummaryView {
         Node insightsSection = SummarySectionContainer.buildWithSpacing(SummaryInsightsSection.build(userUid, txRepo, categoryRepo), 16);
         Node chartsSection = SummarySectionContainer.buildWithSpacing(SummaryTrendsSection.build(userUid, txRepo, categoryRepo), 16);
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp = viewSwitcher.selectedViewProperty();
-        AnalysisParts analysisParts = buildAnalysisSection(userUid, userName, txRepo, accountRepo, categoryRepo, goalRepo, refreshBalances, viewModeProp, insightDrawer, pdfDrawer, reportContextRef);
+        VBox heatmapView = SummaryHeatmapView.create();
+        heatmapView.getStyleClass().add("summary-heatmap-view-container");
+
+        AnalysisParts analysisParts = buildAnalysisSection(
+            userUid,
+            userName,
+            txRepo,
+            accountRepo,
+            categoryRepo,
+            goalRepo,
+            refreshBalances,
+            viewModeProp,
+            insightDrawer,
+            pdfDrawer,
+            reportContextRef,
+            heatmapView
+        );
 
         // Create compact versions for different views
         Node compactChartsSection = SummarySectionContainer.buildWithSpacing(buildCompactChartsSection(userUid, txRepo), 12);
@@ -124,10 +142,6 @@ public final class SummaryView {
         VBox analyticsView = SummaryAnalyticsView.create();
         analyticsView.getStyleClass().add("summary-analytics-view");
         SummaryAnalyticsView.setContent(analyticsView, null, chartsSection, insightsSection, null);
-
-        VBox heatmapView = SummaryHeatmapView.create();
-        heatmapView.getStyleClass().add("summary-heatmap-view-container");
-        SummaryHeatmapView.setContent(heatmapView, userUid, txRepo, accountRepo, categoryRepo, viewModeProp, insightDrawer);
 
         StackPane centerHost = new StackPane();
         centerHost.getStyleClass().add("summary-center-host");
@@ -146,7 +160,9 @@ public final class SummaryView {
                     yield analyticsView;
                 }
                 case HEATMAP -> {
-                    SummaryHeatmapView.setContent(heatmapView, userUid, txRepo, accountRepo, categoryRepo, viewModeProp, insightDrawer);
+                    if (analysisParts.refreshHeatmap() != null) {
+                        analysisParts.refreshHeatmap().run();
+                    }
                     yield heatmapView;
                 }
             };
@@ -331,15 +347,27 @@ public final class SummaryView {
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp,
         SummaryInsightDrawer insightDrawer,
         SummaryPdfDrawer pdfDrawer,
-        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef
+        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef,
+        VBox heatmapView
     ) {
         Label sectionTitle = new Label("Análisis");
         sectionTitle.getStyleClass().add("account-name");
 
-        MonthlySummaryParts parts = buildMonthlySummaryPane(userUid, userName, txRepo, accountRepo, categoryRepo, viewModeProp, insightDrawer, pdfDrawer, reportContextRef);
+        MonthlySummaryParts parts = buildMonthlySummaryPane(
+            userUid,
+            userName,
+            txRepo,
+            accountRepo,
+            categoryRepo,
+            viewModeProp,
+            insightDrawer,
+            pdfDrawer,
+            reportContextRef,
+            heatmapView
+        );
         Node goalsPane = buildGoalsPane(userUid, accountRepo, goalRepo, refreshBalances);
 
-        return new AnalysisParts(sectionTitle, parts.filtersRow(), parts.tablesCard(), goalsPane);
+        return new AnalysisParts(sectionTitle, parts.filtersRow(), parts.tablesCard(), parts.refreshHeatmap(), goalsPane);
     }
 
     private static MonthlySummaryParts buildMonthlySummaryPane(
@@ -351,7 +379,8 @@ public final class SummaryView {
         ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp,
         SummaryInsightDrawer insightDrawer,
         SummaryPdfDrawer pdfDrawer,
-        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef
+        AtomicReference<SummaryPdfDrawer.ReportContext> reportContextRef,
+        VBox heatmapView
     ) {
         ComboBox<Integer> year = new ComboBox<>();
         ComboBox<String> kind = new ComboBox<>();
@@ -703,59 +732,37 @@ public final class SummaryView {
             reportContextRef.set(reportContext);
 
             if (viewModeProp != null && viewModeProp.get() == SummaryViewSwitcher.ViewMode.HEATMAP) {
-                Node heatmap = SummaryHeatmapView.build(userUid, txRepo, y, k, a, currencyCode, (sel) -> {
-                    if (sel == null || insightDrawer == null) {
-                        return;
-                    }
-
-                    List<String> ids = null;
-                    try {
-                        ids = new ArrayList<>();
-                        ids.add(sel.categoryId());
-                        for (CategoryRepository.Category c : categoryRepo.listChildren(userUid, sel.categoryId())) {
-                            if (c != null && c.id() != null) {
-                                ids.add(c.id());
-                            }
-                        }
-                    } catch (Exception ignored) {
-                    }
-
-                    java.util.Locale esCo = java.util.Locale.forLanguageTag("es-CO");
-                    String monthLabel = java.time.Month.of(sel.month()).getDisplayName(java.time.format.TextStyle.FULL, esCo);
-                    String monthCap = monthLabel == null || monthLabel.isBlank() ? "" : (monthLabel.substring(0, 1).toUpperCase(esCo) + monthLabel.substring(1));
-                    String subtitle = monthCap + " " + (y == null ? String.valueOf(currentYear) : String.valueOf(y)) + " · " + ("INCOME".equalsIgnoreCase(k) ? "Ingresos" : "Gastos");
-                    long totalCents = sel.cents();
-                    long avgCents = 0L;
-                    int count = 0;
-                    for (int mm = 1; mm <= 12; mm++) {
-                        if (sel.monthsCents()[mm] != 0) {
-                            avgCents += sel.monthsCents()[mm];
-                            count++;
-                        }
-                    }
-                    avgCents = count == 0 ? 0L : (avgCents / count);
-
-                    insightDrawer.show(new SummaryInsightDrawer.Context(
+                contentHost.getChildren().setAll(tablesCard);
+                if (heatmapView != null) {
+                    SummaryHeatmapView.setContent(
+                        heatmapView,
                         userUid,
-                        sel.categoryName(),
-                        subtitle,
-                        y == null ? currentYear : y,
+                        txRepo,
+                        categoryRepo,
+                        insightDrawer,
+                        y,
                         k,
-                        currencyCode,
-                        accountId,
-                        sel.categoryId(),
-                        ids,
-                        sel.month(),
-                        sel.monthsCents(),
-                        totalCents,
-                        avgCents
-                    ));
-                });
-                contentHost.getChildren().setAll(heatmap);
+                        a,
+                        currencyCode
+                    );
+                }
                 return;
             }
 
             contentHost.getChildren().setAll(tablesCard);
+            if (heatmapView != null) {
+                SummaryHeatmapView.setContent(
+                    heatmapView,
+                    userUid,
+                    txRepo,
+                    categoryRepo,
+                    insightDrawer,
+                    y,
+                    k,
+                    a,
+                    currencyCode
+                );
+            }
 
             int monthsElapsed;
             int selectedYear = y == null ? currentYear : y;
@@ -1632,6 +1639,7 @@ public final class SummaryView {
         kind.valueProperty().addListener((obs, o, n) -> refreshAccountsForSummary.run());
 
         refreshAccountsForSummary.run();
+        refreshSummary.run();
 
         Button exportCsv = new Button("Exportar CSV");
         exportCsv.getStyleClass().add("summary-action-btn");
@@ -1697,7 +1705,26 @@ public final class SummaryView {
         filtersAndActionsRow.setAlignment(Pos.CENTER_LEFT);
 
         refreshSummary.run();
-        return new MonthlySummaryParts(filtersAndActionsRow, contentHost);
+        Runnable refreshHeatmap = () -> {
+            Integer y = year.getValue();
+            String kindLabel = kind.getValue();
+            String k = "Ingresos".equalsIgnoreCase(kindLabel) ? "INCOME" : "EXPENSE";
+            AccountRepository.Account a = account.getValue();
+            String currencyCode = a == null || a.currency() == null || a.currency().isBlank() ? "COP" : a.currency();
+            SummaryHeatmapView.setContent(
+                heatmapView,
+                userUid,
+                txRepo,
+                categoryRepo,
+                insightDrawer,
+                y,
+                k,
+                a,
+                currencyCode
+            );
+        };
+
+        return new MonthlySummaryParts(filtersAndActionsRow, contentHost, refreshHeatmap);
     }
 
     private static Node buildGoalsPane(

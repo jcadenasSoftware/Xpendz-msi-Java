@@ -176,6 +176,8 @@ public final class ModalOverlay {
      * Wraps content into a styled card body. Returns the VBox for reference.
      */
     public VBox register(String id, double maxWidth, Node... contentNodes) {
+        modalContainer.getChildren().removeIf(n -> id.equals(n.getId()));
+
         VBox body = new VBox(18, contentNodes);
         body.setPadding(new Insets(28, 32, 28, 32));
         body.setFillWidth(true);

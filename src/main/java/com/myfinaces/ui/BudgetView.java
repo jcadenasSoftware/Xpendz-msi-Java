@@ -3093,6 +3093,13 @@ public final class BudgetView {
         refs.put("percentRef", percentRef);
         refs.put("updateFillWidthRef", updateFillWidthRef);
         refs.put("historyContentRef", historyContentRef);
+        refs.put("drawerContentRef", new VBox[]{ summaryBox, projectionBox, historyBox, inlinePanel });
+        refs.put("allMovementsRef", new java.util.List[]{ null });
+        refs.put("goalServiceRef", goalServiceRef);
+        refs.put("userUidRef", new String[]{ userUid });
+        refs.put("darkThemeRef", darkTheme);
+        refs.put("metaRef", selectedMetaRef);
+        refs.put("drawerRef", new VBox[]{ drawer });
         drawer.setUserData(refs);
 
         return drawer;
@@ -3127,6 +3134,13 @@ public final class BudgetView {
             Label[] ritmoLabelRef = (Label[]) refs.get("ritmoLabelRef");
             FontIcon[] headerIconRef = (FontIcon[]) refs.get("headerIconRef");
             VBox[] historyContentRef = (VBox[]) refs.get("historyContentRef");
+            VBox[] drawerContentRef = (VBox[]) refs.get("drawerContentRef");
+            java.util.List[] allMovementsRef = (java.util.List[]) refs.get("allMovementsRef");
+            GoalService[] goalServiceRef = (GoalService[]) refs.get("goalServiceRef");
+            String[] userUidRef = (String[]) refs.get("userUidRef");
+            java.util.function.Supplier<Boolean> darkThemeRef = (java.util.function.Supplier<Boolean>) refs.get("darkThemeRef");
+            GoalService.MetaInfo[] metaRef = (GoalService.MetaInfo[]) refs.get("metaRef");
+            VBox[] drawerRef = (VBox[]) refs.get("drawerRef");
             
             // Actualizar icono del header
             if (headerIconRef != null && headerIconRef[0] != null) {
@@ -3260,6 +3274,11 @@ public final class BudgetView {
                     
                     System.out.println("[GoalDrawer] Movimientos obtenidos: " + movimientos.size());
                     
+                    // Guardar movimientos completos para el historial
+                    if (allMovementsRef != null) {
+                        allMovementsRef[0] = movimientos;
+                    }
+                    
                     // Ordenar por fecha descendente (más recientes primero)
                     movimientos.sort((a, b) -> Long.compare(b.occurredAtEpochSec(), a.occurredAtEpochSec()));
                     
@@ -3304,9 +3323,12 @@ public final class BudgetView {
                         emptyLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: " + (drawer.getStyle().contains("#0F172A") ? "#94A3B8" : "#64748B") + ";");
                         historyList.getChildren().add(emptyLabel);
                     } else if (movimientos.size() > 3) {
-                        // Mostrar indicador de que hay más movimientos
+                        // Mostrar indicador de que hay más movimientos (clickeable)
                         Label moreLabel = new Label("... y " + (movimientos.size() - 3) + " movimientos más");
-                        moreLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: " + (drawer.getStyle().contains("#0F172A") ? "#64748B" : "#94A3B8") + "; -fx-font-style: italic;");
+                        moreLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: " + (drawer.getStyle().contains("#0F172A") ? "#64748B" : "#94A3B8") + "; -fx-font-style: italic; -fx-cursor: hand;");
+                        moreLabel.setOnMouseClicked(e -> {
+                            showFullHistoryDrawer(drawer, meta, drawerContentRef, allMovementsRef, darkThemeRef, userUidRef);
+                        });
                         historyList.getChildren().add(moreLabel);
                     }
                 } catch (Exception e) {
@@ -3320,5 +3342,136 @@ public final class BudgetView {
             System.out.println("[GoalDrawer] Error refrescando drawer: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    // ── Método para mostrar historial completo de movimientos ─────────────
+    @SuppressWarnings("unchecked")
+    private static void showFullHistoryDrawer(VBox drawer, GoalService.MetaInfo meta,
+                                               VBox[] drawerContentRef, java.util.List[] allMovementsRef,
+                                               java.util.function.Supplier<Boolean> darkThemeRef,
+                                               String[] userUidRef) {
+        if (drawer == null || meta == null || drawerContentRef == null) return;
+
+        final boolean dk = darkThemeRef != null && Boolean.TRUE.equals(darkThemeRef.get());
+        String titleColor = dk ? "#E5E7EB" : "#0F172A";
+        String subtitleColor = dk ? "#94A3B8" : "#64748B";
+        String dividerColor = dk ? "rgba(255,255,255,0.10)" : "#E2E8F0";
+
+        // Guardar el contenido actual del drawer
+        java.util.List<Node> originalChildren = new java.util.ArrayList<>(drawer.getChildren());
+
+        // Limpiar el drawer
+        drawer.getChildren().clear();
+
+        // ── Header con botón de vuelta ─────────────────────────────────
+        FontIcon backIcon = new FontIcon("fas-arrow-left");
+        backIcon.setIconSize(14);
+        backIcon.setIconColor(javafx.scene.paint.Color.web(dk ? "#94A3B8" : "#64748B"));
+        Button btnBack = new Button();
+        btnBack.setGraphic(backIcon);
+        btnBack.setText("Volver");
+        btnBack.setStyle(
+            "-fx-background-color: transparent; "
+            + "-fx-text-fill: " + (dk ? "#94A3B8" : "#64748B") + "; "
+            + "-fx-font-size: 13px; -fx-font-weight: 600; "
+            + "-fx-cursor: hand; -fx-padding: 6 12;");
+        btnBack.setOnAction(e -> {
+            drawer.getChildren().clear();
+            drawer.getChildren().addAll(originalChildren);
+        });
+
+        Label historyTitle = new Label("Historial de movimientos");
+        historyTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerRow = new HBox(12, btnBack, headerSpacer, historyTitle);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        // ── Separador ────────────────────────────────────────────────────
+        Region divider = new Region();
+        divider.setPrefHeight(1);
+        divider.setMaxHeight(1);
+        divider.setStyle("-fx-background-color: " + dividerColor + ";");
+        divider.setMaxWidth(Double.MAX_VALUE);
+
+        // ── Nombre de la meta ─────────────────────────────────────────────
+        Label metaNameLabel = new Label(meta.name());
+        metaNameLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";");
+
+        VBox metaInfoBox = new VBox(4, metaNameLabel);
+        metaInfoBox.setPadding(new Insets(12, 0, 0, 0));
+
+        // ── Lista completa de movimientos ───────────────────────────────
+        VBox movementsList = new VBox(8);
+        movementsList.setPadding(new Insets(8, 0, 0, 0));
+
+        if (allMovementsRef == null || allMovementsRef[0] == null || allMovementsRef[0].isEmpty()) {
+            Label emptyLabel = new Label("No hay movimientos registrados");
+            emptyLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: " + subtitleColor + ";");
+            emptyLabel.setPadding(new Insets(20, 0, 0, 0));
+            movementsList.getChildren().add(emptyLabel);
+        } else {
+            NumberFormat nf = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
+            nf.setMaximumFractionDigits(0);
+            java.time.format.DateTimeFormatter dateFormatter =
+                java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy", java.util.Locale.forLanguageTag("es-CO"));
+
+            for (com.myfinaces.db.TransferRepository.TransferRow mov : (java.util.List<com.myfinaces.db.TransferRepository.TransferRow>) allMovementsRef[0]) {
+                boolean esDeposito = meta.goal().accountId().equals(mov.toAccountId());
+                String montoStr = (esDeposito ? "+" : "-") + nf.format(mov.amountCents() / 100.0);
+                String tipoStr = esDeposito ? "Depósito" : "Retiro";
+                String colorStr = esDeposito ? "#10B981" : "#EF4444";
+
+                java.time.LocalDate fecha = java.time.LocalDate.ofInstant(
+                    java.time.Instant.ofEpochSecond(mov.occurredAtEpochSec()),
+                    java.time.ZoneId.systemDefault());
+                String fechaStr = fecha.format(dateFormatter);
+
+                Label amountLabel = new Label(montoStr);
+                amountLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: 700; -fx-text-fill: " + colorStr + ";");
+
+                Label typeLabel = new Label(tipoStr);
+                typeLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: " + titleColor + ";");
+
+                Label dateMovLabel = new Label(fechaStr);
+                dateMovLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: " + subtitleColor + ";");
+
+                VBox movTexts = new VBox(2, typeLabel, dateMovLabel);
+
+                String note = mov.note();
+                Label noteLabel = new Label(note != null && !note.isBlank() ? note : "");
+                noteLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: " + subtitleColor + ";");
+                noteLabel.setWrapText(true);
+                noteLabel.setMaxWidth(280);
+                if (!noteLabel.getText().isEmpty()) {
+                    movTexts.getChildren().add(noteLabel);
+                }
+
+                Region movSpacer = new Region();
+                HBox.setHgrow(movSpacer, Priority.ALWAYS);
+                HBox movRow = new HBox(10, amountLabel, movSpacer, movTexts);
+                movRow.setAlignment(Pos.CENTER_LEFT);
+                movRow.setPadding(new Insets(10, 12, 10, 12));
+                movRow.setStyle("-fx-background-color: " + (dk ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)") + "; "
+                    + "-fx-background-radius: 8;");
+
+                movementsList.getChildren().add(movRow);
+            }
+        }
+
+        ScrollPane scroll = new ScrollPane(movementsList);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        scroll.setPadding(new Insets(0));
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        VBox content = new VBox(12, headerRow, divider, metaInfoBox, scroll);
+        content.setPadding(new Insets(14));
+        content.setFillWidth(true);
+
+        drawer.getChildren().add(content);
     }
 }

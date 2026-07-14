@@ -86,6 +86,53 @@ public final class LoanMovementRepository {
         return id;
     }
 
+    public void update(
+        String userUid,
+        String movementId,
+        String loanId,
+        String movementType,
+        long amountCents,
+        String accountId,
+        String linkedTransactionId,
+        String note,
+        long occurredAtEpochSec
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(movementId, "movementId");
+        Objects.requireNonNull(loanId, "loanId");
+        Objects.requireNonNull(movementType, "movementType");
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE loan_movements SET loan_id = ?, movement_type = ?, amount_cents = ?, account_id = ?, linked_transaction_id = ?, note = ?, occurred_at_epoch_sec = ?, updated_at_epoch_sec = ?, pending_sync = 1 WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, loanId);
+            ps.setString(2, movementType);
+            ps.setLong(3, amountCents);
+            setNullableString(ps, 4, accountId);
+            setNullableString(ps, 5, linkedTransactionId);
+            ps.setString(6, note);
+            ps.setLong(7, occurredAtEpochSec);
+            ps.setLong(8, now);
+            ps.setString(9, userUid);
+            ps.setString(10, movementId);
+            ps.executeUpdate();
+        }
+    }
+
+    public void delete(String userUid, String movementId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(movementId, "movementId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "DELETE FROM loan_movements WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, movementId);
+            ps.executeUpdate();
+        }
+    }
+
     // ── READ ────────────────────────────────────────────────────
 
     public LoanMovement getByIdOrNull(String userUid, String movementId) throws SQLException {

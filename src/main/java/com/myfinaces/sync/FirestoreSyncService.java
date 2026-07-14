@@ -1238,4 +1238,53 @@ public final class FirestoreSyncService {
 
         patchDoc(session, url, fields, "loanMovement");
     }
+
+    public void deleteLoanMovement(AuthSession session, String userUid, String loanId, String movementId) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(userUid)
+            + "/loans/" + urlEncode(loanId)
+            + "/movements/" + urlEncode(movementId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete loan movement failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
+    public void deleteLoanPayment(AuthSession session, String paymentId) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loanPayments/" + urlEncode(paymentId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete loan payment failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
+    public void deleteLoan(AuthSession session, String loanId) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loans/" + urlEncode(loanId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete loan failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
 }

@@ -5,7 +5,6 @@ import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.TransactionRepository;
 import java.time.LocalDate;
 import java.util.List;
-import javafx.beans.property.ObjectProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -27,17 +26,30 @@ public final class SummaryHeatmapView {
         VBox root,
         String userUid,
         TransactionRepository txRepo,
-        AccountRepository accountRepo,
         CategoryRepository categoryRepo,
-        ObjectProperty<SummaryViewSwitcher.ViewMode> viewModeProp,
         SummaryInsightDrawer insightDrawer
+        ,Integer year,
+        String kind,
+        AccountRepository.Account account,
+        String currencyCode
     ) {
-        int year = LocalDate.now().getYear();
-        String kind = "EXPENSE";
-        AccountRepository.Account account = null;
-        String currencyCode = "COP";
+        Node heatmap = buildForState(userUid, txRepo, categoryRepo, insightDrawer, year, kind, account, currencyCode);
 
-        Node heatmap = build(userUid, txRepo, year, kind, account, currencyCode, (sel) -> {
+        root.getChildren().setAll(heatmap);
+        VBox.setVgrow(heatmap, Priority.ALWAYS);
+    }
+
+    public static Node buildForState(
+        String userUid,
+        TransactionRepository txRepo,
+        CategoryRepository categoryRepo,
+        SummaryInsightDrawer insightDrawer,
+        Integer year,
+        String kind,
+        AccountRepository.Account account,
+        String currencyCode
+    ) {
+        return build(userUid, txRepo, year, kind, account, currencyCode, sel -> {
             if (sel == null || insightDrawer == null) {
                 return;
             }
@@ -57,9 +69,11 @@ public final class SummaryHeatmapView {
             }
 
             java.util.Locale esCo = java.util.Locale.forLanguageTag("es-CO");
+            int effectiveYear = year == null ? LocalDate.now().getYear() : year;
+            String effectiveKind = kind == null ? "EXPENSE" : kind;
             String monthLabel = java.time.Month.of(sel.month()).getDisplayName(java.time.format.TextStyle.FULL, esCo);
             String monthCap = monthLabel == null || monthLabel.isBlank() ? "" : (monthLabel.substring(0, 1).toUpperCase(esCo) + monthLabel.substring(1));
-            String subtitle = monthCap + " " + year + " · " + ("INCOME".equalsIgnoreCase(kind) ? "Ingresos" : "Gastos");
+            String subtitle = monthCap + " " + effectiveYear + " · " + ("INCOME".equalsIgnoreCase(effectiveKind) ? "Ingresos" : "Gastos");
             long totalCents = sel.cents();
             long avgCents = 0L;
             int count = 0;
@@ -75,10 +89,10 @@ public final class SummaryHeatmapView {
                 userUid,
                 sel.categoryName(),
                 subtitle,
-                year,
-                kind,
+                effectiveYear,
+                effectiveKind,
                 currencyCode,
-                null,
+                account == null ? null : account.id(),
                 sel.categoryId(),
                 ids,
                 sel.month(),
@@ -87,9 +101,6 @@ public final class SummaryHeatmapView {
                 avgCents
             ));
         });
-
-        root.getChildren().setAll(heatmap);
-        VBox.setVgrow(heatmap, Priority.ALWAYS);
     }
 
     public static Node build(

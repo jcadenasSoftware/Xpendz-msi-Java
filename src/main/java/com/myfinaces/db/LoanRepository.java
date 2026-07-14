@@ -128,6 +128,58 @@ public final class LoanRepository {
         }
     }
 
+    public void updateFull(
+        String userUid,
+        String loanId,
+        String type,
+        String counterpartyName,
+        String accountId,
+        long principalCents,
+        String currency,
+        String status,
+        String notes,
+        long occurredAtEpochSec
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(loanId, "loanId");
+        Objects.requireNonNull(type, "type");
+        Objects.requireNonNull(counterpartyName, "counterpartyName");
+        Objects.requireNonNull(currency, "currency");
+        Objects.requireNonNull(status, "status");
+
+        if (!TYPE_LENT.equals(type) && !TYPE_BORROWED.equals(type)) {
+            throw new IllegalArgumentException("type");
+        }
+        if (!STATUS_OPEN.equals(status) && !STATUS_CLOSED.equals(status)) {
+            throw new IllegalArgumentException("status");
+        }
+        if (principalCents < 0) {
+            throw new IllegalArgumentException("principalCents");
+        }
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE loans SET type = ?, counterparty_name = ?, account_id = ?, principal_cents = ?, currency = ?, status = ?, notes = ?, occurred_at_epoch_sec = ?, updated_at_epoch_sec = ?, pending_sync = 1 WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, type);
+            ps.setString(2, counterpartyName);
+            if (accountId == null || accountId.isBlank()) {
+                ps.setObject(3, null);
+            } else {
+                ps.setString(3, accountId);
+            }
+            ps.setLong(4, principalCents);
+            ps.setString(5, currency);
+            ps.setString(6, status);
+            ps.setString(7, notes);
+            ps.setLong(8, occurredAtEpochSec);
+            ps.setLong(9, now);
+            ps.setString(10, userUid);
+            ps.setString(11, loanId);
+            ps.executeUpdate();
+        }
+    }
+
     public List<Loan> listAllByUser(String userUid) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
 

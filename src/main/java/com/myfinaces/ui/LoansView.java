@@ -18,13 +18,21 @@ import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -37,6 +45,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.geometry.Side;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import javafx.util.Duration;
@@ -46,7 +55,15 @@ import javafx.collections.FXCollections;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -2755,11 +2772,18 @@ public final class LoansView {
                 btnEdit.setOnMouseEntered(ev -> btnEdit.setStyle(editHover));
                 btnEdit.setOnMouseExited(ev -> btnEdit.setStyle(editBase));
                 btnEdit.setOnAction(ev -> {
+                    // Cerrar drawer antes de mostrar el modal
+                    if (closeDrawerRef[0] != null) closeDrawerRef[0].run();
+                    
                     // Construir modal de edición dinámicamente con datos del préstamo
                     buildEditLoanModal(modalOverlay, loanService, session, userUid, loanId, loan.accountId(), loan.principalCents(), () -> {
                         refreshAll.run();
-                        // Cerrar drawer después de editar
-                        if (closeDrawerRef[0] != null) closeDrawerRef[0].run();
+                        // Reabrir drawer después de editar
+                        Platform.runLater(() -> {
+                            try {
+                                showLoanDetailDrawer(root, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                            } catch (Exception ignored) {}
+                        });
                     });
                     modalOverlay.show("edit-loan");
                 });
@@ -2777,7 +2801,14 @@ public final class LoansView {
             VBox timelineBox = new VBox(8);
             timelineBox.setFillWidth(true);
 
-            if (movements.isEmpty()) {
+            // Guardar referencia a movimientos completos para historial
+            final List<LoanMovementRepository.LoanMovement>[] allMovementsRef = new List[]{ movements };
+
+            List<LoanMovementRepository.LoanMovement> visibleMovements = movements.size() > 5
+                ? movements.subList(0, 5)
+                : movements;
+
+            if (visibleMovements.isEmpty()) {
                 Label noMovements = new Label("Sin movimientos registrados");
                 noMovements.setStyle(
                     "-fx-font-size: 13px; -fx-text-fill: " + (dk ? "#94A3B8" : "#64748B") + "; "
@@ -2785,20 +2816,38 @@ public final class LoansView {
                 );
                 timelineBox.getChildren().add(noMovements);
             } else {
-                for (LoanMovementRepository.LoanMovement m : movements) {
+                for (LoanMovementRepository.LoanMovement m : visibleMovements) {
                     Node item = buildTimelineItem(m, dk);
                     timelineBox.getChildren().add(item);
                 }
             }
 
-            ScrollPane timelineScroll = new ScrollPane(timelineBox);
-            timelineScroll.setFitToWidth(true);
-            timelineScroll.setPrefHeight(200);
-            timelineScroll.setStyle(
+            timelineBox.setFillWidth(true);
+
+            Button viewHistoryBtn = new Button("Ver historial completo");
+            viewHistoryBtn.setStyle(
                 "-fx-background-color: transparent; "
-                + "-fx-background: transparent; "
-                + "-fx-border-color: transparent;"
+                + "-fx-text-fill: #3B82F6; "
+                + "-fx-font-size: 12px; -fx-font-weight: 600; "
+                + "-fx-cursor: hand; -fx-padding: 6 0 0 0;"
             );
+            viewHistoryBtn.setOnAction(e -> {
+                try {
+                    showFullLoanHistoryDrawer(
+                        drawer,
+                        new ArrayList<>(drawer.getChildren()),
+                        loanService,
+                        session,
+                        userUid,
+                        loanId,
+                        dk,
+                        modalOverlay,
+                        refreshAll,
+                        closeDrawerRef
+                    );
+                } catch (Exception ignored) {
+                }
+            });
 
             // ── Info adicional ───────────────────────────────────────────
             String createdDate = formatLoanDate(loan.createdAtEpochSec());
@@ -2816,7 +2865,8 @@ public final class LoansView {
                     metricsRow,
                     btnEditRef[0],
                     timelineTitle,
-                    timelineScroll,
+                    timelineBox,
+                    viewHistoryBtn,
                     createdLbl
                 );
             } else {
@@ -2825,7 +2875,8 @@ public final class LoansView {
                     personRow,
                     metricsRow,
                     timelineTitle,
-                    timelineScroll,
+                    timelineBox,
+                    viewHistoryBtn,
                     createdLbl
                 );
             }
@@ -3029,5 +3080,644 @@ public final class LoansView {
         );
 
         return row;
+    }
+
+    private static Node buildLoanHistoryEmptyState(boolean dk, String message) {
+        return buildEmptyState(
+            new String[]{ "fas-history", "fas-clock", "fas-stream" },
+            "#3B82F6",
+            dk ? "rgba(59,130,246,0.12)" : "#EFF6FF",
+            message,
+            "",
+            null,
+            null,
+            null,
+            null,
+            dk
+        );
+    }
+
+    private static Node buildLoanHistoryItem(
+        LoanService loanService,
+        AuthSession session,
+        String userUid,
+        String loanId,
+        LoanRepository.Loan loan,
+        LoanMovementRepository.LoanMovement movement,
+        boolean dk,
+        ModalOverlay modalOverlay,
+        Runnable refreshAll,
+        Runnable refreshHistory,
+        Runnable[] closeDrawerRef,
+        Runnable reopenDrawer
+    ) {
+        String iconCode;
+        String color;
+        String label;
+
+        switch (movement.movementType()) {
+            case LoanMovementRepository.MOV_TOPUP:
+                iconCode = "fas-plus-circle";
+                color = "#F59E0B";
+                label = "Agregado";
+                break;
+            case LoanMovementRepository.MOV_PAYMENT_IN:
+                iconCode = "fas-arrow-down";
+                color = "#10B981";
+                label = "Pago recibido";
+                break;
+            case LoanMovementRepository.MOV_PAYMENT_OUT:
+                iconCode = "fas-arrow-up";
+                color = "#3B82F6";
+                label = "Pago realizado";
+                break;
+            case LoanMovementRepository.MOV_CLOSE:
+                iconCode = "fas-check-circle";
+                color = "#8B5CF6";
+                label = "Cierre";
+                break;
+            case LoanMovementRepository.MOV_CREATION:
+            default:
+                iconCode = "fas-file-contract";
+                color = "#64748B";
+                label = "Creación";
+                break;
+        }
+
+        FontIcon icon = new FontIcon(iconCode);
+        icon.setIconSize(14);
+        icon.setIconColor(Color.web(color));
+
+        VBox iconBox = new VBox(icon);
+        iconBox.setAlignment(Pos.CENTER);
+        iconBox.setMinWidth(32);
+
+        Label lblType = new Label(label);
+        lblType.setStyle(
+            "-fx-font-size: 13px; -fx-font-weight: 700; "
+            + (dk ? "-fx-text-fill: #E2E8F0;" : "-fx-text-fill: #1E293B;")
+        );
+
+        String amountStr = DashboardFormatters.formatMoney(movement.amountCents());
+        Label lblAmount = new Label(amountStr);
+        lblAmount.setStyle(
+            "-fx-font-size: 12px; -fx-font-weight: 600; "
+            + "-fx-text-fill: " + color + ";"
+        );
+
+        String dateStr = formatLoanDate(movement.occurredAtEpochSec());
+        Label lblDate = new Label(dateStr);
+        lblDate.setStyle(
+            "-fx-font-size: 11px; -fx-text-fill: " + (dk ? "#64748B" : "#94A3B8") + ";"
+        );
+
+        VBox center = new VBox(2, lblType, lblDate);
+        center.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(center, Priority.ALWAYS);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox right = new HBox(8);
+        right.setAlignment(Pos.CENTER_RIGHT);
+        right.getChildren().add(lblAmount);
+
+        if (!LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
+            FontIcon moreIcon = new FontIcon("fas-ellipsis-v");
+            moreIcon.setIconSize(12);
+            moreIcon.setIconColor(Color.web(dk ? "#94A3B8" : "#64748B"));
+
+            Button actionsBtn = new Button();
+            actionsBtn.setGraphic(moreIcon);
+            actionsBtn.setStyle(
+                "-fx-background-color: " + (dk ? "rgba(255,255,255,0.06)" : "#F8FAFC") + "; "
+                + "-fx-border-color: " + (dk ? "rgba(148,163,184,0.20)" : "#E2E8F0") + "; "
+                + "-fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; "
+                + "-fx-min-width: 30; -fx-min-height: 30; -fx-max-width: 30; -fx-max-height: 30; "
+                + "-fx-cursor: hand; -fx-padding: 0;"
+            );
+
+            MenuItem editItem = new MenuItem(
+                "Editar movimiento",
+                buildLoanHistoryActionBadge(
+                    "fas-edit",
+                    dk ? "rgba(59,130,246,0.16)" : "#DBEAFE",
+                    dk ? "#93C5FD" : "#2563EB"
+                )
+            );
+            MenuItem deleteItem = new MenuItem(
+                "Eliminar movimiento",
+                buildLoanHistoryActionBadge(
+                    "fas-trash-alt",
+                    dk ? "rgba(239,68,68,0.16)" : "#FEE2E2",
+                    dk ? "#FCA5A5" : "#DC2626"
+                )
+            );
+            ContextMenu menu = new ContextMenu(editItem, deleteItem);
+            menu.getStyleClass().add("loan-history-menu");
+            editItem.getStyleClass().add("loan-history-menu-item");
+            deleteItem.getStyleClass().addAll("loan-history-menu-item", "destructive");
+
+            editItem.setOnAction(ev -> showMovementEditDialog(
+                loanService, session, userUid, loan, movement, dk, modalOverlay, refreshAll, refreshHistory, closeDrawerRef, reopenDrawer
+            ));
+
+            deleteItem.setOnAction(ev -> showMovementDeleteConfirm(
+                loanService, session, userUid, loan, movement, dk, modalOverlay, refreshAll, refreshHistory, closeDrawerRef, reopenDrawer
+            ));
+
+            actionsBtn.setOnAction(ev -> menu.show(actionsBtn, Side.BOTTOM, 0, 0));
+            right.getChildren().add(actionsBtn);
+        }
+
+        HBox topRow = new HBox(12, iconBox, center, spacer, right);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox item = new VBox(4, topRow);
+        String note = movement.note();
+        if (note != null && !note.isBlank()) {
+            Label noteLabel = new Label(note);
+            noteLabel.setWrapText(true);
+            noteLabel.setStyle(
+                "-fx-font-size: 11px; -fx-text-fill: " + (dk ? "#94A3B8" : "#64748B") + ";"
+            );
+            item.getChildren().add(noteLabel);
+        }
+
+        item.setPadding(new Insets(10, 14, 10, 14));
+        item.setStyle(
+            (dk
+                ? "-fx-background-color: rgba(255,255,255,0.03); "
+                : "-fx-background-color: #F8FAFC; ")
+            + "-fx-background-radius: 10; -fx-border-radius: 10;"
+        );
+
+        return item;
+    }
+
+    private static StackPane buildLoanHistoryActionBadge(String iconCode, String bgColor, String iconColor) {
+        FontIcon icon = new FontIcon(iconCode);
+        icon.setIconSize(12);
+        icon.setIconColor(Color.web(iconColor));
+
+        StackPane badge = new StackPane(icon);
+        badge.setMinSize(26, 26);
+        badge.setPrefSize(26, 26);
+        badge.setMaxSize(26, 26);
+        badge.setAlignment(Pos.CENTER);
+        badge.setStyle(
+            "-fx-background-color: " + bgColor + "; "
+            + "-fx-background-radius: 999; "
+            + "-fx-border-color: rgba(255,255,255,0.20); "
+            + "-fx-border-width: 1; "
+            + "-fx-border-radius: 999;"
+        );
+        return badge;
+    }
+
+    private static void showMovementEditDialog(
+        LoanService loanService,
+        AuthSession session,
+        String userUid,
+        LoanRepository.Loan loan,
+        LoanMovementRepository.LoanMovement movement,
+        boolean dk,
+        ModalOverlay modalOverlay,
+        Runnable refreshAll,
+        Runnable refreshHistory,
+        Runnable[] closeDrawerRef,
+        Runnable reopenDrawer
+    ) {
+        if (LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) return;
+
+        HBox header = modalOverlay.buildHeader("Editar movimiento",
+            "Modifica los detalles del movimiento seleccionado");
+
+        Label accountLabel = ModalOverlay.fieldLabel("Cuenta", "fas-wallet");
+        ComboBox<AccountRepository.Account> accountCombo = new ComboBox<>();
+        accountCombo.setPromptText("Seleccionar cuenta");
+        accountCombo.setMaxWidth(Double.MAX_VALUE);
+        accountCombo.getStyleClass().add("account-combo");
+        accountCombo.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(AccountRepository.Account a) {
+                return a == null ? "" : a.name() + " · " + a.currency();
+            }
+
+            @Override
+            public AccountRepository.Account fromString(String s) { return null; }
+        });
+        accountCombo.setCellFactory(accountCellFactory());
+        accountCombo.setButtonCell(accountCellFactory().call(null));
+
+        try {
+            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            accountCombo.setItems(FXCollections.observableArrayList(accounts));
+            accountCombo.getItems().stream()
+                .filter(a -> a.id().equals(Optional.ofNullable(movement.accountId()).orElse(loan.accountId())))
+                .findFirst()
+                .ifPresentOrElse(accountCombo.getSelectionModel()::select, accountCombo.getSelectionModel()::selectFirst);
+        } catch (Exception ignored) {}
+
+        VBox accountBlock = new VBox(6, accountLabel, accountCombo);
+
+        Label amountLabel = ModalOverlay.fieldLabel("Monto", "fas-dollar-sign");
+        TextField amountField = new TextField();
+        amountField.setPromptText("Ej: 1000.00");
+        amountField.getStyleClass().add("modal-text-input");
+        amountField.setText(String.valueOf(movement.amountCents() / 100.0));
+        UiDialogs.restrictToDecimalAmount(amountField);
+
+        Label amountError = new Label();
+        amountError.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 11px;");
+        amountError.setVisible(false);
+        amountError.setManaged(false);
+
+        VBox amountBlock = new VBox(6, amountLabel, amountField, amountError);
+
+        Label dateLabel = ModalOverlay.fieldLabel("Fecha", "fas-calendar-alt");
+        DatePicker datePicker = new DatePicker(LocalDate.ofInstant(Instant.ofEpochSecond(movement.occurredAtEpochSec()), ZoneId.systemDefault()));
+        datePicker.setMaxWidth(Double.MAX_VALUE);
+        datePicker.getStyleClass().add("modal-text-input");
+
+        VBox dateBlock = new VBox(6, dateLabel, datePicker);
+
+        Label noteLabel = ModalOverlay.fieldLabel("Nota (opcional)", "fas-sticky-note");
+        TextArea noteField = new TextArea();
+        noteField.setPromptText("Agrega una descripción...");
+        noteField.getStyleClass().add("modal-text-input");
+        noteField.setPrefRowCount(3);
+        noteField.setWrapText(true);
+        noteField.setText(movement.note() == null ? "" : movement.note());
+
+        VBox noteBlock = new VBox(6, noteLabel, noteField);
+
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
+        VBox footer = modalOverlay.buildFooter("Guardar cambios", "fas-save", "#2563EB", "#1D4ED8");
+        Button primaryBtn = (Button) footer.getChildren().get(1);
+        Button cancelBtn = (Button) footer.getChildren().get(2);
+
+        primaryBtn.setOnAction(e -> {
+            errorLabel.setText("");
+            errorLabel.setVisible(false);
+            errorLabel.setManaged(false);
+            amountError.setText("");
+            amountError.setVisible(false);
+            amountError.setManaged(false);
+
+            AccountRepository.Account account = accountCombo.getValue();
+            if (account == null) {
+                errorLabel.setText("Selecciona una cuenta");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                return;
+            }
+
+            long cents;
+            try {
+                BigDecimal v = DashboardFormatters.parseAmount(amountField.getText());
+                cents = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
+            } catch (Exception ex) {
+                amountError.setText("Ingresa un monto válido");
+                amountError.setVisible(true);
+                amountError.setManaged(true);
+                return;
+            }
+
+            if (cents <= 0) {
+                amountError.setText("El monto debe ser mayor a 0");
+                amountError.setVisible(true);
+                amountError.setManaged(true);
+                return;
+            }
+
+            LocalDate date = datePicker.getValue();
+            if (date == null) {
+                errorLabel.setText("Selecciona una fecha");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                return;
+            }
+
+            String note = noteField.getText() == null ? null : noteField.getText().trim();
+            if (note != null && note.isBlank()) {
+                note = null;
+            }
+
+            try {
+                long occurred = date.atStartOfDay(ZoneId.systemDefault()).toEpochSecond();
+                loanService.updateMovement(userUid, session, movement.id(), account.id(), cents, occurred, note);
+                modalOverlay.hide();
+                if (refreshAll != null) refreshAll.run();
+                if (refreshHistory != null) refreshHistory.run();
+                // Reopen drawer after successful edit
+                if (reopenDrawer != null) {
+                    reopenDrawer.run();
+                }
+            } catch (Exception ex) {
+                errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "No se pudo guardar el movimiento");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+            }
+        });
+
+        cancelBtn.setOnAction(e -> {
+            modalOverlay.hide();
+            if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+                closeDrawerRef[0].run();
+            }
+        });
+
+        modalOverlay.register("edit-movement", 460,
+            header, accountBlock, amountBlock, dateBlock, noteBlock, errorLabel, footer);
+        
+        // Cerrar drawer antes de mostrar el modal
+        if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+            closeDrawerRef[0].run();
+        }
+        modalOverlay.show("edit-movement");
+    }
+
+    private static void showMovementDeleteConfirm(
+        LoanService loanService,
+        AuthSession session,
+        String userUid,
+        LoanRepository.Loan loan,
+        LoanMovementRepository.LoanMovement movement,
+        boolean dk,
+        ModalOverlay modalOverlay,
+        Runnable refreshAll,
+        Runnable refreshHistory,
+        Runnable[] closeDrawerRef,
+        Runnable reopenDrawer
+    ) {
+        // Build modern header with icon
+        HBox header = modalOverlay.buildHeader("Eliminar movimiento",
+            "El préstamo se recalculará automáticamente.");
+
+        // Icon warning
+        FontIcon warningIcon = new FontIcon("fas-exclamation-triangle");
+        warningIcon.setIconSize(48);
+        warningIcon.setIconColor(Color.web("#F59E0B"));
+        StackPane iconContainer = new StackPane(warningIcon);
+        iconContainer.setStyle(
+            "-fx-background-color: rgba(245,158,11,0.12); "
+            + "-fx-background-radius: 50; "
+            + "-fx-min-width: 80; -fx-min-height: 80; "
+            + "-fx-max-width: 80; -fx-max-height: 80;"
+        );
+        iconContainer.setAlignment(Pos.CENTER);
+
+        // Confirmation message
+        Label confirmLabel = new Label("¿Eliminar este movimiento de " + loan.counterpartyName() + "?");
+        confirmLabel.setStyle(
+            "-fx-font-size: 16px; -fx-font-weight: 700; "
+            + (dk ? "-fx-text-fill: #E2E8F0;" : "-fx-text-fill: #1E293B;")
+        );
+        confirmLabel.setWrapText(true);
+
+        Label detailLabel = new Label(
+            "Monto: " + DashboardFormatters.formatMoney(movement.amountCents()) + "\n" +
+            "Tipo: " + (LoanMovementRepository.MOV_CREATION.equals(movement.movementType()) || LoanMovementRepository.MOV_TOPUP.equals(movement.movementType()) ? "Préstamo" : "Pago")
+        );
+        detailLabel.setStyle(
+            "-fx-font-size: 13px; -fx-font-weight: 500; "
+            + (dk ? "-fx-text-fill: #94A3B8;" : "-fx-text-fill: #64748B;")
+        );
+        detailLabel.setWrapText(true);
+
+        VBox messageBox = new VBox(12, confirmLabel, detailLabel);
+        messageBox.setAlignment(Pos.CENTER);
+        messageBox.setPadding(new Insets(16, 0, 16, 0));
+
+        VBox contentBox = new VBox(20, iconContainer, messageBox);
+        contentBox.setAlignment(Pos.CENTER);
+        contentBox.setPadding(new Insets(8, 0, 8, 0));
+
+        // Error label
+        Label errorLabel = new Label();
+        errorLabel.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 12px;");
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+        errorLabel.setWrapText(true);
+
+        // Footer with danger button
+        VBox footer = modalOverlay.buildFooter("Eliminar", "fas-trash-alt", "#DC2626", "#B91C1C");
+        Button deleteBtn = (Button) footer.getChildren().get(1);
+        Button cancelBtn = (Button) footer.getChildren().get(2);
+
+        // Ensure button shows full text without truncation
+        deleteBtn.setMinWidth(100);
+        deleteBtn.setPrefWidth(100);
+        deleteBtn.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(deleteBtn, Priority.ALWAYS);
+
+        deleteBtn.setOnAction(e -> {
+            errorLabel.setText("");
+            errorLabel.setVisible(false);
+            errorLabel.setManaged(false);
+
+            try {
+                LoanService.MovementMutationResult result = loanService.deleteMovement(userUid, session, movement.id());
+                modalOverlay.hide();
+                if (refreshAll != null) refreshAll.run();
+                if (result.loanDeleted()) {
+                    if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+                        closeDrawerRef[0].run();
+                    }
+                } else if (refreshHistory != null) {
+                    refreshHistory.run();
+                    // Reopen drawer after successful deletion if loan still exists
+                    if (reopenDrawer != null) {
+                        reopenDrawer.run();
+                    }
+                }
+            } catch (Exception ex) {
+                errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "No se pudo eliminar el movimiento");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+            }
+        });
+
+        cancelBtn.setOnAction(e -> {
+            modalOverlay.hide();
+            if (reopenDrawer != null) {
+                reopenDrawer.run();
+            }
+        });
+
+        modalOverlay.register("delete-movement", 420,
+            header, contentBox, errorLabel, footer);
+
+        // Cerrar drawer antes de mostrar el modal
+        if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+            closeDrawerRef[0].run();
+        }
+        modalOverlay.show("delete-movement");
+    }
+
+    // ── Método para mostrar historial completo de movimientos de préstamo ─────
+    private static void showFullLoanHistoryDrawer(
+        VBox drawer,
+        List<Node> mainSnapshot,
+        LoanService loanService,
+        AuthSession session,
+        String userUid,
+        String loanId,
+        boolean dk,
+        ModalOverlay modalOverlay,
+        Runnable refreshAll,
+        Runnable[] closeDrawerRef
+    ) {
+        if (drawer == null || loanService == null || session == null || userUid == null || loanId == null) return;
+
+        LoanRepository.Loan loan;
+        List<LoanMovementRepository.LoanMovement> allMovements;
+        try {
+            loan = loanService.getLoan(userUid, loanId);
+            if (loan == null) {
+                drawer.getChildren().setAll(buildLoanHistoryEmptyState(dk, "El préstamo ya no existe"));
+                return;
+            }
+            allMovements = loanService.listMovements(userUid, loanId);
+            allMovements.sort((a, b) -> {
+                int cmp = Long.compare(b.occurredAtEpochSec(), a.occurredAtEpochSec());
+                if (cmp != 0) return cmp;
+                return Long.compare(b.createdAtEpochSec(), a.createdAtEpochSec());
+            });
+        } catch (Exception ex) {
+            drawer.getChildren().setAll(buildLoanHistoryEmptyState(dk, "No se pudo cargar el historial"));
+            return;
+        }
+
+        String titleColor = dk ? "#E5E7EB" : "#0F172A";
+        String subtitleColor = dk ? "#94A3B8" : "#64748B";
+        String dividerColor = dk ? "rgba(255,255,255,0.10)" : "#E2E8F0";
+
+        List<Node> snapshot = mainSnapshot == null ? List.of() : new ArrayList<>(mainSnapshot);
+
+        drawer.getChildren().clear();
+
+        FontIcon backIcon = new FontIcon("fas-arrow-left");
+        backIcon.setIconSize(14);
+        backIcon.setIconColor(Color.web(dk ? "#94A3B8" : "#64748B"));
+        Button btnBack = new Button();
+        btnBack.setGraphic(backIcon);
+        btnBack.setText("Volver");
+        btnBack.setStyle(
+            "-fx-background-color: transparent; "
+            + "-fx-text-fill: " + (dk ? "#94A3B8" : "#64748B") + "; "
+            + "-fx-font-size: 13px; -fx-font-weight: 600; "
+            + "-fx-cursor: hand; -fx-padding: 6 12;");
+        btnBack.setOnAction(e -> {
+            if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+                StackPane root = null;
+                if (drawer.getScene() != null && drawer.getScene().getRoot() instanceof StackPane sp) {
+                    root = sp;
+                }
+                closeDrawerRef[0].run();
+                StackPane rootRef = root;
+                Timeline reopenMain = new Timeline(new KeyFrame(Duration.millis(310), ev -> {
+                    try {
+                        if (rootRef != null) {
+                            showLoanDetailDrawer(rootRef, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }));
+                reopenMain.play();
+            } else {
+                drawer.getChildren().setAll(snapshot);
+            }
+        });
+
+        Label historyTitle = new Label("Historial de movimientos");
+        historyTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
+
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        HBox headerRow = new HBox(12, btnBack, headerSpacer, historyTitle);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Region divider = new Region();
+        divider.setPrefHeight(1);
+        divider.setMaxHeight(1);
+        divider.setStyle("-fx-background-color: " + dividerColor + ";");
+        divider.setMaxWidth(Double.MAX_VALUE);
+
+        Label loanNameLabel = new Label(loan.counterpartyName());
+        loanNameLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";");
+        VBox loanInfoBox = new VBox(4, loanNameLabel);
+        loanInfoBox.setPadding(new Insets(12, 0, 0, 0));
+
+        VBox movementsList = new VBox(8);
+        movementsList.setPadding(new Insets(8, 0, 0, 0));
+
+        final Runnable[] refreshHistoryRef = { null };
+        refreshHistoryRef[0] = () -> showFullLoanHistoryDrawer(
+            drawer, snapshot, loanService, session, userUid, loanId, dk, modalOverlay, refreshAll, closeDrawerRef
+        );
+
+        // Create reopenDrawer runnable for full history drawer
+        Runnable reopenDrawer = () -> {
+            if (closeDrawerRef != null && closeDrawerRef[0] != null) {
+                StackPane root = null;
+                if (drawer.getScene() != null && drawer.getScene().getRoot() instanceof StackPane sp) {
+                    root = sp;
+                }
+                closeDrawerRef[0].run();
+                StackPane rootRef = root;
+                Timeline reopenMain = new Timeline(new KeyFrame(Duration.millis(310), ev -> {
+                    try {
+                        if (rootRef != null) {
+                            showLoanDetailDrawer(rootRef, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }));
+                reopenMain.play();
+            } else {
+                drawer.getChildren().setAll(snapshot);
+            }
+        };
+
+        if (allMovements.isEmpty()) {
+            movementsList.getChildren().add(buildLoanHistoryEmptyState(dk, "No hay movimientos registrados"));
+        } else {
+            for (LoanMovementRepository.LoanMovement movement : allMovements) {
+                movementsList.getChildren().add(buildLoanHistoryItem(
+                    loanService,
+                    session,
+                    userUid,
+                    loanId,
+                    loan,
+                    movement,
+                    dk,
+                    modalOverlay,
+                    refreshAll,
+                    refreshHistoryRef[0],
+                    closeDrawerRef,
+                    reopenDrawer
+                ));
+            }
+        }
+
+        ScrollPane scroll = new ScrollPane(movementsList);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scroll.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        scroll.setPadding(new Insets(0));
+        VBox.setVgrow(scroll, Priority.ALWAYS);
+
+        VBox content = new VBox(12, headerRow, divider, loanInfoBox, scroll);
+        content.setPadding(new Insets(14));
+        content.setFillWidth(true);
+
+        drawer.getChildren().add(content);
     }
 }

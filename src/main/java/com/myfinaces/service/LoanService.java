@@ -85,6 +85,11 @@ public final class LoanService {
         LoanRepository.Loan loan
     ) {}
 
+    public record MovementMutationResult(
+        String loanId,
+        boolean loanDeleted
+    ) {}
+
     // ══════════════════════════════════════════════════════════════════
     //  C R E A T E   L O A N  (find-or-accumulate)
     // ══════════════════════════════════════════════════════════════════
@@ -437,6 +442,180 @@ public final class LoanService {
         return lent;
     }
 
+    /** Edita un movimiento del historial del préstamo. */
+    public MovementMutationResult updateMovement(
+        String userUid,
+        AuthSession session,
+        String movementId,
+        String accountId,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) throws SQLException {
+        Objects.requireNonNull(userUid);
+        Objects.requireNonNull(movementId);
+        Objects.requireNonNull(accountId);
+
+        if (amountCents <= 0) {
+            throw new IllegalArgumentException("El monto debe ser mayor a 0");
+        }
+
+        LoanMovementRepository.LoanMovement movement = movementRepo.getByIdOrNull(userUid, movementId);
+        if (movement == null) {
+            throw new IllegalStateException("Movimiento no encontrado");
+        }
+
+        LoanRepository.Loan loan = loanRepo.getByIdOrNull(userUid, movement.loanId());
+        if (loan == null) {
+            throw new IllegalStateException("Préstamo no encontrado");
+        }
+
+        LoanMovementRepository.LoanMovement closeBefore = findCloseMovement(userUid, loan.id());
+        String storedAccountId = movement.accountId() != null ? movement.accountId() : loan.accountId();
+
+        String cleanNote = (note == null || note.isBlank()) ? null : note;
+        long occurred = occurredAtEpochSec > 0L ? occurredAtEpochSec : movement.occurredAtEpochSec();
+
+        if (LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
+            throw new IllegalStateException("No se puede editar un cierre automático");
+        }
+
+        String syncPaymentId = null;
+        if (isPaymentMovement(movement.movementType())) {
+            LoanPaymentRepository.LoanPayment payment = findPaymentByLinkedTransaction(userUid, movement.loanId(), movement.linkedTransactionId());
+            if (payment == null) {
+                throw new IllegalStateException("Pago asociado no encontrado");
+            }
+
+            String paymentAccountId = payment.accountId() != null ? payment.accountId() : storedAccountId;
+            long paidOthers = paymentRepo.sumPrincipalPaidCents(userUid, loan.id()) - payment.principalCents();
+            if (amountCents + paidOthers > loan.principalCents()) {
+                throw new IllegalArgumentException("El monto excede el saldo pendiente");
+            }
+
+            String repaymentCategoryId = ensureRepaymentCategory(userUid, session);
+            boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
+            String kind = isLent
+                ? TransactionKind.LOAN_REPAYMENT_PRINCIPAL_IN.name()
+                : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
+            String txNote = cleanNote != null
+                ? cleanNote
+                : (isLent ? "Pago recibido de: " + loan.counterpartyName() : "Pago realizado a: " + loan.counterpartyName());
+
+            txRepo.update(userUid, movement.linkedTransactionId(), paymentAccountId, repaymentCategoryId, kind, amountCents, occurred, txNote);
+            paymentRepo.update(userUid, payment.id(), loan.id(), paymentAccountId, amountCents, occurred, cleanNote);
+            movementRepo.update(userUid, movement.id(), loan.id(), movement.movementType(), amountCents, paymentAccountId, movement.linkedTransactionId(), cleanNote, occurred);
+            syncPaymentId = payment.id();
+        } else {
+            String loanCategoryId = ensureLoanCategory(userUid, session);
+            boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
+            boolean isCreation = LoanMovementRepository.MOV_CREATION.equals(movement.movementType());
+            String kind = isLent
+                ? (isCreation ? TransactionKind.LOAN_LENT_OUT.name() : TransactionKind.LOAN_LENT_TOPUP.name())
+                : (isCreation ? TransactionKind.LOAN_BORROWED_IN.name() : TransactionKind.LOAN_BORROWED_TOPUP.name());
+            String txNote = cleanNote != null
+                ? cleanNote
+                : (isCreation
+                    ? (isLent ? "Préstamo otorgado a: " + loan.counterpartyName() : "Dinero recibido de: " + loan.counterpartyName())
+                    : (isLent ? "Aumento de préstamo otorgado a: " + loan.counterpartyName() : "Aumento de deuda con: " + loan.counterpartyName()));
+
+            long paid = paymentRepo.sumPrincipalPaidCents(userUid, loan.id());
+            long otherOriginTotal = sumOriginMovementsExcept(userUid, loan.id(), movement.id());
+            if (otherOriginTotal + amountCents < paid) {
+                throw new IllegalArgumentException("El monto deja el préstamo por debajo de lo ya abonado");
+            }
+
+            txRepo.update(userUid, movement.linkedTransactionId(), storedAccountId, loanCategoryId, kind, amountCents, occurred, txNote);
+            movementRepo.update(userUid, movement.id(), loan.id(), movement.movementType(), amountCents, storedAccountId, movement.linkedTransactionId(), cleanNote, occurred);
+        }
+
+        MovementMutationResult result = rebuildLoanState(userUid, session, loan.id());
+        syncInBackground(session, userUid, movement.linkedTransactionId(), result.loanDeleted() ? null : loan.id(), syncPaymentId, movement.id());
+        if (!result.loanDeleted()) {
+            try {
+                LoanMovementRepository.LoanMovement closeAfter = findCloseMovement(userUid, loan.id());
+                if (closeBefore != null && closeAfter == null) {
+                    syncDeleteInBackground(session, userUid, null, loan.id(), null, closeBefore.id(), false);
+                } else if (closeAfter != null) {
+                    syncInBackground(session, userUid, null, loan.id(), null, closeAfter.id());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return result;
+    }
+
+    /** Elimina un movimiento del historial del préstamo. */
+    public MovementMutationResult deleteMovement(
+        String userUid,
+        AuthSession session,
+        String movementId
+    ) throws SQLException {
+        Objects.requireNonNull(userUid);
+        Objects.requireNonNull(movementId);
+
+        LoanMovementRepository.LoanMovement movement = movementRepo.getByIdOrNull(userUid, movementId);
+        if (movement == null) {
+            throw new IllegalStateException("Movimiento no encontrado");
+        }
+
+        if (LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
+            throw new IllegalStateException("No se puede eliminar un cierre automático");
+        }
+
+        String loanId = movement.loanId();
+        LoanRepository.Loan loan = loanRepo.getByIdOrNull(userUid, loanId);
+        if (loan == null) {
+            throw new IllegalStateException("Préstamo no encontrado");
+        }
+
+        LoanMovementRepository.LoanMovement closeBefore = findCloseMovement(userUid, loanId);
+
+        boolean paymentMovement = isPaymentMovement(movement.movementType());
+        String syncPaymentId = null;
+        if (paymentMovement) {
+            LoanPaymentRepository.LoanPayment payment = findPaymentByLinkedTransaction(userUid, loanId, movement.linkedTransactionId());
+            if (payment == null) {
+                throw new IllegalStateException("Pago asociado no encontrado");
+            }
+            syncPaymentId = payment.id();
+            txRepo.delete(userUid, movement.linkedTransactionId());
+            paymentRepo.delete(userUid, payment.id());
+            movementRepo.delete(userUid, movementId);
+        } else {
+            long paid = paymentRepo.sumPrincipalPaidCents(userUid, loanId);
+            long remainingOrigin = sumOriginMovementsExcept(userUid, loanId, movementId);
+            if (remainingOrigin > 0L && remainingOrigin < paid) {
+                throw new IllegalArgumentException("La eliminación dejaría el préstamo por debajo de lo ya abonado");
+            }
+            if (remainingOrigin == 0L && paid > 0L) {
+                throw new IllegalArgumentException("No se puede eliminar el movimiento de origen porque ya existen pagos registrados");
+            }
+
+            txRepo.delete(userUid, movement.linkedTransactionId());
+            movementRepo.delete(userUid, movementId);
+        }
+
+        MovementMutationResult result = rebuildLoanState(userUid, session, loanId);
+        if (result.loanDeleted() && closeBefore != null) {
+            syncDeleteInBackground(session, userUid, null, loanId, null, closeBefore.id(), false);
+        }
+        syncDeleteInBackground(session, userUid, movement.linkedTransactionId(), loanId, syncPaymentId, movement.id(), result.loanDeleted());
+        if (!result.loanDeleted()) {
+            syncInBackground(session, userUid, null, loanId, null, null);
+            try {
+                LoanMovementRepository.LoanMovement closeAfter = findCloseMovement(userUid, loanId);
+                if (closeBefore != null && closeAfter == null) {
+                    syncDeleteInBackground(session, userUid, null, loanId, null, closeBefore.id(), false);
+                } else if (closeAfter != null) {
+                    syncInBackground(session, userUid, null, loanId, null, closeAfter.id());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return result;
+    }
+
     /** Obtiene un préstamo por ID (null si no existe). */
     public LoanRepository.Loan getLoan(String userUid, String loanId) throws SQLException {
         return loanRepo.getByIdOrNull(userUid, loanId);
@@ -488,6 +667,127 @@ public final class LoanService {
     /** Lista todos los movimientos del usuario. */
     public List<LoanMovementRepository.LoanMovement> listAllMovements(String userUid) throws SQLException {
         return movementRepo.listAllByUser(userUid);
+    }
+
+    private static boolean isPaymentMovement(String movementType) {
+        return LoanMovementRepository.MOV_PAYMENT_IN.equals(movementType)
+            || LoanMovementRepository.MOV_PAYMENT_OUT.equals(movementType);
+    }
+
+    private LoanPaymentRepository.LoanPayment findPaymentByLinkedTransaction(String userUid, String loanId, String linkedTransactionId) throws SQLException {
+        if (linkedTransactionId == null || linkedTransactionId.isBlank()) {
+            return null;
+        }
+        for (LoanPaymentRepository.LoanPayment payment : paymentRepo.listByLoan(userUid, loanId)) {
+            if (linkedTransactionId.equals(payment.linkedTransactionId())) {
+                return payment;
+            }
+        }
+        return null;
+    }
+
+    private long sumOriginMovementsExcept(String userUid, String loanId, String excludedMovementId) throws SQLException {
+        long total = 0L;
+        for (LoanMovementRepository.LoanMovement movement : movementRepo.listByLoan(userUid, loanId)) {
+            if (excludedMovementId != null && excludedMovementId.equals(movement.id())) {
+                continue;
+            }
+            if (LoanMovementRepository.MOV_CREATION.equals(movement.movementType()) || LoanMovementRepository.MOV_TOPUP.equals(movement.movementType())) {
+                total += movement.amountCents();
+            }
+        }
+        return total;
+    }
+
+    private LoanMovementRepository.LoanMovement findCloseMovement(String userUid, String loanId) throws SQLException {
+        for (LoanMovementRepository.LoanMovement movement : movementRepo.listByLoan(userUid, loanId)) {
+            if (LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
+                return movement;
+            }
+        }
+        return null;
+    }
+
+    private MovementMutationResult rebuildLoanState(String userUid, AuthSession session, String loanId) throws SQLException {
+        LoanRepository.Loan loan = loanRepo.getByIdOrNull(userUid, loanId);
+        if (loan == null) {
+            return new MovementMutationResult(loanId, true);
+        }
+
+        List<LoanMovementRepository.LoanMovement> movements = movementRepo.listByLoan(userUid, loanId);
+        long originTotal = 0L;
+        long paidTotal = paymentRepo.sumPrincipalPaidCents(userUid, loanId);
+        LoanMovementRepository.LoanMovement firstOrigin = null;
+        LoanMovementRepository.LoanMovement lastPayment = null;
+        LoanMovementRepository.LoanMovement closeMovement = null;
+
+        for (LoanMovementRepository.LoanMovement movement : movements) {
+            if (LoanMovementRepository.MOV_CREATION.equals(movement.movementType()) || LoanMovementRepository.MOV_TOPUP.equals(movement.movementType())) {
+                originTotal += movement.amountCents();
+                if (firstOrigin == null) {
+                    firstOrigin = movement;
+                }
+            } else if (isPaymentMovement(movement.movementType())) {
+                if (lastPayment == null || movement.occurredAtEpochSec() >= lastPayment.occurredAtEpochSec()) {
+                    lastPayment = movement;
+                }
+            } else if (LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
+                closeMovement = movement;
+            }
+        }
+
+        if (originTotal <= 0L) {
+            // Compatibilidad con préstamos heredados que todavía no tienen
+            // un movimiento CREATION/TOPUP en el historial. En ese caso,
+            // el principal persistido en la tabla de préstamos sigue siendo
+            // la única referencia útil para reconstruir el estado.
+            if (loan.principalCents() > 0L) {
+                originTotal = loan.principalCents();
+            } else {
+                if (paidTotal > 0L) {
+                    throw new IllegalStateException("Estado inválido: existen pagos sin movimientos de origen");
+                }
+                if (closeMovement != null) {
+                    movementRepo.delete(userUid, closeMovement.id());
+                }
+                loanRepo.delete(userUid, loanId);
+                return new MovementMutationResult(loanId, true);
+            }
+        }
+
+        if (paidTotal > originTotal) {
+            throw new IllegalStateException("Estado inválido: los pagos superan el principal");
+        }
+
+        boolean closed = paidTotal >= originTotal;
+        long loanOccurredAt = firstOrigin != null ? firstOrigin.occurredAtEpochSec() : loan.occurredAtEpochSec();
+        String loanAccountId = firstOrigin != null ? firstOrigin.accountId() : loan.accountId();
+        loanRepo.updateFull(
+            userUid,
+            loanId,
+            loan.type(),
+            loan.counterpartyName(),
+            loanAccountId,
+            originTotal,
+            loan.currency(),
+            closed ? LoanRepository.STATUS_CLOSED : LoanRepository.STATUS_OPEN,
+            loan.notes(),
+            loanOccurredAt
+        );
+
+        if (closed) {
+            String closeAccountId = lastPayment != null && lastPayment.accountId() != null ? lastPayment.accountId() : loanAccountId;
+            long closeOccurredAt = lastPayment != null ? lastPayment.occurredAtEpochSec() : loanOccurredAt;
+            if (closeMovement == null) {
+                movementRepo.create(userUid, loanId, LoanMovementRepository.MOV_CLOSE, 0L, closeAccountId, null, "Préstamo liquidado", closeOccurredAt);
+            } else {
+                movementRepo.update(userUid, closeMovement.id(), loanId, LoanMovementRepository.MOV_CLOSE, 0L, closeAccountId, null, "Préstamo liquidado", closeOccurredAt);
+            }
+        } else if (closeMovement != null) {
+            movementRepo.delete(userUid, closeMovement.id());
+        }
+
+        return new MovementMutationResult(loanId, false);
     }
 
     /**
@@ -583,6 +883,39 @@ public final class LoanService {
                 }
             } catch (Exception ignored) {}
         }, "loan-sync").start();
+    }
+
+    private void syncDeleteInBackground(AuthSession session, String userUid, String txId, String loanId, String paymentId, String movementId, boolean deleteLoan) {
+        new Thread(() -> {
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+
+                if (txId != null) {
+                    try {
+                        sync.deleteTransaction(session, txId);
+                    } catch (Exception ignored) {}
+                }
+
+                if (paymentId != null) {
+                    try {
+                        sync.deleteLoanPayment(session, paymentId);
+                    } catch (Exception ignored) {}
+                }
+
+                if (movementId != null && loanId != null) {
+                    try {
+                        sync.deleteLoanMovement(session, userUid, loanId, movementId);
+                    } catch (Exception ignored) {}
+                }
+
+                if (deleteLoan && loanId != null) {
+                    try {
+                        sync.deleteLoan(session, loanId);
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {}
+        }, "loan-delete-sync").start();
     }
 
     private void syncCategoryInBackground(AuthSession session, String userUid, String categoryId) {

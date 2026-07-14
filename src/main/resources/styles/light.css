@@ -118,6 +118,42 @@
     -fx-icon-color: #0F172A;
 }
 
+.loan-history-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-background-insets: 0;
+    -fx-background-radius: 14;
+    -fx-border-color: #D8E1EE;
+    -fx-border-width: 1;
+    -fx-border-radius: 14;
+    -fx-padding: 6 0;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.12), 18, 0.12, 0, 4);
+}
+
+.loan-history-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-padding: 9 14;
+}
+
+.loan-history-menu .menu-item .label {
+    -fx-text-fill: #0F172A;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+}
+
+.loan-history-menu .menu-item:hover,
+.loan-history-menu .menu-item:focused {
+    -fx-background-color: rgba(37, 99, 235, 0.10);
+}
+
+.loan-history-menu .menu-item.destructive:hover,
+.loan-history-menu .menu-item.destructive:focused {
+    -fx-background-color: rgba(220, 38, 38, 0.12);
+}
+
+.loan-history-menu .menu-item .graphic {
+    -fx-padding: 0 10 0 0;
+}
+
 .login-register-link {
     -fx-text-fill: #1D4ED8;
     -fx-font-weight: 800;
@@ -1091,10 +1127,23 @@
 
 .btn-primary:focused {
     -fx-background-color: #1E40AF;
+    -fx-text-fill: white;
     -fx-effect: dropshadow(gaussian, rgba(29, 78, 216, 0.40), 8, 0.25, 0, 2);
     -fx-border-color: #60A5FA;
     -fx-border-width: 2;
     -fx-border-radius: 8;
+    -fx-padding: 8 14;
+}
+
+.btn-primary:pressed {
+    -fx-background-color: #1E3A8A;
+    -fx-text-fill: white;
+}
+
+.btn-primary:disabled {
+    -fx-background-color: rgba(29, 78, 216, 0.3);
+    -fx-text-fill: rgba(255, 255, 255, 0.5);
+    -fx-opacity: 0.6;
 }
 
 .btn-primary .icon {
@@ -3019,6 +3068,17 @@
     -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
 }
 
+.new-tx-dialog .btn-primary:focused,
+.new-tx-dialog .tx-save-btn:focused {
+    -fx-background-color: linear-gradient(to bottom, #2563EB, #1D4ED8);
+    -fx-text-fill: white;
+    -fx-effect: dropshadow(gaussian, rgba(29, 78, 216, 0.40), 8, 0.25, 0, 2);
+    -fx-border-color: #60A5FA;
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-padding: 10 20;
+}
+
 .new-tx-dialog .tx-type-btn.tx-type-income.tx-type-active {
     -fx-background-color: rgba(34, 197, 94, 0.14);
     -fx-text-fill: #22C55E;
@@ -4422,4 +4482,5 @@
     -fx-background-color: rgba(22, 163, 74, 0.10);
     -fx-border-color: rgba(22, 163, 74, 0.16);
     -fx-text-fill: #15803D;
+}
 }

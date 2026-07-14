@@ -1305,6 +1305,8 @@ public final class DashboardTransactionsDialog {
         if (okNode instanceof Button okBtn) {
             okBtn.getStyleClass().add("btn-primary");
             okBtn.getStyleClass().add("tx-save-btn");
+            okBtn.setMinWidth(132);
+            okBtn.setPrefWidth(132);
             okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
                 error.setText("");
                 error.setVisible(false);
@@ -1914,6 +1916,8 @@ public final class DashboardTransactionsDialog {
         if (okNode instanceof Button okBtn) {
             okBtn.getStyleClass().add("btn-primary");
             okBtn.getStyleClass().add("tx-save-btn");
+            okBtn.setMinWidth(132);
+            okBtn.setPrefWidth(132);
             okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, ev -> {
                 error.setText("");
                 error.setVisible(false);

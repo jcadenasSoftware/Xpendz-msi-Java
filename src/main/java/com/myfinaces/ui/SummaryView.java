@@ -690,6 +690,7 @@ public final class SummaryView {
         GridPane fixedTable = tableParts.fixedTable();
         GridPane monthsHeaderTable = tableParts.monthsHeaderTable();
         GridPane monthsTable = tableParts.monthsTable();
+        ScrollPane monthsScroll = tableParts.monthsScroll();
 
         SummaryFinancialTable.applyDefaultColumnConstraints(fixedHeaderTable);
         SummaryFinancialTable.applyDefaultColumnConstraints(fixedTable);
@@ -1035,11 +1036,21 @@ public final class SummaryView {
 
                         long rowTotal = 0;
                         List<Label> monthCells = new ArrayList<>();
+                        
+                        // Detect dominant cell for this row
+                        DominantCellDetector.Result dominantResult = DominantCellDetector.findDominantCell(months);
+                        boolean hasDominant = dominantResult.hasDominant();
+                        int dominantMonth = hasDominant ? dominantResult.getMonth() : -1;
+                        
                         for (int m = 1; m <= 12; m++) {
                             totalByMonth[m] += months[m];
                             rowTotal += months[m];
                             Label v = SummaryTableCell.amount(DashboardFormatters.formatMoney(months[m], currencyCode), m == currentMonth);
                             v.getStyleClass().add(zebraSub);
+                            // Apply dominant cell styling if this is the dominant month
+                            if (hasDominant && m == dominantMonth) {
+                                v.getStyleClass().add("summary-dominant-cell");
+                            }
                             monthsTable.add(v, m - 1, rowIdx);
                             monthCells.add(v);
                         }
@@ -1198,6 +1209,12 @@ public final class SummaryView {
                                 accountRowNodes.add(accLabel);
 
                                 long accTotal = 0;
+                                
+                                // Detect dominant cell for this account row
+                                DominantCellDetector.Result accDominantResult = DominantCellDetector.findDominantCell(am);
+                                boolean accHasDominant = accDominantResult.hasDominant();
+                                int accDominantMonth = accHasDominant ? accDominantResult.getMonth() : -1;
+                                
                                 for (int m = 1; m <= 12; m++) {
                                     accTotal += am[m];
                                     Label vv = new Label(DashboardFormatters.formatMoney(am[m], currencyCode));
@@ -1207,6 +1224,10 @@ public final class SummaryView {
                                     vv.getStyleClass().add(zebraAcc);
                                     if (m == currentMonth) {
                                         vv.getStyleClass().add("summary-current-month");
+                                    }
+                                    // Apply dominant cell styling if this is the dominant month
+                                    if (accHasDominant && m == accDominantMonth) {
+                                        vv.getStyleClass().add("summary-dominant-cell");
                                     }
                                     monthsTable.add(vv, m - 1, rowIdx);
                                     accountRowNodes.add(vv);
@@ -1344,6 +1365,37 @@ public final class SummaryView {
 
                 applySummaryRowHover(fixedTable, monthsTable);
 
+                int monthToScroll;
+                if (selectedYear == currentYear) {
+                    monthToScroll = currentMonth;
+                } else {
+                    monthToScroll = 12;
+                    for (int m = 12; m >= 1; m--) {
+                        if (totalByMonth[m] != 0) {
+                            monthToScroll = m;
+                            break;
+                        }
+                    }
+                }
+
+                int targetMonth = monthToScroll;
+                Platform.runLater(() -> {
+                    try {
+                        double contentWidth = monthsScroll.getContent().getBoundsInParent().getWidth();
+                        double viewportWidth = monthsScroll.getViewportBounds().getWidth();
+                        if (contentWidth <= viewportWidth) {
+                            return;
+                        }
+                        double columnWidth = contentWidth / 13.0;
+                        double targetPosition = (targetMonth - 1) * columnWidth;
+                        double scrollableWidth = contentWidth - viewportWidth;
+                        double hvalue = targetPosition / scrollableWidth;
+                        hvalue = Math.max(0.0, Math.min(1.0, hvalue));
+                        monthsScroll.setHvalue(hvalue);
+                    } catch (Exception ignored) {
+                    }
+                });
+
                 return;
             }
 
@@ -1417,12 +1469,22 @@ public final class SummaryView {
 
                 long rowTotal = 0;
                 List<Label> monthCells = new ArrayList<>();
+                
+                // Detect dominant cell for this root category row
+                DominantCellDetector.Result rootDominantResult = DominantCellDetector.findDominantCell(months);
+                boolean rootHasDominant = rootDominantResult.hasDominant();
+                int rootDominantMonth = rootHasDominant ? rootDominantResult.getMonth() : -1;
+                
                 for (int m = 1; m <= 12; m++) {
                     totalByMonth[m] += months[m];
                     rowTotal += months[m];
                     Label v = SummaryTableCell.amountPlain(DashboardFormatters.formatMoney(months[m], currencyCode), m == currentMonth);
                     v.getStyleClass().add(zebra);
                     v.getStyleClass().add("summary-root-row-cell");
+                    // Apply dominant cell styling if this is the dominant month
+                    if (rootHasDominant && m == rootDominantMonth) {
+                        v.getStyleClass().add("summary-dominant-cell");
+                    }
                     monthsTable.add(v, m - 1, rowIdx);
                     monthCells.add(v);
                 }
@@ -1610,6 +1672,37 @@ public final class SummaryView {
             exportRowsRef.set(exportRows);
 
             applySummaryRowHover(fixedTable, monthsTable);
+
+            int monthToScroll;
+            if (selectedYear == currentYear) {
+                monthToScroll = currentMonth;
+            } else {
+                monthToScroll = 12;
+                for (int m = 12; m >= 1; m--) {
+                    if (totalByMonth[m] != 0) {
+                        monthToScroll = m;
+                        break;
+                    }
+                }
+            }
+
+            int targetMonth = monthToScroll;
+            Platform.runLater(() -> {
+                try {
+                    double contentWidth = monthsScroll.getContent().getBoundsInParent().getWidth();
+                    double viewportWidth = monthsScroll.getViewportBounds().getWidth();
+                    if (contentWidth <= viewportWidth) {
+                        return;
+                    }
+                    double columnWidth = contentWidth / 13.0;
+                    double targetPosition = (targetMonth - 1) * columnWidth;
+                    double scrollableWidth = contentWidth - viewportWidth;
+                    double hvalue = targetPosition / scrollableWidth;
+                    hvalue = Math.max(0.0, Math.min(1.0, hvalue));
+                    monthsScroll.setHvalue(hvalue);
+                } catch (Exception ignored) {
+                }
+            });
         };
         refreshSummaryRef.set(refreshSummary);
 

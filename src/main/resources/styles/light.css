@@ -1281,35 +1281,35 @@
 }
 
 .summary-table .label {
-    -fx-padding: 11 15;
+    -fx-padding: 12 16;
 }
 
 .summary-table-header-row {
-    -fx-background-color: rgba(255, 255, 255, 0.95);
+    -fx-background-color: rgba(255, 255, 255, 0.98);
     -fx-background-radius: 14 14 0 0;
-    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.06) transparent;
+    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.08) transparent;
     -fx-border-width: 0 0 1 0;
 }
 
 .summary-header-cell {
     -fx-background-color: transparent;
     -fx-background-radius: 0;
-    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.12) transparent;
+    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.10) transparent;
     -fx-border-radius: 0;
     -fx-border-width: 0 0 1 0;
-    -fx-text-fill: rgba(15, 23, 42, 0.58);
+    -fx-text-fill: rgba(15, 23, 42, 0.65);
     -fx-font-size: 11px;
     -fx-font-weight: 800;
-    -fx-padding: 12 12 13 12;
+    -fx-padding: 14 12 15 12;
     -fx-cursor: default;
     -fx-alignment: center;
 }
 
 .summary-root-name {
-    -fx-font-weight: 600;
+    -fx-font-weight: 620;
     -fx-font-size: 14px;
-    -fx-text-fill: rgba(15, 23, 42, 0.90);
-    -fx-padding: 12 16;
+    -fx-text-fill: rgba(15, 23, 42, 0.96);
+    -fx-padding: 13 18;
     -fx-background-color: transparent;
     -fx-background-radius: 8;
     -fx-cursor: hand;
@@ -1329,10 +1329,10 @@
 }
 
 .summary-sub-name {
-    -fx-font-weight: 500;
+    -fx-font-weight: 520;
     -fx-font-size: 13px;
-    -fx-text-fill: rgba(15, 23, 42, 0.65);
-    -fx-padding: 10 16 10 26;
+    -fx-text-fill: rgba(15, 23, 42, 0.70);
+    -fx-padding: 10 18 10 26;
     -fx-background-color: transparent;
     -fx-background-radius: 6;
     -fx-cursor: hand;
@@ -1361,31 +1361,51 @@
 .summary-total-name {
     -fx-font-weight: 800;
     -fx-font-size: 14px;
-    -fx-text-fill: rgba(15, 23, 42, 0.97);
+    -fx-text-fill: rgba(15, 23, 42, 0.98);
 }
 
 .summary-amount-cell {
     -fx-font-variant-numeric: tabular-nums;
     -fx-font-weight: 500;
     -fx-font-size: 13px;
-    -fx-text-fill: rgba(15, 23, 42, 0.70);
-    -fx-padding: 11 12;
+    -fx-text-fill: rgba(15, 23, 42, 0.68);
+    -fx-padding: 14 12;
     -fx-background-color: transparent;
     -fx-background-radius: 0;
+}
+
+.summary-dominant-cell {
+    -fx-font-weight: 650;
+    -fx-text-fill: rgba(15, 23, 42, 0.92);
+    -fx-background-color: rgba(15, 23, 42, 0.06);
+    -fx-background-radius: 6;
+    -fx-border-color: rgba(15, 23, 42, 0.12);
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 6 0 0 6;
+}
+
+.summary-dominant-cell.summary-current-month {
+    -fx-font-weight: 650;
+    -fx-text-fill: rgba(15, 23, 42, 0.92);
+    -fx-background-color: rgba(29, 78, 216, 0.08);
+    -fx-background-radius: 6;
+    -fx-border-color: rgba(29, 78, 216, 0.25);
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 6 0 0 6;
 }
 
 .summary-total-amount {
     -fx-font-weight: 700;
     -fx-font-size: 13px;
-    -fx-text-fill: rgba(15, 23, 42, 0.93);
-    -fx-padding: 11 6;
+    -fx-text-fill: rgba(15, 23, 42, 0.95);
+    -fx-padding: 14 8;
 }
 
 .summary-total-row-cell {
-    -fx-border-color: rgba(15, 23, 42, 0.09) transparent transparent transparent;
-    -fx-border-width: 1 0 0 0;
-    -fx-background-color: rgba(29, 78, 216, 0.03);
-    background-color: rgba(29, 78, 216, 0.03);
+    -fx-border-color: rgba(15, 23, 42, 0.15) transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+    -fx-background-color: rgba(29, 78, 216, 0.08);
+    background-color: rgba(29, 78, 216, 0.08);
 }
 
 .summary-total-row-cell.summary-current-month {
@@ -1395,7 +1415,7 @@
 
 .summary-root-row-cell {
     -fx-background-insets: 0;
-    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.05) transparent;
+    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.03) transparent;
     -fx-border-width: 0 0 1 0;
 }
 
@@ -1404,7 +1424,7 @@
     background-color: rgba(15, 23, 42, 0.012);
     -fx-cursor: hand;
     -fx-padding: 0 0;
-    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.06) transparent;
+    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.03) transparent;
     -fx-border-width: 0 0 1 0;
     -fx-background-radius: 0;
 }
@@ -1414,15 +1434,15 @@
     background-color: transparent;
     -fx-cursor: hand;
     -fx-padding: 0 0;
-    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.06) transparent;
+    -fx-border-color: transparent transparent rgba(15, 23, 42, 0.03) transparent;
     -fx-border-width: 0 0 1 0;
     -fx-background-radius: 0;
 }
 
 .summary-total-col {
-    -fx-background-color: rgba(15, 23, 42, 0.03);
+    -fx-background-color: rgba(15, 23, 42, 0.05);
     -fx-background-radius: 0;
-    background-color: rgba(15, 23, 42, 0.03);
+    background-color: rgba(15, 23, 42, 0.05);
 }
 
 .summary-avg-col {
@@ -1432,16 +1452,64 @@
 }
 
 .summary-current-month {
-    -fx-background-color: rgba(29, 78, 216, 0.08);
+    -fx-background-color: rgba(29, 78, 216, 0.05);
     -fx-background-radius: 0;
     -fx-border-color: transparent;
     -fx-border-radius: 0;
     -fx-border-width: 0;
-    -fx-text-fill: rgba(29, 78, 216, 0.95);
+    -fx-text-fill: rgba(29, 78, 216, 0.90);
     -fx-font-weight: 600;
-    -fx-padding: 10 12;
+    -fx-padding: 14 12;
     -fx-cursor: default;
     -fx-alignment: center;
+}
+
+.summary-amount-cell.summary-current-month {
+    -fx-font-weight: 560;
+    -fx-text-fill: rgba(29, 78, 216, 0.82);
+    -fx-background-color: rgba(29, 78, 216, 0.035);
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 14 12;
+    -fx-cursor: default;
+    -fx-alignment: center;
+}
+
+.summary-total-row-cell.summary-amount-cell.summary-current-month {
+    -fx-font-weight: 580;
+    -fx-text-fill: rgba(29, 78, 216, 0.90);
+    -fx-background-color: rgba(29, 78, 216, 0.05);
+}
+
+.summary-amount-cell.summary-dominant-cell.summary-current-month {
+    -fx-font-weight: 660;
+    -fx-text-fill: rgba(15, 23, 42, 0.95);
+    -fx-background-color: rgba(29, 78, 216, 0.06);
+    -fx-background-radius: 6;
+    -fx-border-color: rgba(29, 78, 216, 0.32);
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 6 0 0 6;
+}
+
+.summary-row-hover.summary-amount-cell.summary-current-month,
+.summary-row-hover.summary-amount-cell.summary-dominant-cell,
+.summary-row-hover.summary-amount-cell.summary-dominant-cell.summary-current-month,
+.summary-row-hover.summary-total-row-cell.summary-amount-cell.summary-current-month {
+    -fx-background-color: rgba(29, 78, 216, 0.05);
+    -fx-text-fill: rgba(15, 23, 42, 0.80);
+    -fx-font-weight: 600;
+    -fx-border-color: transparent;
+}
+
+.summary-row-selected.summary-amount-cell.summary-current-month,
+.summary-row-selected.summary-amount-cell.summary-dominant-cell,
+.summary-row-selected.summary-amount-cell.summary-dominant-cell.summary-current-month,
+.summary-row-selected.summary-total-row-cell.summary-amount-cell.summary-current-month {
+    -fx-background-color: rgba(29, 78, 216, 0.10);
+    -fx-text-fill: rgba(15, 23, 42, 0.92);
+    -fx-font-weight: 600;
+    -fx-border-color: transparent;
 }
 
 .summary-row-hover {
@@ -1482,7 +1550,7 @@
 }
 
 .summary-table .label {
-    -fx-padding: 10 14;
+    -fx-padding: 12 16;
 }
 
 .summary-table-fixed-scroll,
@@ -4483,4 +4551,4 @@
     -fx-border-color: rgba(22, 163, 74, 0.16);
     -fx-text-fill: #15803D;
 }
-}
+

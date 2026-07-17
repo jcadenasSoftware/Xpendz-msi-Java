@@ -168,8 +168,9 @@ public final class SideDrawer {
     public void show(String id) {
         drawerContainer.getChildren().forEach(n -> n.setVisible(false));
 
-        Node target = drawerContainer.lookup("#" + id);
-        if (target == null) return;
+        DrawerParts parts = drawersById.get(id);
+        if (parts == null) return;
+        Node target = parts.panel();
 
         backdrop.setVisible(true);
         drawerContainer.setVisible(true);

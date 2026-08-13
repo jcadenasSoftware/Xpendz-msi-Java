@@ -1,75 +1,124 @@
-MIS FINANZAS - README
+# Xpendz Desktop
 
-Descripción
-Mis Finanzas es una aplicación de escritorio para el control y organización de finanzas personales. Permite administrar cuentas, registrar transacciones, visualizar resúmenes y analizar tu evolución financiera desde una interfaz moderna (JavaFX) con soporte de tema claro/oscuro. Soporta múltiples monedas por cuenta (sin conversión automática entre monedas).
+Aplicación de escritorio para Windows orientada al control y organización de finanzas personales, desarrollada con Java y JavaFX e integrada al ecosistema multiplataforma de **Xpendz**.
 
-Características principales
-- Gestión de cuentas: creación/edición/eliminación y visualización de saldos.
-- Multi-moneda por cuenta (sin conversión automática).
-- Registro de movimientos: ingresos y egresos con historial.
+Xpendz Desktop permite administrar las finanzas personales desde el computador, manteniendo los datos almacenados localmente y sincronizados con Firestore para integrarse con las demás plataformas de Xpendz.
+
+## Características
+
+### Gestión financiera
+
+- Gestión de cuentas y saldos.
+- Soporte para múltiples monedas por cuenta.
+- Registro y administración de ingresos y egresos.
+- Historial de transacciones.
 - Transferencias entre cuentas.
-- Resúmenes y gráficos para análisis.
-- Exportación a CSV desde el módulo de Resumen.
-- Interfaz moderna con tema claro/oscuro.
-- Instalador MSI para Windows con soporte de actualización (upgrade).
+- Gestión de categorías y subcategorías.
+- Presupuestos mensuales.
+- Metas financieras.
+- Gestión de préstamos y pagos asociados.
 
-Requisitos (usuario final)
-- Windows 10/11.
-- No se requiere Java instalado: el instalador incluye un runtime.
+### Dashboard y análisis
 
-Instalación (Windows)
-1) Descarga el archivo MSI (ej.: dist\MisFinanzas-3.0.1.msi).
-2) Ejecuta el MSI y sigue el asistente.
-3) Se creará un acceso directo en el escritorio y en el menú inicio.
+- Dashboard financiero con información consolidada.
+- Resúmenes financieros.
+- Gráficos para análisis de ingresos y gastos.
+- Análisis mensual por categorías.
+- Totales y promedios históricos.
+- Heatmap financiero.
+- Indicadores y componentes de análisis financiero.
 
-Actualización (upgrade)
-- Para actualizar desde una versión anterior, ejecuta el MSI de la nueva versión.
-- Importante: no desinstales manualmente si deseas mantener el flujo de actualización estándar.
+### Sincronización y datos
 
-Desinstalación
-- Panel de control -> Programas -> Agregar o quitar programas -> MisFinanzas -> Desinstalar.
+- Persistencia local mediante SQLite.
+- Sincronización de información con Firebase Firestore.
+- Autenticación de usuarios.
+- Sincronización de cuentas, categorías, presupuestos, metas, préstamos y otros datos financieros.
+- Arquitectura organizada mediante repositorios y servicios.
 
-Ejecución
-- Usa el acceso directo creado por el instalador.
+### Exportación y reportes
 
-Desarrollo / Compilación (para desarrolladores)
-Stack
-- Java 21
-- JavaFX 21.x
-- Maven
+- Exportación de información a CSV.
+- Generación de reportes PDF.
+- Resúmenes financieros para análisis y consulta.
 
-Compilar en NetBeans
-1) Abrir el proyecto.
-2) Ejecutar: Clean and Build.
+### Interfaz
 
-Generar MSI (Windows)
-Este repositorio incluye un script de PowerShell para generar el MSI usando jpackage.
+- Interfaz gráfica desarrollada con JavaFX.
+- Tema claro y oscuro.
+- Componentes de interfaz reutilizables.
+- Dashboard modular.
+- Interfaz orientada a facilitar la consulta y análisis de información financiera.
 
-1) Compila primero (recomendado): Clean and Build (NetBeans) o Maven package.
-2) Desde la carpeta del proyecto:
-   powershell -ExecutionPolicy Bypass -File .\build-msi.ps1 -SkipBuild
+## Tecnologías
 
-Salida:
-- dist\MisFinanzas-<version>.msi
+- **Java 21**
+- **JavaFX 21**
+- **Maven**
+- **SQLite**
+- **Firebase Firestore**
+- **Jackson**
+- **Apache PDFBox**
+- **Ikonli**
 
-Notas del instalador (importante)
-- El script build-msi.ps1 se alinea con la versión del pom.xml.
-- El UUID de upgrade de Windows (UpgradeCode) se mantiene estable en el archivo:
-  .win-upgrade-uuid
-  Esto es esencial para que el MSI actualice correctamente versiones anteriores.
+## Arquitectura
 
-Modo diagnóstico (opcional)
-Si necesitas ver errores en consola al ejecutar la app instalada:
-- Generar MSI con consola:
-  powershell -ExecutionPolicy Bypass -File .\build-msi.ps1 -SkipBuild -WinConsole -AppVersionOverride 3.0.1.1
+El proyecto mantiene una estructura modular separando diferentes responsabilidades de la aplicación.
 
-Solución de problemas
-- "Ya está instalada otra versión": Windows Installer no permite reinstalar la MISMA versión.
-  Usa una versión superior o genera una versión de diagnóstico con -AppVersionOverride.
+Entre sus componentes se encuentran:
 
-Notas de versión (3.0.1)
-- Refactor interno del Dashboard para mejorar modularidad y mantenimiento.
-- Corrección del Resumen Mensual: columna TOTAL visible y PROMEDIO calculado solo con meses anteriores.
+- Repositorios para acceso y persistencia de datos.
+- Servicios para lógica de negocio y sincronización.
+- Módulos de autenticación.
+- Componentes de interfaz JavaFX.
+- Servicios de generación de reportes.
+- Coordinación de sincronización con Firestore.
 
-Licencia
-- Definir según tu preferencia (MIT, Apache-2.0, etc.).
+Esta separación permite mantener y ampliar los diferentes módulos financieros sin concentrar toda la lógica en una única capa de aplicación.
+
+## Instalación para usuarios
+
+Xpendz Desktop se distribuye mediante un instalador **MSI para Windows**.
+
+El instalador incluye el runtime necesario para ejecutar la aplicación, por lo que el usuario final no necesita instalar Java previamente.
+
+### Requisitos
+
+- Windows 10 o superior.
+- No es necesario instalar Java manualmente.
+
+### Instalación
+
+1. Descargar el instalador MSI desde la sección **Releases**.
+2. Ejecutar `Xpendz-1.0.0.msi`.
+3. Seguir las instrucciones del instalador.
+4. Utilizar el acceso directo creado en el escritorio o en el menú Inicio.
+
+## Actualizaciones
+
+El instalador utiliza el mecanismo de actualización de Windows Installer para permitir la instalación de nuevas versiones sobre versiones anteriores.
+
+El proyecto mantiene un identificador de actualización estable para conservar el flujo de actualización entre versiones.
+
+## Desarrollo
+
+El proyecto utiliza Maven para la gestión y compilación.
+
+### Requisitos de desarrollo
+
+- JDK 21
+- Apache Maven
+- NetBeans u otro IDE compatible con Maven
+- JavaFX 21
+
+### Compilación
+
+Desde el IDE:
+
+1. Abrir el proyecto Maven.
+2. Ejecutar **Clean and Build**.
+
+También puede utilizarse Maven directamente:
+
+```bash
+mvn clean package

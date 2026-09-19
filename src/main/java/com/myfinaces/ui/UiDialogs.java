@@ -10,12 +10,9 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TextFormatter;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
 import javafx.stage.Window;
-
-import java.util.function.UnaryOperator;
 
 import com.myfinaces.AppVersion;
 
@@ -28,22 +25,7 @@ public final class UiDialogs {
         if (field == null) {
             return;
         }
-
-        UnaryOperator<TextFormatter.Change> filter = change -> {
-            String next = change.getControlNewText();
-            if (next == null || next.isEmpty()) {
-                return change;
-            }
-            if (next.matches("\\d+(?:[\\.,]\\d{0,2})?")) {
-                return change;
-            }
-            if (next.matches("\\d*")) {
-                return change;
-            }
-            return null;
-        };
-
-        field.setTextFormatter(new TextFormatter<>(filter));
+        MoneyInputField.install(field);
     }
 
     public static void attachAppIcon(Dialog<?> dialog) {

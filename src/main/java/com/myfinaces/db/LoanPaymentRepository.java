@@ -6,7 +6,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -105,6 +107,11 @@ public final class LoanPaymentRepository {
             ps.executeUpdate();
         }
 
+        System.out.println("[LoanPaymentRepository] create id=" + id
+            + " loanId=" + loanId
+            + " transactionId=" + linkedTransactionId
+            + " amount=" + principalCents);
+
         return id;
     }
 
@@ -146,12 +153,65 @@ public final class LoanPaymentRepository {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(paymentId, "paymentId");
 
+        LoanPayment payment = getByIdOrNull(userUid, paymentId);
+        System.out.println("[LoanPaymentRepository] delete requested paymentId=" + paymentId
+            + " userUid=" + userUid
+            + (payment == null ? " paymentNotFound=true" : " loanId=" + payment.loanId()
+                + " amount=" + payment.principalCents()
+                + " linkedTransactionId=" + payment.linkedTransactionId()));
+        System.out.println("[LoanPaymentRepository] delete stackTrace\n" + stackTrace());
+
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
             "DELETE FROM loan_payments WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
             ps.setString(2, paymentId);
             ps.executeUpdate();
+        }
+    }
+
+    public LoanPayment getByLinkedTransactionId(String userUid, String transactionId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(transactionId, "transactionId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, loan_id, user_uid, account_id, principal_cents, occurred_at_epoch_sec, linked_transaction_id, note, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loan_payments WHERE user_uid = ? AND linked_transaction_id = ? LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, transactionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapRow(rs) : null;
+            }
+        }
+    }
+
+    public LoanPayment getBySignature(
+        String userUid,
+        String loanId,
+        String accountId,
+        long principalCents,
+        long occurredAtEpochSec
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(loanId, "loanId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, loan_id, user_uid, account_id, principal_cents, occurred_at_epoch_sec, linked_transaction_id, note, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loan_payments WHERE user_uid = ? AND loan_id = ? AND principal_cents = ? AND occurred_at_epoch_sec = ? AND account_id IS ? LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, loanId);
+            ps.setLong(3, principalCents);
+            ps.setLong(4, occurredAtEpochSec);
+            if (accountId == null || accountId.isBlank()) {
+                ps.setObject(5, null);
+            } else {
+                ps.setString(5, accountId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapRow(rs) : null;
+            }
         }
     }
 
@@ -218,6 +278,28 @@ public final class LoanPaymentRepository {
         }
     }
 
+    /**
+     * Ids locales pendientes de push. La poda por snapshot remoto debe
+     * conservarlos: si el push falló, el doc aún no existe en Firestore pero la
+     * fila local sigue siendo válida (Desktop usa REST, sin cola offline).
+     */
+    public Set<String> listPendingSyncIds(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id FROM loan_payments WHERE user_uid = ? AND pending_sync = 1"
+        )) {
+            ps.setString(1, userUid);
+            Set<String> out = new HashSet<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getString("id"));
+                }
+            }
+            return out;
+        }
+    }
+
     public void upsertFromRemote(String userUid, LoanPayment remote) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(remote, "remote");
@@ -249,10 +331,12 @@ public final class LoanPaymentRepository {
                 }
                 ps.executeUpdate();
             }
+            logPaymentUpsert(remote, "inserted", null);
             return;
         }
 
         if (remote.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
+            logPaymentUpsert(remote, "staleSkipped", local.updatedAtEpochSec());
             return;
         }
 
@@ -281,6 +365,7 @@ public final class LoanPaymentRepository {
             ps.setString(11, remote.id());
             ps.executeUpdate();
         }
+        logPaymentUpsert(remote, "updated", local.updatedAtEpochSec());
     }
 
     public List<LoanPayment> listPendingForSync(String userUid) throws SQLException {
@@ -341,5 +426,51 @@ public final class LoanPaymentRepository {
                 return rs.getLong("total");
             }
         }
+    }
+
+    private static LoanPayment mapRow(ResultSet rs) throws SQLException {
+        return new LoanPayment(
+            rs.getString("id"),
+            rs.getString("loan_id"),
+            rs.getString("user_uid"),
+            rs.getString("account_id"),
+            rs.getLong("principal_cents"),
+            rs.getLong("occurred_at_epoch_sec"),
+            rs.getString("linked_transaction_id"),
+            rs.getString("note"),
+            rs.getLong("created_at_epoch_sec"),
+            rs.getLong("updated_at_epoch_sec"),
+            rs.getString("updated_by")
+        );
+    }
+
+    private static void logPaymentUpsert(LoanPayment payment, String action, Long localUpdatedAt) {
+        System.out.println(
+            "[LoanPaymentTrace] PAYMENT_UPSERT"
+                + " loanId=" + valueOrDash(payment.loanId())
+                + " paymentId=" + valueOrDash(payment.id())
+                + " transactionId=" + valueOrDash(payment.linkedTransactionId())
+                + " operationId=- eventId=" + valueOrDash(payment.id())
+                + " updatedAt=" + payment.updatedAtEpochSec()
+                + " updatedBy=" + valueOrDash(payment.updatedBy())
+                + " accountId=" + valueOrDash(payment.accountId())
+                + " principalCents=" + payment.principalCents()
+                + " occurredAt=" + payment.occurredAtEpochSec()
+                + " action=" + valueOrDash(action)
+                + " localUpdatedAt=" + (localUpdatedAt == null ? "-" : localUpdatedAt)
+        );
+    }
+
+    private static String valueOrDash(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private String stackTrace() {
+        StackTraceElement[] stack = Thread.currentThread().getStackTrace();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 2; i < stack.length; i++) {
+            sb.append("  at ").append(stack[i]).append('\n');
+        }
+        return sb.toString();
     }
 }

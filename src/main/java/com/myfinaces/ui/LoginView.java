@@ -37,7 +37,7 @@ public final class LoginView {
         Listener listener
     ) {
         String copyrightName = "Xpendz";
-        String website = "https://jcadenas.com";
+        String website = "https://jcadenas.com/xpendz";
 
         ImageView logo = new ImageView();
         try {

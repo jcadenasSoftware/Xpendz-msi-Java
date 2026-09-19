@@ -6,8 +6,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -83,6 +85,11 @@ public final class LoanMovementRepository {
             ps.setLong(11, now);
             ps.executeUpdate();
         }
+        System.out.println("[LoanMovementRepository] create id=" + id
+            + " loanId=" + loanId
+            + " type=" + movementType
+            + " amount=" + amountCents
+            + " transactionId=" + linkedTransactionId);
         return id;
     }
 
@@ -151,6 +158,52 @@ public final class LoanMovementRepository {
         }
     }
 
+    public LoanMovement getByLinkedTransactionId(String userUid, String transactionId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(transactionId, "transactionId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, loan_id, user_uid, movement_type, amount_cents, account_id, linked_transaction_id, note, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loan_movements WHERE user_uid = ? AND linked_transaction_id = ? LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, transactionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapRow(rs) : null;
+            }
+        }
+    }
+
+    public LoanMovement getPaymentBySignature(
+        String userUid,
+        String loanId,
+        String accountId,
+        long amountCents,
+        long occurredAtEpochSec
+    ) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(loanId, "loanId");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id, loan_id, user_uid, movement_type, amount_cents, account_id, linked_transaction_id, note, occurred_at_epoch_sec, created_at_epoch_sec, updated_at_epoch_sec, updated_by " +
+            "FROM loan_movements WHERE user_uid = ? AND loan_id = ? AND amount_cents = ? AND occurred_at_epoch_sec = ? " +
+            "AND account_id IS ? AND movement_type IN ('PAYMENT','PAYMENT_IN','PAYMENT_OUT') LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, loanId);
+            ps.setLong(3, amountCents);
+            ps.setLong(4, occurredAtEpochSec);
+            if (accountId == null || accountId.isBlank()) {
+                ps.setObject(5, null);
+            } else {
+                ps.setString(5, accountId);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? mapRow(rs) : null;
+            }
+        }
+    }
+
     public List<LoanMovement> listByLoan(String userUid, String loanId) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(loanId, "loanId");
@@ -205,6 +258,28 @@ public final class LoanMovementRepository {
         )) {
             ps.setString(1, userUid);
             return collectRows(ps);
+        }
+    }
+
+    /**
+     * Ids locales pendientes de push. La poda por snapshot remoto debe
+     * conservarlos: si el push falló, el doc aún no existe en Firestore pero la
+     * fila local sigue siendo válida (Desktop usa REST, sin cola offline).
+     */
+    public Set<String> listPendingSyncIds(String userUid) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT id FROM loan_movements WHERE user_uid = ? AND pending_sync = 1"
+        )) {
+            ps.setString(1, userUid);
+            Set<String> out = new HashSet<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getString("id"));
+                }
+            }
+            return out;
         }
     }
 

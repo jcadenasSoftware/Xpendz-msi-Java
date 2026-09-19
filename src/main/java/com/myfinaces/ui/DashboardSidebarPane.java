@@ -169,9 +169,9 @@ public final class DashboardSidebarPane {
 
         Label footerCopyright = new Label("© " + java.time.Year.now().getValue() + " Xpendz");
         footerCopyright.getStyleClass().add("sidebar-footer-text");
-        Hyperlink footerLink = new Hyperlink("https://jcadenas.com");
+        Hyperlink footerLink = new Hyperlink("https://jcadenas.com/xpendz");
         footerLink.getStyleClass().add("sidebar-footer-link");
-        footerLink.setUserData("https://jcadenas.com");
+        footerLink.setUserData("https://jcadenas.com/xpendz");
         footerLink.setOnAction(e -> {
             try {
                 Object url = footerLink.getUserData();

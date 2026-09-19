@@ -2,12 +2,14 @@ package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.config.AccountStyles;
+import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.service.GoalService;
+import com.myfinaces.sync.FirestoreSyncService;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.PauseTransition;
@@ -17,10 +19,12 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ScrollPane;
@@ -1019,7 +1023,7 @@ public final class BudgetView {
 
         // ── Drawer metas ───────────────────────────────────────
         VBox goalDrawer = buildGoalDetailDrawer(DRAWER_WIDTH, stackRoot, goalCloseRef,
-            darkTheme, goalServiceRef, accountRepo, userUid, selectedMetaRef, metasRefreshHolder);
+            darkTheme, goalServiceRef, accountRepo, session, userUid, selectedMetaRef, metasRefreshHolder);
         goalDrawer.setTranslateX(DRAWER_WIDTH);
         goalDrawer.prefHeightProperty().bind(stackRoot.heightProperty());
         stackRoot.getChildren().add(goalDrawer);
@@ -1197,7 +1201,7 @@ public final class BudgetView {
         Label currencyPrefix = new Label("$");
         currencyPrefix.setStyle(PREFIX_NORMAL_STYLE);
 
-        TextField limitField = new TextField();
+        MoneyInputField limitField = new MoneyInputField();
         limitField.setPromptText("0");
         limitField.setMaxWidth(Double.MAX_VALUE);
         limitField.setStyle(LIMIT_NORMAL_STYLE);
@@ -1217,20 +1221,6 @@ public final class BudgetView {
         VBox fieldLimite = buildDrawerField(3, "Límite mensual", limitRow);
         fieldLimite.getChildren().addAll(limitHint, limitError);
 
-        final long[] rawValue = { 0L };
-        final boolean[] formatting = { false };
-
-        limitField.textProperty().addListener((obs, oldText, newText) -> {
-            if (formatting[0]) return;
-            formatting[0] = true;
-            String digits = newText.replaceAll("[^0-9]", "");
-            rawValue[0] = digits.isEmpty() ? 0L : Long.parseLong(digits);
-            String formatted = digits.isEmpty() ? "" : formatThousands(digits);
-            limitField.setText(formatted);
-            if (!formatted.isEmpty()) limitField.positionCaret(formatted.length());
-            formatting[0] = false;
-        });
-
         Button[] btnSaveRef = { null };
         limitField.setOnAction(ev -> { if (btnSaveRef[0] != null && !btnSaveRef[0].isDisabled()) btnSaveRef[0].fire(); });
 
@@ -1243,7 +1233,7 @@ public final class BudgetView {
                     currencyPrefix.setStyle(PREFIX_NORMAL_STYLE);
                 }
             } else {
-                if (rawValue[0] == 0 && !limitField.getText().isEmpty()) {
+                if (limitField.getAmountCentsOrZero() == 0 && !limitField.getText().isEmpty()) {
                     limitError.setText("El límite debe ser mayor a 0");
                     limitError.setVisible(true);  limitError.setManaged(true);
                     limitHint.setVisible(false);  limitHint.setManaged(false);
@@ -1328,7 +1318,7 @@ public final class BudgetView {
         HBox.setHgrow(btnSave, Priority.ALWAYS);
 
         limitField.textProperty().addListener((obs, ov, nv) -> {
-            boolean valid = rawValue[0] > 0;
+            boolean valid = limitField.getAmountCentsOrZero() > 0;
             btnSave.setDisable(!valid);
             btnSave.setStyle(valid ? SAVE_STYLE_ON : SAVE_STYLE_OFF);
         });
@@ -1352,14 +1342,8 @@ public final class BudgetView {
                         userUid, BudgetRepository.BASE_BUDGET_MONTH, currency, sub.id());
                 } catch (Exception ex2) { existingBudget = null; }
                 if (existingBudget != null) {
-                    long units = existingBudget.limitCents() / 100L;
-                    rawValue[0] = units;
-                    String formatted = formatThousands(String.valueOf(units));
-                    formatting[0] = true;
-                    limitField.setText(formatted);
-                    if (!formatted.isEmpty()) limitField.positionCaret(formatted.length());
-                    formatting[0] = false;
-                    boolean valid = units > 0;
+                    limitField.setAmountCents(existingBudget.limitCents());
+                    boolean valid = existingBudget.limitCents() > 0;
                     btnSave.setDisable(!valid);
                     btnSave.setStyle(valid ? SAVE_STYLE_ON : SAVE_STYLE_OFF);
                 }
@@ -1397,7 +1381,8 @@ public final class BudgetView {
         // ── Acción guardar (BD real) ───────────────────────────────
         btnSave.setOnAction(e -> {
             CategoryRepository.Category selSub = subCombo.getValue();
-            if (selSub == null || rawValue[0] <= 0) return;
+            long limitCents = limitField.getAmountCentsOrZero();
+            if (selSub == null || limitCents <= 0) return;
 
             String categoryId = selSub.id();
             String month = BudgetRepository.BASE_BUDGET_MONTH;
@@ -1405,7 +1390,6 @@ public final class BudgetView {
             try {
                 BudgetRepository.Budget existing =
                     budgetRepo.getByUniqueKeyOrNull(userUid, month, currency, categoryId);
-                long limitCents = rawValue[0] * 100L;
                 if (existing != null) {
                     budgetRepo.update(userUid, existing.id(), month, categoryId,
                         limitCents, currency);
@@ -1476,7 +1460,6 @@ public final class BudgetView {
                 catCombo.setValue(null);
                 subCombo.setValue(null);
                 limitField.clear();
-                rawValue[0] = 0L;
                 statusBox.setVisible(false);
                 statusBox.setManaged(false);
                 statusBox.setOpacity(0.0);
@@ -1580,7 +1563,7 @@ public final class BudgetView {
         VBox fieldNombre = buildDrawerField(1, "Nombre de la meta", fieldNombreContent);
 
         // ── Campo monto ─────────────────────────────────────────────
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.setPromptText("$ 1.500.000");
         amountField.setStyle(
             "-fx-background-color: " + inputBg + "; -fx-border-color: " + inputBorder + "; "
@@ -1588,7 +1571,6 @@ public final class BudgetView {
             + "-fx-padding: 12 14; -fx-font-size: 13px; -fx-text-fill: " + titleColor + ";"
         );
 
-        UiDialogs.restrictToDecimalAmount(amountField);
         Label amountError = new Label("El monto debe ser mayor a 0");
         amountError.setStyle("-fx-font-size: 11px; -fx-text-fill: " + errorColor + ";");
         amountError.setVisible(false);
@@ -1629,11 +1611,7 @@ public final class BudgetView {
             if (nombre.isBlank()) return;
 
             // Parsear monto
-            long targetCents = 0L;
-            String amountText = amountField.getText().replaceAll("[^0-9]", "");
-            if (!amountText.isBlank()) {
-                try { targetCents = Long.parseLong(amountText) * 100L; } catch (NumberFormatException ignored) {}
-            }
+            long targetCents = amountField.getAmountCentsOrZero();
             if (targetCents <= 0) {
                 amountError.setVisible(true);
                 amountError.setManaged(true);
@@ -1724,7 +1702,7 @@ public final class BudgetView {
 
         Label  titleLabel  = (Label)      refs.get("titleLabel");
         TextField nameField  = (TextField)  refs.get("nameField");
-        TextField amountField = (TextField)  refs.get("amountField");
+        MoneyInputField amountField = (MoneyInputField)  refs.get("amountField");
         DatePicker datePicker = (DatePicker) refs.get("datePicker");
         Button btnGuardar   = (Button)     refs.get("btnGuardar");
         FontIcon previewIcon = (FontIcon)   refs.get("previewIcon");
@@ -1741,7 +1719,7 @@ public final class BudgetView {
             // Modo editar
             if (titleLabel  != null) titleLabel.setText("Editar meta");
             if (nameField   != null) nameField.setText(meta.name());
-            if (amountField != null) amountField.setText(String.valueOf(meta.targetCents() / 100));
+            if (amountField != null) amountField.setAmountCents(meta.targetCents());
             if (datePicker  != null && meta.targetDateEpochSec() > 0) {
                 datePicker.setValue(java.time.Instant.ofEpochSecond(meta.targetDateEpochSec())
                     .atZone(java.time.ZoneId.systemDefault()).toLocalDate());
@@ -2134,9 +2112,6 @@ public final class BudgetView {
         // ── Función para crear una card ───────────────────────────
         java.util.function.Function<GoalService.MetaInfo, javafx.scene.Node> createCard = (GoalService.MetaInfo g) -> {
             long missing = g.missing();
-            NumberFormat nf = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
-            nf.setMaximumFractionDigits(0);
-
             String stateLabel, stateEmoji, stateColor, stateBgColor;
             int percent = g.percent();
             if (percent == 0) {
@@ -2197,19 +2172,19 @@ public final class BudgetView {
             Label descLabel = new Label(g.description());
             descLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: " + descColor + ";");
 
-            Label savedLabel = new Label(nf.format(g.saved() / 100.0));
+            Label savedLabel = new Label(formatMoney(g.saved(), g.goal().currency()));
             savedLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + savedColor + ";");
             Label savedTitle = new Label("Guardado");
             savedTitle.setStyle("-fx-font-size: 9px; -fx-text-fill: " + labelColor + ";");
             VBox savedBox = new VBox(1, savedLabel, savedTitle);
 
-            Label targetLabel = new Label(nf.format(g.target() / 100.0));
+            Label targetLabel = new Label(formatMoney(g.target(), g.goal().currency()));
             targetLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + valueColor + ";");
             Label targetTitle = new Label("Objetivo");
             targetTitle.setStyle("-fx-font-size: 9px; -fx-text-fill: " + labelColor + ";");
             VBox targetBox = new VBox(1, targetLabel, targetTitle);
 
-            Label missingLabel = new Label(nf.format(missing / 100.0));
+            Label missingLabel = new Label(formatMoney(missing, g.goal().currency()));
             missingLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + missingColor + ";");
             Label missingTitle = new Label("Faltan");
             missingTitle.setStyle("-fx-font-size: 9px; -fx-text-fill: " + labelColor + ";");
@@ -2460,6 +2435,7 @@ public final class BudgetView {
                                                java.util.function.Supplier<Boolean> darkTheme,
                                                GoalService[] goalServiceRef,
                                                AccountRepository accountRepo,
+                                               AuthSession session,
                                                String userUid,
                                                GoalService.MetaInfo[] selectedMetaRef,
                                                Runnable[] metasRefreshHolder) {
@@ -2532,19 +2508,19 @@ public final class BudgetView {
         NumberFormat nf = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
         nf.setMaximumFractionDigits(0);
 
-        savedLabelRef[0] = new Label(nf.format(5700000L / 100.0));
+        savedLabelRef[0] = new Label(formatMoney(5700000L, "COP"));
         savedLabelRef[0].setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: " + savedColor + ";");
         Label savedTitle = new Label("Guardado");
         savedTitle.setStyle("-fx-font-size: 11px; -fx-text-fill: " + subtitleColor + ";");
         VBox savedBox = new VBox(2, savedLabelRef[0], savedTitle);
 
-        targetLabelRef[0] = new Label(nf.format(15000000L / 100.0));
+        targetLabelRef[0] = new Label(formatMoney(15000000L, "COP"));
         targetLabelRef[0].setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";");
         Label targetTitle = new Label("Objetivo");
         targetTitle.setStyle("-fx-font-size: 11px; -fx-text-fill: " + subtitleColor + ";");
         VBox targetBox = new VBox(2, targetLabelRef[0], targetTitle);
 
-        missingLabelRef[0] = new Label(nf.format(9300000L / 100.0));
+        missingLabelRef[0] = new Label(formatMoney(9300000L, "COP"));
         missingLabelRef[0].setStyle("-fx-font-size: 20px; -fx-font-weight: 700; -fx-text-fill: " + missingColor + ";");
         Label missingTitle = new Label("Faltan");
         missingTitle.setStyle("-fx-font-size: 11px; -fx-text-fill: " + subtitleColor + ";");
@@ -2790,15 +2766,13 @@ public final class BudgetView {
         Label montoLabel = new Label("Monto");
         montoLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 600; -fx-text-fill: " + subtitleColor + "; -fx-padding: 4 0 2 0;");
 
-        TextField inlineAmountField = new TextField();
+        MoneyInputField inlineAmountField = new MoneyInputField();
         inlineAmountField.setPromptText("0");
         inlineAmountField.setStyle(
             "-fx-background-color: " + inputBg + "; -fx-border-color: " + inputBorder + "; "
             + "-fx-border-radius: 8; -fx-background-radius: 8; "
             + "-fx-padding: 10 12; -fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";"
         );
-
-        UiDialogs.restrictToDecimalAmount(inlineAmountField);
 
         // ── Error ─────────────────────────────────────────────────
         Label inlineError = new Label("");
@@ -2911,19 +2885,9 @@ public final class BudgetView {
                 inlineError.setText("Selecciona una cuenta");
                 inlineError.setVisible(true); inlineError.setManaged(true); return;
             }
-            String raw = inlineAmountField.getText().replaceAll("[^0-9]", "");
-            if (raw.isBlank()) {
-                inlineError.setText("Ingresa un monto");
-                inlineError.setVisible(true); inlineError.setManaged(true); return;
-            }
-            long amountCents;
-            try { amountCents = Long.parseLong(raw) * 100L; }
-            catch (NumberFormatException ex) {
-                inlineError.setText("Monto inválido");
-                inlineError.setVisible(true); inlineError.setManaged(true); return;
-            }
+            long amountCents = inlineAmountField.getAmountCentsOrZero();
             if (amountCents <= 0) {
-                inlineError.setText("El monto debe ser mayor a 0");
+                inlineError.setText("Ingresa un monto");
                 inlineError.setVisible(true); inlineError.setManaged(true); return;
             }
             GoalService svc = goalServiceRef[0];
@@ -2947,7 +2911,7 @@ public final class BudgetView {
             // Validación retiro: saldo suficiente en meta
             if (!isDepositMode[0] && amountCents > meta.saved()) {
                 inlineError.setText("Saldo insuficiente en la meta ("
-                    + nfInline.format(meta.saved() / 100.0) + ")");
+                    + formatMoney(meta.saved(), meta.goal().currency()) + ")");
                 inlineError.setVisible(true); inlineError.setManaged(true); return;
             }
             inlineError.setVisible(false); inlineError.setManaged(false);
@@ -3012,6 +2976,16 @@ public final class BudgetView {
         btnWithdraw.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(btnWithdraw, Priority.ALWAYS);
 
+        Button btnDelete = new Button("Eliminar");
+        btnDelete.setStyle(
+            "-fx-background-color: transparent; -fx-text-fill: #EF4444; -fx-font-weight: 700; "
+            + "-fx-background-radius: 10; -fx-border-radius: 10; "
+            + "-fx-border-color: rgba(239,68,68,0.35); -fx-border-width: 1; "
+            + "-fx-cursor: hand; -fx-pref-height: 44; -fx-font-size: 13px; -fx-padding: 0 24;"
+        );
+        btnDelete.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(btnDelete, Priority.ALWAYS);
+
         btnDeposit.setOnAction(ev -> {
             isDepositMode[0] = true;
             inlineTitle.setText("Depositar  →  Meta");
@@ -3040,7 +3014,84 @@ public final class BudgetView {
             inlinePanel.setVisible(true); inlinePanel.setManaged(true);
         });
 
-        HBox actionsRow = new HBox(12, btnDeposit, btnWithdraw);
+        btnDelete.setOnAction(ev -> {
+            GoalService svc = goalServiceRef[0];
+            GoalService.MetaInfo meta = selectedMetaRef[0];
+            if (svc == null || meta == null) {
+                showToast(stackRoot, "✗ Servicio no disponible");
+                return;
+            }
+
+            boolean hasHistory = svc.tieneHistorial(userUid, meta.goal().accountId());
+
+            String confirmTitle = hasHistory ? "Archivar meta" : "Eliminar meta";
+            String description = hasHistory
+                ? "Esta meta tiene historial financiero.\n\nPara conservar la integridad de reportes y estadísticas será archivada y dejará de aparecer entre las metas activas.\n\n¿Deseas continuar?"
+                : "¿Deseas eliminar esta meta?\n\nEsta acción no se puede deshacer.";
+
+            if (!ModernDialogs.confirmDestructive(confirmTitle, description, () -> darkTheme != null && Boolean.TRUE.equals(darkTheme.get()))) {
+                return;
+            }
+
+            btnDelete.setDisable(true);
+            final GoalService.GoalDeletionOutcome[] outcomeRef = { null };
+            new Thread(() -> {
+                try {
+                    outcomeRef[0] = svc.eliminarMeta(userUid, meta.goal().id(), true);
+
+                    try {
+                        AppConfig cfg = AppConfig.loadDefault();
+                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                        if (outcomeRef[0] == GoalService.GoalDeletionOutcome.DELETED) {
+                            sync.deleteGoal(session, meta.goal().id());
+                            sync.deleteAccount(session, meta.goal().accountId());
+                        } else {
+                            GoalRepository.Goal archived = goalServiceRef[0] != null
+                                ? goalServiceRef[0].obtenerMeta(userUid, meta.goal().id())
+                                : null;
+                            if (archived != null) {
+                                sync.syncGoal(session, archived);
+                            }
+                        }
+                    } catch (Exception ignored) {
+                    }
+
+                    javafx.application.Platform.runLater(() -> {
+                        selectedMetaRef[0] = null;
+                        if (metasRefreshHolder[0] != null) metasRefreshHolder[0].run();
+                        if (closeRef[0] != null) closeRef[0].run();
+                        if (outcomeRef[0] == GoalService.GoalDeletionOutcome.ARCHIVED) {
+                            ModernDialogs.info(
+                                "Meta archivada",
+                                "Esta meta tiene historial financiero. Para conservar la integridad de reportes y estadísticas ha sido archivada y dejará de aparecer entre las metas activas.",
+                                () -> darkTheme != null && Boolean.TRUE.equals(darkTheme.get())
+                            );
+                        }
+                    });
+                } catch (IllegalStateException ex) {
+                    javafx.application.Platform.runLater(() -> {
+                        long saldoActual = 0L;
+                        try {
+                            saldoActual = svc.calcularSaldo(userUid, meta.goal().accountId());
+                        } catch (Exception ignored) {
+                        }
+                        showToast(
+                            stackRoot,
+                            saldoActual > 0L
+                                ? "✗ No se puede eliminar: aún quedan " + formatMoney(saldoActual, meta.goal().currency())
+                                : "✗ No se puede eliminar: tiene saldo"
+                        );
+                    });
+                } catch (Exception ex) {
+                    javafx.application.Platform.runLater(() -> {
+                        showToast(stackRoot, "✗ Error al eliminar: " + ex.getMessage());
+                        btnDelete.setDisable(false);
+                    });
+                }
+            }).start();
+        });
+
+        HBox actionsRow = new HBox(12, btnDeposit, btnWithdraw, btnDelete);
         actionsRow.setAlignment(Pos.CENTER);
 
         // ── Scroll content ───────────────────────────────────────
@@ -3112,9 +3163,6 @@ public final class BudgetView {
         if (meta == null || drawer == null) return;
         
         try {
-            NumberFormat nf = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-CO"));
-            nf.setMaximumFractionDigits(0);
-            
             // Obtener referencias mutables del UserData
             java.util.Map<String, Object> refs = (java.util.Map<String, Object>) drawer.getUserData();
             if (refs == null) {
@@ -3157,13 +3205,13 @@ public final class BudgetView {
             
             // Actualizar métricas
             if (savedLabelRef != null && savedLabelRef[0] != null) {
-                savedLabelRef[0].setText(nf.format(meta.saved() / 100.0));
+                savedLabelRef[0].setText(formatMoney(meta.saved(), meta.goal().currency()));
             }
             if (targetLabelRef != null && targetLabelRef[0] != null) {
-                targetLabelRef[0].setText(nf.format(meta.target() / 100.0));
+                targetLabelRef[0].setText(formatMoney(meta.target(), meta.goal().currency()));
             }
             if (missingLabelRef != null && missingLabelRef[0] != null) {
-                missingLabelRef[0].setText(nf.format(meta.missing() / 100.0));
+                missingLabelRef[0].setText(formatMoney(meta.missing(), meta.goal().currency()));
             }
             
             // Actualizar barra de progreso y porcentaje
@@ -3291,7 +3339,7 @@ public final class BudgetView {
                     
                     for (com.myfinaces.db.TransferRepository.TransferRow mov : ultimosMovimientos) {
                         boolean esDeposito = meta.goal().accountId().equals(mov.toAccountId());
-                        String montoStr = (esDeposito ? "+" : "-") + nf.format(mov.amountCents() / 100.0);
+                        String montoStr = (esDeposito ? "+" : "-") + formatMoney(mov.amountCents(), meta.goal().currency());
                         String tipoStr = esDeposito ? "Depósito" : "Retiro";
                         String colorStr = esDeposito ? "#10B981" : "#EF4444";
                         
@@ -3419,7 +3467,7 @@ public final class BudgetView {
 
             for (com.myfinaces.db.TransferRepository.TransferRow mov : (java.util.List<com.myfinaces.db.TransferRepository.TransferRow>) allMovementsRef[0]) {
                 boolean esDeposito = meta.goal().accountId().equals(mov.toAccountId());
-                String montoStr = (esDeposito ? "+" : "-") + nf.format(mov.amountCents() / 100.0);
+                String montoStr = (esDeposito ? "+" : "-") + formatMoney(mov.amountCents(), meta.goal().currency());
                 String tipoStr = esDeposito ? "Depósito" : "Retiro";
                 String colorStr = esDeposito ? "#10B981" : "#EF4444";
 

@@ -108,22 +108,11 @@ public final class NewAccountDrawer {
         Label currencyPrefix = new Label("$");
         currencyPrefix.getStyleClass().add("drawer-input-prefix");
 
-        TextField balanceField = new TextField("0.00");
+        MoneyInputField balanceField = new MoneyInputField();
+        balanceField.setAmountCents(0L);
         balanceField.getStyleClass().addAll("drawer-input", "drawer-input-money", "drawer-input-no-left-radius");
         balanceField.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(balanceField, Priority.ALWAYS);
-
-        // Allow only digits and a single decimal point
-        balanceField.setTextFormatter(new javafx.scene.control.TextFormatter<>(change -> {
-            String newText = change.getControlNewText();
-            if (newText.matches("\\d*(\\.\\d{0,2})?")) return change;
-            return null;
-        }));
-
-        // Select all on focus for quick replacement
-        balanceField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
-            if (isFocused) javafx.application.Platform.runLater(balanceField::selectAll);
-        });
 
         HBox balanceRow = new HBox(currencyPrefix, balanceField);
         balanceRow.getStyleClass().add("drawer-input-prefix-row");
@@ -230,7 +219,7 @@ public final class NewAccountDrawer {
                     successDelay.setOnFinished(done -> {
                         // Reset form
                         nameField.clear();
-                        balanceField.setText("0.00");
+                        balanceField.setAmountCents(0L);
                         currencyCombo.getSelectionModel().select("COP");
                         primaryBtn.setText(originalText);
                         primaryBtn.setDisable(false);

@@ -5,6 +5,7 @@
 package com.myfinaces;
 
 import com.myfinaces.auth.AuthSession;
+import com.myfinaces.auth.AuthSessionManager;
 import com.myfinaces.auth.FirebaseAuthService;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AppSchema;
@@ -22,6 +23,14 @@ import com.myfinaces.db.SessionRepository;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.ui.DashboardView;
 import com.myfinaces.ui.LoginView;
+import myfinances.application.loan.LoanApplicationService;
+import myfinances.application.loan.LoanCommandFactory;
+import myfinances.domain.loan.projection.LoanProjectionQueryRepository;
+import myfinances.infrastructure.loan.admin.JdbcLoanAdminStateRepository;
+import myfinances.infrastructure.loan.admin.LoanAdminStateBackfill;
+import myfinances.infrastructure.loan.di.LoanApplicationServiceFactory;
+import myfinances.infrastructure.loan.migration.CanonicalLoanTransactionBackfill;
+import myfinances.infrastructure.loan.migration.LegacyLoanMigration;
 import javafx.application.Application;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -39,8 +48,14 @@ public class MyFinances extends Application {
     public void start(Stage primaryStage) throws Exception {
         AppConfig config = AppConfig.loadDefault();
         SqliteDatabase db = SqliteDatabase.defaultDatabase();
-
         AppSchema.init(db);
+        LoanApplicationServiceFactory loanFactory = new LoanApplicationServiceFactory(db);
+        LoanApplicationService loanApplicationService = loanFactory.loanApplicationService();
+        LegacyLoanMigration.migrate(db, loanApplicationService);
+        CanonicalLoanTransactionBackfill.run(db);
+        LoanAdminStateBackfill.run(db);
+        LoanProjectionQueryRepository loanProjectionQueryRepository = loanFactory.projectionQueryRepository();
+        LoanCommandFactory loanCommandFactory = new LoanCommandFactory();
         SessionRepository sessionRepo = new SessionRepository(db);
         sessionRepo.init();
 
@@ -51,6 +66,7 @@ public class MyFinances extends Application {
         TransactionRepository txRepo = new TransactionRepository(db);
         TransferRepository transferRepo = new TransferRepository(db);
         LoanRepository loanRepo = new LoanRepository(db);
+        JdbcLoanAdminStateRepository loanAdminStateRepo = new JdbcLoanAdminStateRepository(db);
         LoanPaymentRepository loanPaymentRepo = new LoanPaymentRepository(db);
         LoanMovementRepository loanMovementRepo = new LoanMovementRepository(db);
         BudgetRepository budgetRepo = new BudgetRepository(db);
@@ -79,7 +95,7 @@ public class MyFinances extends Application {
         primaryStage.setScene(scene);
 
         // Pantalla inicial
-        showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme);
+        showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
         primaryStage.show();
     }
 
@@ -87,7 +103,7 @@ public class MyFinances extends Application {
         launch(args);
     }
 
-    private static void showLogin(Scene scene, FirebaseAuthService authService, String googleClientId, String googleClientSecret, SessionRepository sessionRepo, UserRepository userRepo, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, LoanRepository loanRepo, LoanPaymentRepository loanPaymentRepo, LoanMovementRepository loanMovementRepo, BudgetRepository budgetRepo, BooleanProperty darkTheme) {
+    private static void showLogin(Scene scene, FirebaseAuthService authService, String googleClientId, String googleClientSecret, SessionRepository sessionRepo, UserRepository userRepo, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, LoanRepository loanRepo, JdbcLoanAdminStateRepository loanAdminStateRepo, LoanPaymentRepository loanPaymentRepo, LoanMovementRepository loanMovementRepo, BudgetRepository budgetRepo, BooleanProperty darkTheme, LoanApplicationService loanApplicationService, LoanCommandFactory loanCommandFactory, LoanProjectionQueryRepository loanProjectionQueryRepository) {
         if (scene.getWindow() instanceof Stage stage) {
             stage.setMaximized(false);
             stage.setResizable(false);
@@ -98,7 +114,7 @@ public class MyFinances extends Application {
                 userRepo.upsert(session.uid(), session.email());
             } catch (Exception ignored) {
             }
-            showDashboard(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, session);
+            showDashboard(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, session, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
         });
         scene.setRoot(root);
 
@@ -108,21 +124,22 @@ public class MyFinances extends Application {
         }
     }
 
-    private static void showDashboard(Scene scene, FirebaseAuthService authService, String googleClientId, String googleClientSecret, SessionRepository sessionRepo, UserRepository userRepo, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, LoanRepository loanRepo, LoanPaymentRepository loanPaymentRepo, LoanMovementRepository loanMovementRepo, BudgetRepository budgetRepo, BooleanProperty darkTheme, AuthSession session) {
+    private static void showDashboard(Scene scene, FirebaseAuthService authService, String googleClientId, String googleClientSecret, SessionRepository sessionRepo, UserRepository userRepo, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, LoanRepository loanRepo, JdbcLoanAdminStateRepository loanAdminStateRepo, LoanPaymentRepository loanPaymentRepo, LoanMovementRepository loanMovementRepo, BudgetRepository budgetRepo, BooleanProperty darkTheme, AuthSession session, LoanApplicationService loanApplicationService, LoanCommandFactory loanCommandFactory, LoanProjectionQueryRepository loanProjectionQueryRepository) {
         if (scene.getWindow() instanceof Stage stage) {
             stage.setFullScreen(false);
             stage.setResizable(true);
             stage.setMaximized(true);
             stage.setOnCloseRequest(ev -> ev.consume());
         }
-        scene.setRoot(DashboardView.create(session, () -> {
+        AuthSessionManager sessionManager = new AuthSessionManager(sessionRepo, authService::refresh, session);
+        scene.setRoot(DashboardView.create(session, sessionManager, () -> {
             try {
                 sessionRepo.clear();
             } catch (Exception ignored) {
                 // Si falla limpiar sesión, igual dejamos salir.
             }
-            showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme);
-        }, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme));
+            showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
+        }, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository));
     }
 
     private static void applyTheme(Scene scene, boolean dark) {

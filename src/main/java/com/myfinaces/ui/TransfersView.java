@@ -983,36 +983,9 @@ public final class TransfersView {
         Label amountLabel = new Label("Monto");
         amountLabel.getStyleClass().add("modal-field-label");
 
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.getStyleClass().add("modal-amount-input");
-        amountField.setPromptText("$ 0,00");
-
-        final boolean[] amountLock = new boolean[] { false };
-        amountField.textProperty().addListener((obs, oldV, newV) -> {
-            if (amountLock[0]) {
-                return;
-            }
-            amountLock[0] = true;
-            try {
-                String digits = newV == null ? "" : newV.replaceAll("\\D", "");
-                if (digits.isBlank()) {
-                    amountField.setText("");
-                    return;
-                }
-                long cents;
-                try {
-                    cents = Long.parseLong(digits);
-                } catch (NumberFormatException ex) {
-                    cents = 0L;
-                }
-                AccountRepository.Account a = fromAccountCombo.getValue();
-                String currency = a == null ? "COP" : a.currency();
-                amountField.setText(formatMoneySpaced(cents, currency));
-                amountField.positionCaret(amountField.getText().length());
-            } finally {
-                amountLock[0] = false;
-            }
-        });
+        amountField.setPromptText("0");
 
         VBox amountSection = new VBox(6, amountLabel, amountField);
         amountSection.getStyleClass().add("modal-field-section");
@@ -1157,15 +1130,7 @@ public final class TransfersView {
             AccountRepository.Account fromAcc = fromAccountCombo.getValue();
             AccountRepository.Account toAcc = toAccountCombo.getValue();
 
-            String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
-            long cents = 0L;
-            if (!digits.isBlank()) {
-                try {
-                    cents = Long.parseLong(digits);
-                } catch (NumberFormatException ignored) {
-                    cents = 0L;
-                }
-            }
+            long cents = amountField.getAmountCentsOrZero();
             String currency = fromAcc == null ? "COP" : fromAcc.currency();
             summaryAmount.setText(formatMoneySpaced(cents, currency));
 
@@ -1213,15 +1178,7 @@ public final class TransfersView {
                     return;
                 }
 
-                String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
-                long cents = 0L;
-                if (!digits.isBlank()) {
-                    try {
-                        cents = Long.parseLong(digits);
-                    } catch (NumberFormatException ignored) {
-                        cents = 0L;
-                    }
-                }
+                long cents = amountField.getAmountCentsOrZero();
                 if (cents <= 0L) {
                     showModalWarning(darkTheme, "Ingresa un monto válido.");
                     return;
@@ -1257,6 +1214,12 @@ public final class TransfersView {
                     sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
                 } catch (Exception ignored) {
                 }
+
+                ModernDialogs.success(
+                    "Transferencia registrada",
+                    "La transferencia se guardó correctamente.",
+                    () -> darkTheme
+                );
 
                 if (refreshBalances != null) {
                     refreshBalances.run();
@@ -1731,36 +1694,9 @@ public final class TransfersView {
         Label amountLabel = new Label("Monto");
         amountLabel.getStyleClass().add("modal-field-label");
 
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.getStyleClass().add("modal-amount-input");
-        amountField.setPromptText("$ 0,00");
-
-        final boolean[] amountLock = new boolean[] { false };
-        amountField.textProperty().addListener((obs, oldV, newV) -> {
-            if (amountLock[0]) {
-                return;
-            }
-            amountLock[0] = true;
-            try {
-                String digits = newV == null ? "" : newV.replaceAll("\\D", "");
-                if (digits.isBlank()) {
-                    amountField.setText("");
-                    return;
-                }
-                long cents;
-                try {
-                    cents = Long.parseLong(digits);
-                } catch (NumberFormatException ex) {
-                    cents = 0L;
-                }
-                AccountRepository.Account a = fromAccountCombo.getValue();
-                String currency = a == null ? "COP" : a.currency();
-                amountField.setText(formatMoneySpaced(cents, currency));
-                amountField.positionCaret(amountField.getText().length());
-            } finally {
-                amountLock[0] = false;
-            }
-        });
+        amountField.setPromptText("0");
 
         content.getChildren().add(new VBox(6, amountLabel, amountField));
 
@@ -1898,15 +1834,7 @@ public final class TransfersView {
             AccountRepository.Account fromAcc = fromAccountCombo.getValue();
             AccountRepository.Account toAcc = toAccountCombo.getValue();
 
-            String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
-            long cents = 0L;
-            if (!digits.isBlank()) {
-                try {
-                    cents = Long.parseLong(digits);
-                } catch (NumberFormatException ignored) {
-                    cents = 0L;
-                }
-            }
+            long cents = amountField.getAmountCentsOrZero();
             String currency = fromAcc == null ? "COP" : fromAcc.currency();
             summaryAmount.setText(formatMoneySpaced(cents, currency));
 
@@ -1951,15 +1879,7 @@ public final class TransfersView {
                     return;
                 }
 
-                String digits = amountField.getText() == null ? "" : amountField.getText().replaceAll("\\D", "");
-                long cents = 0L;
-                if (!digits.isBlank()) {
-                    try {
-                        cents = Long.parseLong(digits);
-                    } catch (NumberFormatException ignored) {
-                        cents = 0L;
-                    }
-                }
+                long cents = amountField.getAmountCentsOrZero();
                 if (cents <= 0L) {
                     showModalWarning(darkTheme, "Ingresa un monto válido.");
                     return;
@@ -2103,15 +2023,7 @@ public final class TransfersView {
         }
 
         if (existing.amountCents() > 0L) {
-            amountLock[0] = true;
-            try {
-                AccountRepository.Account fromAcc = fromAccountCombo.getValue();
-                String currency = fromAcc == null ? "COP" : fromAcc.currency();
-                amountField.setText(formatMoneySpaced(existing.amountCents(), currency));
-                amountField.positionCaret(amountField.getText().length());
-            } finally {
-                amountLock[0] = false;
-            }
+            amountField.setAmountCents(existing.amountCents());
         }
 
         descField.setText(existing.note() == null ? "" : existing.note());

@@ -34,8 +34,10 @@ public final class DashboardFormatters {
         BigDecimal v = BigDecimal.valueOf(Math.abs(cents), 2);
 
         DecimalFormatSymbols sym = new DecimalFormatSymbols(Locale.forLanguageTag("es-CO"));
-        DecimalFormat df = new DecimalFormat("#,##0.00", sym);
+        DecimalFormat df = new DecimalFormat("#,##0.##", sym);
         df.setGroupingUsed(true);
+        df.setMinimumFractionDigits(0);
+        df.setMaximumFractionDigits(2);
 
         String symbol = currencySymbol(currencyCode);
         return (neg ? "-" : "") + symbol + df.format(v);
@@ -124,26 +126,17 @@ public final class DashboardFormatters {
     }
 
     public static BigDecimal parseAmount(String raw) {
-        String s = raw == null ? "" : raw.trim();
-        if (s.isBlank()) {
+        String normalized = MoneyInputFormatter.normalizeInput(raw, MoneyInputFormatter.DEFAULT_LOCALE);
+        if (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isBlank()) {
             throw new IllegalArgumentException("amount");
         }
-
-        s = s.replace(" ", "");
-        int lastComma = s.lastIndexOf(',');
-        int lastDot = s.lastIndexOf('.');
-
-        if (lastComma >= 0 && lastDot >= 0) {
-            if (lastComma > lastDot) {
-                s = s.replace(".", "");
-                s = s.replace(',', '.');
-            } else {
-                s = s.replace(",", "");
-            }
-        } else if (lastComma >= 0) {
-            s = s.replace(',', '.');
+        try {
+            return new BigDecimal(normalized);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("amount", ex);
         }
-
-        return new BigDecimal(s);
     }
 }

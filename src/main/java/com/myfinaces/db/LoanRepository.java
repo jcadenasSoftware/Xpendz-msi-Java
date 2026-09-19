@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import myfinances.infrastructure.loan.sync.LoanMergePolicy;
 
 public final class LoanRepository {
 
@@ -37,7 +38,9 @@ public final class LoanRepository {
         long occurredAtEpochSec,
         long createdAtEpochSec,
         long updatedAtEpochSec,
-        String updatedBy
+        String updatedBy,
+        boolean archived,
+        Long archivedAtEpochSec
     ) {
     }
 
@@ -206,7 +209,9 @@ public final class LoanRepository {
                         rs.getLong("occurred_at_epoch_sec"),
                         rs.getLong("created_at_epoch_sec"),
                         rs.getLong("updated_at_epoch_sec"),
-                        rs.getString("updated_by")
+                        rs.getString("updated_by"),
+                        false,
+                        null
                     ));
                 }
             }
@@ -240,7 +245,9 @@ public final class LoanRepository {
                     rs.getLong("occurred_at_epoch_sec"),
                     rs.getLong("created_at_epoch_sec"),
                     rs.getLong("updated_at_epoch_sec"),
-                    rs.getString("updated_by")
+                    rs.getString("updated_by"),
+                    false,
+                    null
                 );
             }
         }
@@ -284,7 +291,9 @@ public final class LoanRepository {
                         rs.getLong("occurred_at_epoch_sec"),
                         rs.getLong("created_at_epoch_sec"),
                         rs.getLong("updated_at_epoch_sec"),
-                        rs.getString("updated_by")
+                        rs.getString("updated_by"),
+                        false,
+                        null
                     ));
                 }
             }
@@ -328,7 +337,7 @@ public final class LoanRepository {
             return;
         }
 
-        if (remote.updatedAtEpochSec() <= local.updatedAtEpochSec()) {
+        if (!LoanMergePolicy.shouldAcceptRemote(local, remote)) {
             return;
         }
 
@@ -386,7 +395,9 @@ public final class LoanRepository {
                         rs.getLong("occurred_at_epoch_sec"),
                         rs.getLong("created_at_epoch_sec"),
                         rs.getLong("updated_at_epoch_sec"),
-                        rs.getString("updated_by")
+                        rs.getString("updated_by"),
+                        false,
+                        null
                     ));
                 }
             }
@@ -424,7 +435,10 @@ public final class LoanRepository {
         Objects.requireNonNull(counterpartyName, "counterpartyName");
         Objects.requireNonNull(type, "type");
 
-        String sql = "SELECT * FROM loans WHERE user_uid = ? AND counterparty_name = ? AND type = ? AND status = ? LIMIT 1";
+        String sql =
+            "SELECT * FROM loans WHERE user_uid = ? AND counterparty_name = ? AND type = ? AND status = ? " +
+            "AND NOT EXISTS (SELECT 1 FROM loan_admin_state_v1 a WHERE a.owner_id = loans.user_uid AND a.loan_id = loans.id AND a.archived = 1) " +
+            "LIMIT 1";
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, userUid);
             ps.setString(2, counterpartyName);
@@ -445,7 +459,9 @@ public final class LoanRepository {
                         rs.getLong("occurred_at_epoch_sec"),
                         rs.getLong("created_at_epoch_sec"),
                         rs.getLong("updated_at_epoch_sec"),
-                        rs.getString("updated_by")
+                        rs.getString("updated_by"),
+                        false,
+                        null
                     );
                 }
                 return null;

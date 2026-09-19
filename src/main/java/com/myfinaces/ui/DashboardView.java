@@ -1,6 +1,7 @@
 package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
+import com.myfinaces.auth.AuthSessionManager;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
@@ -12,6 +13,10 @@ import com.myfinaces.db.TransferRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.config.AccountStyles;
 import com.myfinaces.config.AppConfig;
+import myfinances.application.loan.LoanApplicationService;
+import myfinances.application.loan.LoanCommandFactory;
+import myfinances.domain.loan.projection.LoanProjectionQueryRepository;
+import myfinances.infrastructure.loan.admin.JdbcLoanAdminStateRepository;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.animation.PauseTransition;
 import javafx.animation.FadeTransition;
@@ -34,8 +39,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.OverrunStyle;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
@@ -88,6 +91,7 @@ public final class DashboardView {
 
     public static Parent create(
         AuthSession session,
+        AuthSessionManager sessionManager,
         Listener listener,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
@@ -95,10 +99,14 @@ public final class DashboardView {
         TransactionRepository txRepo,
         TransferRepository transferRepo,
         LoanRepository loanRepo,
+        JdbcLoanAdminStateRepository loanAdminStateRepository,
         LoanPaymentRepository loanPaymentRepo,
         LoanMovementRepository loanMovementRepo,
         BudgetRepository budgetRepo,
-        BooleanProperty darkTheme
+        BooleanProperty darkTheme,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository loanProjectionQueryRepository
     ) {
         ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         AtomicReference<ScheduledFuture<?>> autoSyncRef = new AtomicReference<>();
@@ -305,14 +313,18 @@ public final class DashboardView {
 
         DashboardSyncCoordinator.SyncActions syncActions = DashboardSyncCoordinator.setup(
             session,
+            sessionManager,
             accountRepo,
             goalRepo,
             categoryRepo,
             loanRepo,
+            loanAdminStateRepository,
             loanPaymentRepo,
+            loanMovementRepo,
             txRepo,
             transferRepo,
             budgetRepo,
+            loanApplicationService,
             refreshBalances,
             syncInProgress,
             lastSyncMs,
@@ -419,7 +431,7 @@ public final class DashboardView {
         loans.setMaxWidth(Double.MAX_VALUE);
         setButtonIcon(loans, new FontIcon("fas-handshake"));
         loans.setOnAction(e -> {
-            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances);
+            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances, loanApplicationService, loanCommandFactory, loanAdminStateRepository, loanProjectionQueryRepository);
             contentHost.getChildren().setAll(loansPane);
         });
 
@@ -498,7 +510,7 @@ public final class DashboardView {
 
         loans.setOnAction(e -> {
             setActiveButton.accept(loans);
-            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances);
+            Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances, loanApplicationService, loanCommandFactory, loanAdminStateRepository, loanProjectionQueryRepository);
             contentHost.getChildren().setAll(loansPane);
         });
 
@@ -576,11 +588,23 @@ public final class DashboardView {
                             }
                             try {
                                 List<LoanPaymentRepository.LoanPayment> payments = loanPaymentRepo.listAllByUser(session.uid());
+                                System.out.println("[DashboardView] final-sync loanPayments=" + payments.size());
                                 for (LoanPaymentRepository.LoanPayment p : payments) {
-                                    sync.syncLoanPayment(session, p);
                                     try {
-                                        loanPaymentRepo.markSynced(session.uid(), p.id());
-                                    } catch (Exception ignored) {
+                                        System.out.println("[DashboardView] final-sync syncLoanPayment start id=" + p.id()
+                                            + " loanId=" + p.loanId()
+                                            + " transactionId=" + p.linkedTransactionId()
+                                            + " amount=" + p.principalCents());
+                                        sync.syncLoanPayment(session, p);
+                                        System.out.println("[DashboardView] final-sync syncLoanPayment ok id=" + p.id());
+                                        try {
+                                            loanPaymentRepo.markSynced(session.uid(), p.id());
+                                            System.out.println("[DashboardView] final-sync markSynced ok paymentId=" + p.id());
+                                        } catch (Exception e) {
+                                            System.out.println("[DashboardView] final-sync markSynced failed paymentId=" + p.id() + " error=" + e.getMessage());
+                                        }
+                                    } catch (Exception e) {
+                                        System.out.println("[DashboardView] final-sync syncLoanPayment failed paymentId=" + p.id() + " error=" + e.getMessage());
                                     }
                                 }
                             } catch (Exception ignored) {
@@ -956,6 +980,7 @@ public final class DashboardView {
             drawTotalTrendBackdrop(totalTrendBackdrop, totalWave1, totalWave2, totalSparkArea, totalSparkGlow, totalSparkline, totalSparkDot, monthTx, monthBalanceCents);
 
             java.util.Set<String> goalAccountIds = new java.util.HashSet<>();
+            java.util.Set<String> activeGoalAccountIds = new java.util.HashSet<>();
             java.util.Map<String, GoalRepository.Goal> goalByAccount = new java.util.HashMap<>();
             try {
                 List<GoalRepository.Goal> goals = goalRepo.listByUser(session.uid());
@@ -964,7 +989,10 @@ public final class DashboardView {
                         continue;
                     }
                     goalAccountIds.add(g.accountId());
-                    goalByAccount.put(g.accountId(), g);
+                    if (GoalRepository.STATUS_OPEN.equals(g.status())) {
+                        activeGoalAccountIds.add(g.accountId());
+                        goalByAccount.put(g.accountId(), g);
+                    }
                 }
             } catch (Exception ignored) {
             }
@@ -984,13 +1012,13 @@ public final class DashboardView {
             java.util.function.Consumer<String> onViewAll = onViewAllMovementsRef != null ? onViewAllMovementsRef.get() : null;
             updateAccountsByTypeTwoColumns(accountsBox, nonGoalAccounts, session, accountRepo, txRepo, transferRepo, categoryRepo, darkTheme, refreshAll, onViewAll);
 
-            if (!goalAccountIds.isEmpty()) {
+            if (!activeGoalAccountIds.isEmpty()) {
                 Label hdrGoals = new Label("Metas");
                 hdrGoals.getStyleClass().add("account-name");
                 goalsBox.getChildren().add(hdrGoals);
 
                 for (AccountRepository.Account a : accounts) {
-                    if (!goalAccountIds.contains(a.id())) {
+                    if (!activeGoalAccountIds.contains(a.id())) {
                         continue;
                     }
                     long balance = accountRepo.computeBalanceCents(session.uid(), a.id());
@@ -1258,7 +1286,7 @@ public final class DashboardView {
                 : baseStyle);
         });
 
-        VBox reconcilePanel = buildAccountReconcilePanel(accountsBox, a, balance, initialDark);
+        VBox reconcilePanel = buildAccountReconcilePanel(accountsBox, session, accountRepo, txRepo, categoryRepo, a, balance, initialDark, refreshAll);
         boolean open = a != null && a.id() != null && a.id().equals(accountsReconcileOpenId(accountsBox));
         reconcilePanel.setVisible(open);
         reconcilePanel.setManaged(open);
@@ -1363,7 +1391,7 @@ public final class DashboardView {
         return v == null ? null : String.valueOf(v);
     }
 
-    private static Map<String, String> accountsReconcileRealInputs(VBox accountsBox) {
+    private static Map<String, Long> accountsReconcileRealInputs(VBox accountsBox) {
         if (accountsBox == null) {
             return new HashMap<>();
         }
@@ -1371,63 +1399,67 @@ public final class DashboardView {
         if (v instanceof Map<?, ?> m) {
             try {
                 @SuppressWarnings("unchecked")
-                Map<String, String> typed = (Map<String, String>) m;
+                Map<String, Long> typed = (Map<String, Long>) m;
                 return typed;
             } catch (Exception ignored) {
             }
         }
-        Map<String, String> created = new HashMap<>();
+        Map<String, Long> created = new HashMap<>();
         accountsBox.getProperties().put("accountsReconcileRealInputs", created);
         return created;
     }
 
-    private static VBox buildAccountReconcilePanel(VBox accountsBox, AccountRepository.Account a, long recordedCents, boolean darkTheme) {
-        TextField realInput = new TextField();
+    private static VBox buildAccountReconcilePanel(
+        VBox accountsBox,
+        AuthSession session,
+        AccountRepository accountRepo,
+        TransactionRepository txRepo,
+        CategoryRepository categoryRepo,
+        AccountRepository.Account a,
+        long recordedCents,
+        boolean darkTheme,
+        Runnable refreshAll
+    ) {
+        MoneyInputField realInput = new MoneyInputField();
         realInput.setPromptText("Saldo real");
         realInput.setPrefColumnCount(10);
         realInput.setMinWidth(120);
 
-        Map<String, String> stash = accountsReconcileRealInputs(accountsBox);
+        Map<String, Long> stash = accountsReconcileRealInputs(accountsBox);
         if (a != null && a.id() != null) {
-            String prev = stash.get(a.id());
+            Long prev = stash.get(a.id());
             if (prev != null) {
-                realInput.setText(prev);
+                realInput.setAmountCents(prev);
             }
         }
 
         Label diffLabel = new Label(formatMoney(0, a == null ? null : a.currency()));
         diffLabel.getStyleClass().addAll("text-secondary", "money-neutral");
 
+        java.util.concurrent.atomic.AtomicLong diffCents = new java.util.concurrent.atomic.AtomicLong(0L);
+        Button[] registerAdjustmentRef = new Button[1];
+
         Runnable recompute = () -> {
-            Long parsed = parseUserDecimalToCents(realInput.getText());
+            Long parsed = realInput.getAmountCents();
             long realCents = parsed == null ? 0L : parsed;
             long diff = realCents - recordedCents;
+            diffCents.set(diff);
 
             diffLabel.setText(formatMoney(diff, a == null ? null : a.currency()));
             diffLabel.getStyleClass().removeAll("money-positive", "money-negative", "money-neutral");
             diffLabel.getStyleClass().add(diff > 0 ? "money-positive" : (diff < 0 ? "money-negative" : "money-neutral"));
+            Button registerAdjustmentButton = registerAdjustmentRef[0];
+            if (registerAdjustmentButton != null) {
+                registerAdjustmentButton.setDisable(parsed == null || diff == 0L);
+            }
 
             if (accountsBox != null && a != null && a.id() != null) {
-                stash.put(a.id(), realInput.getText() == null ? "" : realInput.getText());
+                stash.put(a.id(), realInput.getAmountCentsOrZero());
             }
         };
 
         realInput.textProperty().addListener((obs, o, n) -> recompute.run());
         Platform.runLater(recompute);
-
-        Hyperlink copy = new Hyperlink("Copiar diferencia");
-        copy.getStyleClass().add("accounts-reconcile-copy");
-        copy.setOnAction(e -> {
-            Long parsed = parseUserDecimalToCents(realInput.getText());
-            long realCents = parsed == null ? 0L : parsed;
-            long diff = realCents - recordedCents;
-            ClipboardContent cc = new ClipboardContent();
-            long absDiff = Math.abs(diff);
-            long intPart = absDiff / 100;
-            long decPart = absDiff % 100;
-            cc.putString(decPart == 0 ? String.valueOf(intPart) : intPart + "." + String.format("%02d", decPart));
-            Clipboard.getSystemClipboard().setContent(cc);
-        });
 
         Label diffText = new Label("Diferencia:");
         diffText.getStyleClass().add("text-secondary");
@@ -1435,7 +1467,36 @@ public final class DashboardView {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        HBox line = new HBox(10, realInput, spacer, diffText, diffLabel, copy);
+        Button registerAdjustment = new Button("Registrar ajuste");
+        registerAdjustment.getStyleClass().addAll("btn-primary", "accounts-reconcile-copy");
+        registerAdjustment.setMinWidth(0);
+        registerAdjustment.setDisable(true);
+        registerAdjustmentRef[0] = registerAdjustment;
+        registerAdjustment.setOnAction(e -> {
+            if (a == null || a.id() == null) {
+                return;
+            }
+            long diff = diffCents.get();
+            if (diff == 0L) {
+                return;
+            }
+
+            String initialKind = diff > 0 ? "INCOME" : "EXPENSE";
+            Long initialAmountCents = Math.abs(diff);
+            DashboardTransactionsDialog.openCreateTransactionDialog(
+                session,
+                txRepo,
+                accountRepo,
+                categoryRepo,
+                darkTheme,
+                refreshAll == null ? null : () -> refreshAll.run(),
+                a.id(),
+                initialKind,
+                initialAmountCents
+            );
+        });
+
+        HBox line = new HBox(10, realInput, spacer, diffText, diffLabel, registerAdjustment);
         line.setAlignment(Pos.CENTER_LEFT);
 
         VBox panel = new VBox(6, line);
@@ -1801,10 +1862,17 @@ public final class DashboardView {
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
         TransactionRepository txRepo,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository loanProjectionQueryRepository,
         boolean darkTheme,
         Runnable refreshBalances
     ) {
-        DashboardLoansDialog.showLoansDialog(session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo, darkTheme, refreshBalances);
+        DashboardLoansDialog.showLoansDialog(
+            session, loanRepo, loanPaymentRepo, accountRepo, categoryRepo, txRepo,
+            loanApplicationService, loanCommandFactory, loanProjectionQueryRepository,
+            darkTheme, refreshBalances
+        );
     }
 
     private static void showBudgetDialog(

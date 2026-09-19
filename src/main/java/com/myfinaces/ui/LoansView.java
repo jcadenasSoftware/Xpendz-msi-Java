@@ -2,13 +2,42 @@ package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
 import com.myfinaces.config.AccountStyles;
+import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.SqliteDatabase;
+import com.myfinaces.db.TransactionKind;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.service.LoanService;
+import com.myfinaces.sync.DeviceId;
+import com.myfinaces.sync.FirestoreSyncService;
+import myfinances.application.loan.LoanApplicationService;
+import myfinances.application.loan.LoanEditPlanner;
+import myfinances.domain.loan.admin.LoanAdminState;
+import myfinances.infrastructure.loan.admin.JdbcLoanAdminStateRepository;
+import myfinances.application.loan.LoanCommandFactory;
+import myfinances.domain.loan.aggregate.LoanCommandResult;
+import myfinances.domain.loan.aggregate.Outcome;
+import myfinances.domain.loan.commands.AddPrincipalCommand;
+import myfinances.domain.loan.commands.AdjustPrincipalCommand;
+import myfinances.domain.loan.commands.CloseLoanCommand;
+import myfinances.domain.loan.commands.FieldChange;
+import myfinances.domain.loan.commands.UpdateMetadataCommand;
+import myfinances.domain.loan.journal.LoanMovement;
+import myfinances.domain.loan.journal.LoanType;
+import myfinances.domain.loan.projection.LoanPaymentDirection;
+import myfinances.domain.loan.projection.LoanPaymentProjection;
+import myfinances.domain.loan.projection.LoanProjectionQueryRepository;
+import myfinances.domain.loan.projection.LoanSummaryFilter;
+import myfinances.domain.loan.projection.LoanSummaryProjection;
+import myfinances.domain.loan.projection.SortBy;
+import myfinances.domain.loan.service.error.LoanAggregateErrorCode;
+import myfinances.domain.loan.service.error.LoanAggregateException;
+import myfinances.domain.loan.snapshot.LoanSnapshot;
+import myfinances.domain.loan.snapshot.LoanStatus;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
@@ -68,6 +97,12 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class LoansView {
+
+    /**
+     * Guardia de ejecución única para reversión de pagos: impide que un mismo
+     * pago dispare dos ReversePaymentCommand simultáneos.
+     */
+    private static final PaymentReversalGuard REVERSAL_GUARD = new PaymentReversalGuard();
 
     private static String resolveAccountColor(String typeKey, String storedColor) {
         return AccountStyles.resolveColor(typeKey, storedColor);
@@ -140,7 +175,11 @@ public final class LoansView {
         CategoryRepository categoryRepo,
         TransactionRepository txRepo,
         Supplier<Boolean> darkTheme,
-        Runnable refreshBalances
+        Runnable refreshBalances,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        JdbcLoanAdminStateRepository loanAdminStateRepository,
+        LoanProjectionQueryRepository loanProjectionQueryRepository
     ) {
         // ── Header (título + subtítulo) ──────────────────────────
         Label title = new Label("Préstamos");
@@ -218,7 +257,7 @@ public final class LoansView {
 
         // Referencia para confirmar archivado de préstamo
         @SuppressWarnings("unchecked")
-        Consumer<String>[] openArchiveRef = (Consumer<String>[]) new Consumer<?>[]{ null };
+        Consumer<LoanSummaryProjection>[] openArchiveRef = (Consumer<LoanSummaryProjection>[]) new Consumer<?>[]{ null };
 
         // Referencia para el StackPane root (para el drawer lateral)
         StackPane[] stackRootRef = new StackPane[]{ null };
@@ -233,10 +272,10 @@ public final class LoansView {
         ModalOverlay modalOverlay = new ModalOverlay();
 
         // ── Hero summary card (métricas reales) ─────────────────────
-        Node[] heroCard = { buildHeroSummaryCard(loanService, userUid, dk) };
+        Node[] heroCard = { buildHeroSummaryCard(loanProjectionQueryRepository, userUid, dk) };
 
         // Panel de actividad (se regenera dinámicamente)
-        Node[] activityPanel = { buildActivityTimeline(loanService, userUid, dk) };
+        Node[] activityPanel = { buildActivityTimeline(loanProjectionQueryRepository, accountRepo, userUid, dk) };
 
         // Empty states premium
         Runnable[] openNewLoanRef = { null };
@@ -260,12 +299,14 @@ public final class LoansView {
         refreshContent[0] = () -> {
             contentContainer.getChildren().clear();
             try {
-                List<LoanRepository.Loan> loans;
-                if ("lent".equals(activeTab[0])) {
-                    loans = loanService.listLent(userUid);
-                } else {
-                    loans = loanService.listBorrowed(userUid);
-                }
+                LoanSummaryFilter filter = new LoanSummaryFilter(
+                    "lent".equals(activeTab[0]) ? LoanType.LENT : LoanType.BORROWED,
+                    null,
+                    SortBy.LAST_ACTIVITY,
+                    false,
+                    null
+                );
+                List<LoanSummaryProjection> loans = loanProjectionQueryRepository.listActiveSummaries(userUid, filter);
 
                 if (loans.isEmpty()) {
                     contentContainer.getChildren().setAll(emptyLoansState);
@@ -273,36 +314,23 @@ public final class LoansView {
                 }
 
                 int colorIdx = 0;
-                for (LoanRepository.Loan loan : loans) {
-                    long paidCents = loanService.getPaidCents(userUid, loan.id());
-                    long pendingCents = Math.max(0L, loan.principalCents() - paidCents);
-                    int pct = loan.principalCents() > 0
-                        ? (int) (paidCents * 100 / loan.principalCents()) : 0;
-
-                    String initials = buildInitials(loan.counterpartyName());
+                for (LoanSummaryProjection summary : loans) {
+                    logUiSummary(summary, "listRefresh");
                     String color = avatarColors[colorIdx % avatarColors.length];
                     colorIdx++;
 
-                    String dateStr = formatLoanDate(loan.occurredAtEpochSec());
-                    List<LoanPaymentRepository.LoanPayment> payments = loanService.listPayments(userUid, loan.id());
-                    int paymentCount = payments.size();
-                    String lastMov = payments.isEmpty() ? "Sin pagos" : formatRelativeTime(payments.getLast().occurredAtEpochSec());
-
-                    String loanId = loan.id();
                     Node card = buildLoanCard(
-                        loanId,
-                        loan.counterpartyName(), initials, dateStr,
-                        paymentCount, lastMov,
-                        loan.principalCents(), paidCents, pendingCents,
-                        pct, color, id -> { if (openPaymentRef[0] != null) openPaymentRef[0].accept(id); },
+                        summary,
+                        color,
+                        id -> { if (openPaymentRef[0] != null) openPaymentRef[0].accept(id); },
                         activeLoanId -> {
                             if (stackRootRef[0] != null) {
-                                showLoanDetailDrawer(stackRootRef[0], loanService, userUid, activeLoanId, dk, session, modalOverlay, refreshAllRef[0]);
+                                showLoanDetailDrawer(stackRootRef[0], loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, loanService, userUid, activeLoanId, dk, session, modalOverlay, refreshAllRef[0]);
                             }
                         },
                         activeLoanId -> { if (openTopupRef[0] != null) openTopupRef[0].accept(activeLoanId); },
-                        activeLoanId -> { if (openArchiveRef[0] != null) openArchiveRef[0].accept(activeLoanId); },
-                        dk, modalOverlay, loanService, userUid, session, refreshAllRef[0]
+                        activeLoan -> { if (openArchiveRef[0] != null) openArchiveRef[0].accept(activeLoan); },
+                        dk, modalOverlay, accountRepo, categoryRepo, txRepo, loanApplicationService, loanCommandFactory, userUid, session, refreshAllRef[0]
                     );
                     contentContainer.getChildren().add(card);
                 }
@@ -333,7 +361,7 @@ public final class LoansView {
             for (Button p : allPills) applyPillInactive(p, dk);
             applyPillActive(pillActivity, dk);
             activeTab[0] = "activity";
-            activityPanel[0] = buildActivityTimeline(loanService, userUid, dk);
+            activityPanel[0] = buildActivityTimeline(loanProjectionQueryRepository, accountRepo, userUid, dk);
             Node ap = activityPanel[0];
             VBox apContainer = new VBox(0, ap);
             boolean hasActivity = !((VBox) ap).getChildren().isEmpty();
@@ -363,7 +391,7 @@ public final class LoansView {
         // Actualizar refreshAll para que refresque el hero card correctamente
         refreshAllRef[0] = () -> {
             // Refrescar hero card con métricas reales
-            Node newHero = buildHeroSummaryCard(loanService, userUid, dk);
+            Node newHero = buildHeroSummaryCard(loanProjectionQueryRepository, userUid, dk);
             int heroIdx = root.getChildren().indexOf(heroCard[0]);
             if (heroIdx >= 0) {
                 root.getChildren().set(heroIdx, newHero);
@@ -374,10 +402,10 @@ public final class LoansView {
         };
 
         // Registrar modals
-        buildNewLoanModal(modalOverlay, loanService, session, refreshAllRef[0]);
-        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanService, session, refreshAllRef[0]);
-        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanService, session, refreshAllRef[0]);
-        Consumer<String> showArchiveModal = buildArchiveModal(modalOverlay, loanService, session, refreshAllRef[0]);
+        buildNewLoanModal(modalOverlay, loanApplicationService, loanCommandFactory, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
+        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
+        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
+        Consumer<LoanSummaryProjection> showArchiveModal = buildArchiveModal(modalOverlay, session, loanAdminStateRepository, refreshAllRef[0]);
 
         // Wiring
         btnNew.setOnAction(e -> modalOverlay.show("new-loan"));
@@ -424,6 +452,28 @@ public final class LoansView {
         return pill;
     }
 
+    private static void logUiSummary(LoanSummaryProjection summary, String stage) {
+        if (summary == null) {
+            return;
+        }
+        System.out.println(
+            "[LoanPaymentTrace] UI_SUMMARY"
+                + " loanId=" + valueOrDash(summary.loanId())
+                + " paymentId=- transactionId=- operationId=- eventId=-"
+                + " updatedAt=- updatedBy=-"
+                + " stage=" + valueOrDash(stage)
+                + " principal=" + summary.principalCents()
+                + " paid=" + summary.totalPaidCents()
+                + " pending=" + summary.pendingCents()
+                + " paymentCount=" + summary.paymentCount()
+                + " journalFingerprint=" + valueOrDash(summary.journalFingerprint())
+        );
+    }
+
+    private static String valueOrDash(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
     private static void applyPillActive(Button pill, boolean dk) {
         pill.setStyle(pillActive(dk));
         pill.getStyleClass().add("pill-active");
@@ -449,22 +499,33 @@ public final class LoansView {
 
     // ── Card de préstamo individual ─────────────────────────────────────
     private static Node buildLoanCard(
-        String loanId,
-        String name, String initials, String date,
-        int paymentCount, String lastMovement,
-        long totalCents, long paidCents, long pendingCents,
-        int pct, String avatarColor,
+        LoanSummaryProjection summary,
+        String avatarColor,
         Consumer<String> onRegisterPayment,
         Consumer<String> onViewDetails,
         Consumer<String> onAddMoney,
-        Consumer<String> onArchive,
+        Consumer<LoanSummaryProjection> onArchive,
         boolean dk,
         ModalOverlay modalOverlay,
-        LoanService loanService,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        TransactionRepository txRepo,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
         String userUid,
         AuthSession session,
         Runnable refreshAll
     ) {
+        String loanId = summary.loanId();
+        String name = summary.counterparty();
+        String initials = buildInitials(summary.counterparty());
+        String date = formatLoanDate(summary.lastActivity());
+        int paymentCount = summary.paymentCount();
+        String lastMovement = summary.lastPaymentAt() == null ? "Sin pagos" : formatRelativeTime(summary.lastPaymentAt());
+        long totalCents = summary.principalCents();
+        long paidCents = summary.totalPaidCents();
+        long pendingCents = summary.pendingCents();
+        int pct = summary.progressPercent();
         // ── IZQUIERDA: avatar + info persona ────────────────────
         Label avatarLabel = new Label(initials);
         avatarLabel.setStyle(
@@ -573,20 +634,15 @@ public final class LoansView {
             ev.consume();
             onRegisterPayment.accept(loanId);
         });
+        btnPay.setVisible(pendingCents > 0);
+        btnPay.setManaged(pendingCents > 0);
 
         Button btnDetail = buildCompactAction("fas-edit", dk ? "#94A3B8" : "#64748B", dk);
         btnDetail.setOnAction(ev -> {
             ev.consume();
             // Abrir modal de edición directamente
-            try {
-                LoanRepository.Loan loan = loanService.getLoan(userUid, loanId);
-                if (loan != null) {
-                    buildEditLoanModal(modalOverlay, loanService, session, userUid, loanId, loan.accountId(), loan.principalCents(), refreshAll);
-                    modalOverlay.show("edit-loan");
-                }
-            } catch (Exception ex) {
-                // Silencioso en caso de error
-            }
+            buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, refreshAll);
+            modalOverlay.show("edit-loan");
         });
 
         // Botón Agregar dinero (reemplaza edit)
@@ -620,7 +676,7 @@ public final class LoansView {
         Button btnDelete = buildCompactAction("fas-trash-alt", "#EF4444", dk);
         btnDelete.setOnAction(ev -> {
             ev.consume();
-            onArchive.accept(loanId);
+            onArchive.accept(summary);
         });
 
         HBox secondaryActions = new HBox(6, btnDetail, btnAddMoney, btnDelete);
@@ -833,7 +889,9 @@ public final class LoansView {
 
     // ── Modal: Nuevo préstamo ───────────────────────────────────────────
     private static void buildNewLoanModal(
-        ModalOverlay overlay, LoanService loanService,
+        ModalOverlay overlay, LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory, AccountRepository accountRepo,
+        CategoryRepository categoryRepo, TransactionRepository txRepo,
         AuthSession session, Runnable refreshBalances
     ) {
         String userUid = session.uid();
@@ -904,7 +962,7 @@ public final class LoansView {
 
         // Cargar cuentas reales
         try {
-            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
             accountCombo.setItems(FXCollections.observableArrayList(accounts));
             if (!accounts.isEmpty()) accountCombo.getSelectionModel().selectFirst();
         } catch (Exception ignored) {}
@@ -919,7 +977,7 @@ public final class LoansView {
             AccountRepository.Account acc = accountCombo.getValue();
             if (acc == null) { balanceLabel.setText(""); return; }
             try {
-                long cents = loanService.getAccountBalance(userUid, acc.id());
+                long cents = accountRepo.computeBalanceCents(userUid, acc.id());
                 balanceLabel.setText("Saldo disponible: " + DashboardFormatters.formatMoney(cents, acc.currency()));
             } catch (Exception ex) { balanceLabel.setText(""); }
         };
@@ -938,11 +996,9 @@ public final class LoansView {
 
         // ── Monto ────────────────────────────────────────────────
         Label amountLabel = ModalOverlay.fieldLabel("Monto", "fas-dollar-sign");
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.setPromptText("$0");
         amountField.getStyleClass().add("modal-amount-input");
-
-        UiDialogs.restrictToDecimalAmount(amountField);
 
         VBox amountBlock = new VBox(6, amountLabel, amountField);
 
@@ -986,7 +1042,6 @@ public final class LoansView {
 
                 AccountRepository.Account acc = accountCombo.getValue();
                 String person = personField.getText() == null ? "" : personField.getText().trim();
-                String amtRaw = amountField.getText();
 
                 // Validations
                 if (acc == null) {
@@ -998,14 +1053,7 @@ public final class LoansView {
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
-                long cents;
-                try {
-                    BigDecimal v = DashboardFormatters.parseAmount(amtRaw);
-                    cents = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-                } catch (Exception ex) {
-                    errorLabel.setText("Ingresa un monto válido");
-                    errorLabel.setVisible(true); errorLabel.setManaged(true); return;
-                }
+                long cents = amountField.getAmountCentsOrZero();
                 if (cents <= 0) {
                     errorLabel.setText("El monto debe ser mayor a $0");
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
@@ -1015,22 +1063,49 @@ public final class LoansView {
                 if (notes != null && notes.isBlank()) notes = null;
 
                 // Execute
+                String transactionId = null;
                 try {
-                    loanService.createLoan(
-                        userUid, session, selectedType[0],
-                        person, acc.id(), cents, acc.currency(), notes
+                    LoanType loanType = LoanType.valueOf(selectedType[0]);
+                    boolean isLent = loanType == LoanType.LENT;
+                    long occurredAt = System.currentTimeMillis() / 1000;
+
+                    // Movimiento financiero único: misma convención que el resto
+                    // de la app y que Android (LOAN_LENT_OUT / LOAN_BORROWED_IN
+                    // en la categoría de sistema "Préstamos").
+                    transactionId = txRepo.create(
+                        userUid, acc.id(), ensureLoanCategory(categoryRepo, session, userUid),
+                        isLent ? TransactionKind.LOAN_LENT_OUT.name() : TransactionKind.LOAN_BORROWED_IN.name(),
+                        cents, occurredAt,
+                        isLent ? "Préstamo otorgado a: " + person : "Dinero recibido de: " + person
                     );
 
-                    // Success — close modal and refresh
+                    var command = loanCommandFactory.createLoan(
+                        userUid, loanType, person, acc.currency(),
+                        acc.id(), cents, occurredAt, transactionId, notes
+                    );
+                    LoanCommandResult result = loanApplicationService.process(command);
+                    LoanSnapshot snapshot = result.currentSnapshot();
+                    publishLoanStateWithTransaction(session, userUid, txRepo, transactionId,
+                        snapshot, occurredAt,
+                        result.event() != null ? result.event().recordedAt() : null);
+                    transactionId = null;
+
                     overlay.hide();
                     personField.clear();
                     amountField.clear();
                     noteField.clear();
                     Platform.runLater(() -> {
+                        showLoanCreatedConfirmation(snapshot);
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
-                } catch (Exception ex) {
+                } catch (LoanAggregateException ex) {
+                    deleteTransactionQuietly(txRepo, userUid, transactionId);
                     errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error al registrar");
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
+                } catch (Exception ex) {
+                    deleteTransactionQuietly(txRepo, userUid, transactionId);
+                    errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error inesperado");
                     errorLabel.setVisible(true);
                     errorLabel.setManaged(true);
                 }
@@ -1044,9 +1119,10 @@ public final class LoansView {
 
     // ── Modal: Editar préstamo ───────────────────────────────────────────
     private static void buildEditLoanModal(
-        ModalOverlay overlay, LoanService loanService,
-        AuthSession session, String userUid, String loanId,
-        String currentAccountId, long currentPrincipalCents, Runnable refreshBalances
+        ModalOverlay overlay, AccountRepository accountRepo, LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        CategoryRepository categoryRepo, TransactionRepository txRepo,
+        AuthSession session, String userUid, LoanSummaryProjection summary, Runnable refreshBalances
     ) {
         HBox header = overlay.buildHeader("Editar préstamo",
             "Ajusta el monto del préstamo existente");
@@ -1070,8 +1146,9 @@ public final class LoansView {
 
         // Cargar cuentas reales
         try {
-            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
             accountCombo.setItems(FXCollections.observableArrayList(accounts));
+            String currentAccountId = summary.defaultAccountId();
             // Seleccionar la cuenta actual del préstamo
             if (!accounts.isEmpty()) {
                 accountCombo.getItems().stream()
@@ -1094,7 +1171,7 @@ public final class LoansView {
             AccountRepository.Account acc = accountCombo.getValue();
             if (acc == null) { balanceLabel.setText(""); return; }
             try {
-                long cents = loanService.getAccountBalance(userUid, acc.id());
+                long cents = accountRepo.computeBalanceCents(userUid, acc.id());
                 balanceLabel.setText("Saldo disponible: " + DashboardFormatters.formatMoney(cents, acc.currency()));
             } catch (Exception ex) { balanceLabel.setText(""); }
         };
@@ -1105,7 +1182,7 @@ public final class LoansView {
 
         // ── Monto actual ───────────────────────────────────────────
         Label currentLabel = ModalOverlay.fieldLabel("Monto actual", "fas-info-circle");
-        Label currentAmount = new Label(DashboardFormatters.formatMoney(currentPrincipalCents));
+        Label currentAmount = new Label(DashboardFormatters.formatMoney(summary.principalCents()));
         currentAmount.setStyle(
             "-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: #64748B;"
         );
@@ -1113,11 +1190,11 @@ public final class LoansView {
 
         // ── Nuevo monto ─────────────────────────────────────────────
         Label amountLabel = ModalOverlay.fieldLabel("Nuevo monto", "fas-dollar-sign");
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.setPromptText("Ej: 100000.00");
         amountField.getStyleClass().add("modal-text-input");
         // Pre-llenar con valor numérico sin símbolo de moneda
-        amountField.setText(String.valueOf(currentPrincipalCents / 100.0));
+        amountField.setAmountCents(summary.principalCents());
 
         Label amountError = new Label();
         amountError.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 11px;");
@@ -1147,6 +1224,14 @@ public final class LoansView {
         Button primaryBtn = (Button) footer.getChildren().get(1);
         Button cancelBtn = (Button) footer.getChildren().get(2);
 
+        // Estado mutable del modal: se actualiza tras cada comando aplicado
+        // para que un segundo Guardar nunca recalcule deltas sobre datos
+        // obsoletos (p. ej. duplicar el ajuste si el paso de metadatos falla).
+        long[] currentPrincipal = { summary.principalCents() };
+        String[] currentFingerprint = { summary.journalFingerprint() };
+        String[] currentAccountId = { summary.defaultAccountId() };
+        String[] currentNotes = { summary.notes() };
+
         primaryBtn.setOnAction(e -> {
             errorLabel.setText("");
             errorLabel.setVisible(false);
@@ -1163,7 +1248,7 @@ public final class LoansView {
                 return;
             }
 
-            String amountText = amountField.getText().trim();
+            String amountText = amountField.getText() == null ? "" : amountField.getText().trim();
             if (amountText.isBlank()) {
                 amountError.setText("Ingresa un monto");
                 amountError.setVisible(true);
@@ -1171,20 +1256,9 @@ public final class LoansView {
                 return;
             }
 
-            long newCents;
-            try {
-                // Intentar parsear como número decimal simple
-                java.math.BigDecimal v = new java.math.BigDecimal(amountText);
-                newCents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
-            } catch (Exception ex) {
-                amountError.setText("Monto inválido");
-                amountError.setVisible(true);
-                amountError.setManaged(true);
-                return;
-            }
-
+            long newCents = amountField.getAmountCentsOrZero();
             if (newCents <= 0) {
-                amountError.setText("El monto debe ser mayor a 0");
+                amountError.setText("Monto inválido");
                 amountError.setVisible(true);
                 amountError.setManaged(true);
                 return;
@@ -1193,11 +1267,89 @@ public final class LoansView {
             String note = noteField.getText().trim();
             if (note.isBlank()) note = null;
 
+            // Decidir los comandos antes de llamar al servicio: solo se emiten
+            // los que representan un cambio efectivo. La decisión se toma sobre
+            // el estado mutable del modal, no sobre el summary de apertura.
+            LoanEditPlanner.Decision decision = LoanEditPlanner.decide(
+                currentPrincipal[0], currentAccountId[0], currentNotes[0],
+                null, selectedAccount.id(), newCents, note);
+
+            if (!decision.hasChanges()) {
+                overlay.hide();
+                return;
+            }
+
+            String pendingTxId = null;
             try {
-                loanService.updateLoan(userUid, session, loanId, selectedAccount.id(), newCents, note);
+                String loanId = summary.loanId();
+
+                if (decision.principalChanged()) {
+                    long deltaCents = decision.deltaCents();
+                    boolean isLent = summary.loanType() == LoanType.LENT;
+                    boolean isIncrease = deltaCents > 0;
+                    String kind = isLent
+                        ? (isIncrease
+                            ? TransactionKind.LOAN_LENT_CORRECTION_OUT.name()
+                            : TransactionKind.LOAN_LENT_CORRECTION_IN.name())
+                        : (isIncrease
+                            ? TransactionKind.LOAN_BORROWED_CORRECTION_IN.name()
+                            : TransactionKind.LOAN_BORROWED_CORRECTION_OUT.name());
+                    String txNote = isLent
+                        ? "Corrección de préstamo otorgado a: " + summary.counterparty()
+                        : "Corrección de deuda con: " + summary.counterparty();
+                    pendingTxId = txRepo.create(
+                        userUid, selectedAccount.id(),
+                        ensureLoanCategory(categoryRepo, session, userUid), kind,
+                        Math.abs(deltaCents), System.currentTimeMillis() / 1000, txNote
+                    );
+                    AdjustPrincipalCommand adjustCommand = loanCommandFactory.adjustPrincipal(
+                        userUid,
+                        loanId,
+                        currentFingerprint[0],
+                        deltaCents,
+                        "Ajuste de monto",
+                        selectedAccount.id(),
+                        pendingTxId,
+                        note
+                    );
+                    LoanCommandResult adjustResult = loanApplicationService.process(adjustCommand);
+                    String committedTxId = pendingTxId;
+                    pendingTxId = null;
+                    currentPrincipal[0] = newCents;
+                    currentFingerprint[0] = adjustResult.currentSnapshot().journalFingerprint();
+                    // Cada comando publica su propio estado: el ajuste no debe
+                    // depender de que un comando posterior publique por él.
+                    publishLoanStateWithTransaction(session, userUid, txRepo,
+                        committedTxId, adjustResult.currentSnapshot(), null, null);
+                }
+
+                if (decision.metadataChanged()) {
+                    UpdateMetadataCommand metadataCommand = loanCommandFactory.updateLoanMetadata(
+                        userUid,
+                        loanId,
+                        currentFingerprint[0],
+                        new FieldChange<>(false, null),
+                        new FieldChange<>(decision.accountChanged(), selectedAccount.id()),
+                        new FieldChange<>(decision.notesChanged(), decision.notes())
+                    );
+                    try {
+                        LoanCommandResult metadataResult = loanApplicationService.process(metadataCommand);
+                        currentAccountId[0] = selectedAccount.id();
+                        currentNotes[0] = note;
+                        currentFingerprint[0] = metadataResult.currentSnapshot().journalFingerprint();
+                        publishLoanStateWithTransaction(session, userUid, txRepo, null,
+                            metadataResult.currentSnapshot(), null, null);
+                    } catch (LoanAggregateException lex) {
+                        // NO_EFFECTIVE_CHANGE por concurrencia: el ajuste ya se
+                        // aplicó y publicó; no es un error para el usuario.
+                        if (lex.code() != LoanAggregateErrorCode.NO_EFFECTIVE_CHANGE) throw lex;
+                    }
+                }
+
                 overlay.hide();
                 refreshBalances.run();
             } catch (Exception ex) {
+                deleteTransactionQuietly(txRepo, userUid, pendingTxId);
                 errorLabel.setText(ex.getMessage());
                 errorLabel.setVisible(true);
                 errorLabel.setManaged(true);
@@ -1212,8 +1364,10 @@ public final class LoansView {
 
     // ── Modal: Registrar pago ──────────────────────────────────────────
     private static Consumer<String> buildPaymentModal(
-        ModalOverlay overlay, LoanService loanService,
-        AuthSession session, Runnable refreshBalances
+        ModalOverlay overlay, LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory, LoanProjectionQueryRepository queryRepo,
+        AccountRepository accountRepo, CategoryRepository categoryRepo,
+        TransactionRepository txRepo, AuthSession session, Runnable refreshBalances
     ) {
         String userUid = session.uid();
 
@@ -1296,7 +1450,7 @@ public final class LoansView {
                 if (a == null) return "";
                 long bal = 0L;
                 try {
-                    bal = loanService.getAccountBalance(userUid, a.id());
+                    bal = accountRepo.computeBalanceCents(userUid, a.id());
                 } catch (Exception ignored) {}
                 return a.name() + " · " + a.currency() + " · " + DashboardFormatters.formatMoney(bal);
             }
@@ -1307,7 +1461,7 @@ public final class LoansView {
         payAccountCombo.setButtonCell(accountCellFactory().call(null));
 
         try {
-            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
             payAccountCombo.setItems(FXCollections.observableArrayList(accounts));
             if (!accounts.isEmpty()) payAccountCombo.getSelectionModel().selectFirst();
         } catch (Exception ignored) {}
@@ -1316,11 +1470,9 @@ public final class LoansView {
 
         // ── Monto a pagar ────────────────────────────────────────
         Label amtLabel = ModalOverlay.fieldLabel("Monto a pagar", "fas-dollar-sign");
-        TextField amtField = new TextField();
+        MoneyInputField amtField = new MoneyInputField();
         amtField.setPromptText("$0");
         amtField.getStyleClass().add("modal-amount-input");
-
-        UiDialogs.restrictToDecimalAmount(amtField);
 
         // ── Cálculo dinámico de restante ─────────────────────────
         Label remainLabel = new Label("Restante después del pago");
@@ -1330,11 +1482,7 @@ public final class LoansView {
         remainValue.getStyleClass().add("loan-remain-value");
 
         amtField.textProperty().addListener((obs, oldVal, newVal) -> {
-            long payAmount = 0L;
-            try {
-                BigDecimal v = DashboardFormatters.parseAmount(newVal);
-                payAmount = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-            } catch (Exception ignored) { }
+            long payAmount = amtField.getAmountCentsOrZero();
             long remaining = Math.max(0, activePending[0] - payAmount);
             remainValue.setText(DashboardFormatters.formatMoney(remaining));
             if (remaining == 0 && payAmount > 0) {
@@ -1389,14 +1537,7 @@ public final class LoansView {
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
-                long cents;
-                try {
-                    BigDecimal v = DashboardFormatters.parseAmount(amtField.getText());
-                    cents = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-                } catch (Exception ex) {
-                    errorLabel.setText("Ingresa un monto válido");
-                    errorLabel.setVisible(true); errorLabel.setManaged(true); return;
-                }
+                long cents = amtField.getAmountCentsOrZero();
                 if (cents <= 0) {
                     errorLabel.setText("El monto debe ser mayor a $0");
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
@@ -1406,18 +1547,47 @@ public final class LoansView {
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
+                String transactionId = null;
                 try {
-                    loanService.registerPayment(
-                        userUid, session, activeLoanId[0], acc.id(), cents, 0L, null
+                    LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, activeLoanId[0]);
+                    if (summary == null) {
+                        errorLabel.setText("No se encontró información del préstamo");
+                        errorLabel.setVisible(true); errorLabel.setManaged(true); return;
+                    }
+                    String categoryId = ensureRepaymentCategory(categoryRepo, userUid);
+                    String kind = summary.loanType() == LoanType.LENT
+                        ? TransactionKind.LOAN_REPAYMENT_PRINCIPAL_IN.name()
+                        : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
+                    transactionId = txRepo.create(
+                        userUid, acc.id(), categoryId, kind, cents,
+                        System.currentTimeMillis() / 1000,
+                        summary.loanType() == LoanType.LENT
+                            ? "Pago recibido de: " + summary.counterparty()
+                            : "Pago realizado a: " + summary.counterparty()
                     );
+                    var command = loanCommandFactory.registerPayment(
+                        userUid, activeLoanId[0], summary.journalFingerprint(),
+                        cents, acc.id(), transactionId, null
+                    );
+                    LoanCommandResult result = loanApplicationService.process(command);
+                    LoanSnapshot snapshot = result.currentSnapshot();
+                    publishLoanPayment(session, userUid, txRepo, transactionId, result.event(),
+                        snapshot, acc.id(), cents, null);
 
                     overlay.hide();
                     amtField.clear();
                     Platform.runLater(() -> {
+                        showLoanPaymentConfirmation(snapshot);
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
-                } catch (Exception ex) {
+                } catch (LoanAggregateException ex) {
+                    deleteTransactionQuietly(txRepo, userUid, transactionId);
                     errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error al registrar pago");
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
+                } catch (Exception ex) {
+                    deleteTransactionQuietly(txRepo, userUid, transactionId);
+                    errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error inesperado");
                     errorLabel.setVisible(true);
                     errorLabel.setManaged(true);
                 }
@@ -1435,9 +1605,8 @@ public final class LoansView {
             errorLabel.setManaged(false);
             amtField.clear();
 
-            // Refrescar cuentas para mostrar saldos actualizados
             try {
-                List<AccountRepository.Account> freshAccounts = loanService.listAccounts(userUid);
+                List<AccountRepository.Account> freshAccounts = accountRepo.list(userUid);
                 payAccountCombo.getItems().setAll(freshAccounts);
                 if (!freshAccounts.isEmpty()) {
                     payAccountCombo.getSelectionModel().selectFirst();
@@ -1446,39 +1615,40 @@ public final class LoansView {
                 // Si falla el refresh, continuamos con las cuentas existentes
             }
 
+            LoanSummaryProjection summary = null;
             try {
-                LoanRepository.Loan loan = loanService.getLoan(userUid, loanId);
-                if (loan == null) return;
-
-                long paidCents = loanService.getPaidCents(userUid, loanId);
-                long pending = Math.max(0L, loan.principalCents() - paidCents);
-                activePending[0] = pending;
-
-                // Poblar persona
-                String initials = buildInitials(loan.counterpartyName());
-                avatar.setText(initials);
-                nameLabel.setText(loan.counterpartyName());
-                loanInfo.setText(
-                    "Total: " + DashboardFormatters.formatMoney(loan.principalCents())
-                    + "  ·  Pagado: " + DashboardFormatters.formatMoney(paidCents)
-                );
-
-                // Barra de progreso
-                int pct = loan.principalCents() > 0
-                    ? (int) (paidCents * 100 / loan.principalCents()) : 0;
-                String barColor = pct < 40 ? "#EA580C" : pct < 70 ? "#F59E0B" : "#16A34A";
-                trackFill.setStyle("-fx-background-color: " + barColor + "; -fx-background-radius: 6;");
-                trackFill.prefWidthProperty().unbind();
-                trackFill.prefWidthProperty().bind(progressBar.widthProperty().multiply(pct / 100.0));
-                pctLbl.setText(pct + "% recuperado");
-                pctLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: " + barColor + ";");
-
-                // Pendiente
-                pendingValue.setText(DashboardFormatters.formatMoney(pending));
-                remainValue.setText(DashboardFormatters.formatMoney(pending));
-            } catch (Exception ex) {
+                summary = queryRepo.getSummaryProjection(userUid, loanId);
+            } catch (Exception ignored) {}
+            if (summary == null) {
                 activePending[0] = 0L;
+                errorLabel.setText("No se encontró información del préstamo");
+                errorLabel.setVisible(true);
+                errorLabel.setManaged(true);
+                overlay.show("pay-loan");
+                return;
             }
+
+            activePending[0] = summary.pendingCents();
+
+            String initials = buildInitials(summary.counterparty());
+            avatar.setText(initials);
+            nameLabel.setText(summary.counterparty());
+            loanInfo.setText(
+                "Total: " + DashboardFormatters.formatMoney(summary.principalCents())
+                + "  ·  Pagado: " + DashboardFormatters.formatMoney(summary.totalPaidCents())
+            );
+
+            int pct = summary.principalCents() > 0
+                ? (int) (summary.totalPaidCents() * 100 / summary.principalCents()) : 0;
+            String barColor = pct < 40 ? "#EA580C" : pct < 70 ? "#F59E0B" : "#16A34A";
+            trackFill.setStyle("-fx-background-color: " + barColor + "; -fx-background-radius: 6;");
+            trackFill.prefWidthProperty().unbind();
+            trackFill.prefWidthProperty().bind(progressBar.widthProperty().multiply(pct / 100.0));
+            pctLbl.setText(pct + "% recuperado");
+            pctLbl.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: " + barColor + ";");
+
+            pendingValue.setText(DashboardFormatters.formatMoney(summary.pendingCents()));
+            remainValue.setText(DashboardFormatters.formatMoney(summary.pendingCents()));
 
             overlay.show("pay-loan");
         };
@@ -1486,18 +1656,18 @@ public final class LoansView {
 
     // ── Modal: Agregar dinero (TOPUP) ────────────────────────────────────
     private static Consumer<String> buildTopupModal(
-        ModalOverlay overlay, LoanService loanService,
+        ModalOverlay overlay, LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository queryRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo, TransactionRepository txRepo,
         AuthSession session, Runnable refreshBalances
     ) {
         String userUid = session.uid();
 
         // Estado compartido: préstamo activo (se setea al abrir el modal)
         String[] activeLoanId = { null };
-        long[] currentPrincipal = { 0L };
-        long[] currentPaid = { 0L };
-        String[] loanType = { null };
-        String[] counterparty = { null };
-        String[] currency = { null };
+        LoanSummaryProjection[] activeSummary = { null };
 
         HBox header = overlay.buildHeader("Agregar dinero",
             "Aumenta el monto del préstamo existente");
@@ -1541,7 +1711,7 @@ public final class LoansView {
                 if (a == null) return "";
                 long balance = 0L;
                 try {
-                    balance = loanService.getAccountBalance(userUid, a.id());
+                    balance = accountRepo.computeBalanceCents(userUid, a.id());
                 } catch (Exception ignored) {}
                 return a.name() + " · " + a.currency() + " · " + DashboardFormatters.formatMoney(balance);
             }
@@ -1552,7 +1722,7 @@ public final class LoansView {
         accountCombo.setButtonCell(accountCellFactory().call(null));
 
         try {
-            List<AccountRepository.Account> accounts = loanService.listAccounts(userUid);
+            List<AccountRepository.Account> accounts = accountRepo.list(userUid);
             accountCombo.setItems(FXCollections.observableArrayList(accounts));
             if (!accounts.isEmpty()) accountCombo.getSelectionModel().selectFirst();
         } catch (Exception ignored) {}
@@ -1562,11 +1732,9 @@ public final class LoansView {
 
         // ── Monto a agregar ────────────────────────────────────
         Label amtLabel = ModalOverlay.fieldLabel("Monto a agregar", "fas-plus");
-        TextField amtField = new TextField();
+        MoneyInputField amtField = new MoneyInputField();
         amtField.setPromptText("$0");
         amtField.getStyleClass().add("modal-amount-input");
-
-        UiDialogs.restrictToDecimalAmount(amtField);
 
         // ── Resumen dinámico ───────────────────────────────────
         Label summaryLabel = new Label("Nuevo total del préstamo");
@@ -1595,14 +1763,13 @@ public final class LoansView {
 
         // Actualizar resumen dinámico al cambiar monto
         amtField.textProperty().addListener((obs, oldVal, newVal) -> {
-            long addAmount = 0L;
-            try {
-                BigDecimal v = DashboardFormatters.parseAmount(newVal);
-                addAmount = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-            } catch (Exception ignored) { }
+            long addAmount = amtField.getAmountCentsOrZero();
 
-            long newTotal = currentPrincipal[0] + addAmount;
-            long newPending = newTotal - currentPaid[0];
+            LoanSummaryProjection summary = activeSummary[0];
+            long base = summary != null ? summary.principalCents() : 0L;
+            long paid = summary != null ? summary.totalPaidCents() : 0L;
+            long newTotal = base + addAmount;
+            long newPending = newTotal - paid;
 
             summaryValue.setText(DashboardFormatters.formatMoney(newTotal));
             pendingValue.setText("Pendiente: " + DashboardFormatters.formatMoney(newPending));
@@ -1657,30 +1824,59 @@ public final class LoansView {
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
-                long addCents;
-                try {
-                    BigDecimal v = DashboardFormatters.parseAmount(amtField.getText());
-                    addCents = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-                } catch (Exception ex) {
-                    errorLabel.setText("Ingresa un monto válido");
-                    errorLabel.setVisible(true); errorLabel.setManaged(true); return;
-                }
+                long addCents = amtField.getAmountCentsOrZero();
                 if (addCents <= 0) {
                     errorLabel.setText("El monto debe ser mayor a $0");
                     errorLabel.setVisible(true); errorLabel.setManaged(true); return;
                 }
 
+                String transactionId = null;
                 try {
-                    // Usar createLoan que detecta préstamo existente y hace TOPUP
-                    loanService.createLoan(
-                        userUid, session,
-                        loanType[0],          // LENT o BORROWED
-                        counterparty[0],      // nombre persona
-                        acc.id(),             // cuenta origen
-                        addCents,             // monto a agregar
-                        currency[0],          // moneda
-                        noteArea.getText()    // nota opcional
+                    LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, activeLoanId[0]);
+                    if (summary == null) {
+                        errorLabel.setText("Préstamo no encontrado");
+                        errorLabel.setVisible(true);
+                        errorLabel.setManaged(true);
+                        return;
+                    }
+
+                    boolean isLent = summary.loanType() == LoanType.LENT;
+                    transactionId = txRepo.create(
+                        userUid, acc.id(), ensureLoanCategory(categoryRepo, session, userUid),
+                        isLent ? TransactionKind.LOAN_LENT_TOPUP.name() : TransactionKind.LOAN_BORROWED_TOPUP.name(),
+                        addCents, System.currentTimeMillis() / 1000,
+                        isLent
+                            ? "Aumento de préstamo otorgado a: " + summary.counterparty()
+                            : "Aumento de deuda con: " + summary.counterparty()
                     );
+
+                    AddPrincipalCommand command = loanCommandFactory.addPrincipal(
+                        userUid,
+                        activeLoanId[0],
+                        summary.journalFingerprint(),
+                        addCents,
+                        acc.id(),
+                        transactionId,
+                        noteArea.getText()
+                    );
+                    LoanCommandResult result = loanApplicationService.process(command);
+                    if (result.outcome() != Outcome.APPLIED && result.outcome() != Outcome.REPLAYED) {
+                        deleteTransactionQuietly(txRepo, userUid, transactionId);
+                        errorLabel.setText(result.diagnostics().stream()
+                            .map(d -> d.code().name())
+                            .collect(java.util.stream.Collectors.joining(", ")));
+                        errorLabel.setVisible(true);
+                        errorLabel.setManaged(true);
+                        return;
+                    }
+
+                    // Reflejar el snapshot actualizado en el propio modal sin consultar de nuevo
+                    LoanSnapshot snapshot = result.currentSnapshot();
+                    publishLoanStateWithTransaction(session, userUid, txRepo, transactionId,
+                        snapshot, null, null);
+                    transactionId = null;
+                    summaryValue.setText(DashboardFormatters.formatMoney(snapshot.principalCents()));
+                    pendingValue.setText("Pendiente: " + DashboardFormatters.formatMoney(snapshot.pendingCents()));
 
                     overlay.hide();
                     amtField.clear();
@@ -1689,6 +1885,7 @@ public final class LoansView {
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
                 } catch (Exception ex) {
+                    deleteTransactionQuietly(txRepo, userUid, transactionId);
                     errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error al agregar dinero");
                     errorLabel.setVisible(true);
                     errorLabel.setManaged(true);
@@ -1710,7 +1907,7 @@ public final class LoansView {
 
             // Refrescar cuentas para mostrar saldos actualizados
             try {
-                List<AccountRepository.Account> freshAccounts = loanService.listAccounts(userUid);
+                List<AccountRepository.Account> freshAccounts = accountRepo.list(userUid);
                 accountCombo.getItems().setAll(freshAccounts);
                 if (!freshAccounts.isEmpty()) {
                     accountCombo.getSelectionModel().selectFirst();
@@ -1720,34 +1917,26 @@ public final class LoansView {
             }
 
             try {
-                LoanRepository.Loan loan = loanService.getLoan(userUid, loanId);
-                if (loan == null) return;
+                LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, loanId);
+                if (summary == null) return;
 
-                long paidCents = loanService.getPaidCents(userUid, loanId);
-                long pending = Math.max(0L, loan.principalCents() - paidCents);
-
-                // Guardar estado para uso en submit
-                currentPrincipal[0] = loan.principalCents();
-                currentPaid[0] = paidCents;
-                loanType[0] = loan.type();
-                counterparty[0] = loan.counterpartyName();
-                currency[0] = loan.currency();
+                activeSummary[0] = summary;
+                long pending = Math.max(0L, summary.principalCents() - summary.totalPaidCents());
 
                 // Poblar persona
-                String initials = buildInitials(loan.counterpartyName());
+                String initials = buildInitials(summary.counterparty());
                 avatar.setText(initials);
-                nameLabel.setText(loan.counterpartyName());
+                nameLabel.setText(summary.counterparty());
                 loanInfo.setText(
                     "Pendiente actual: " + DashboardFormatters.formatMoney(pending)
                 );
 
                 // Valores actuales
-                summaryValue.setText(DashboardFormatters.formatMoney(loan.principalCents()));
+                summaryValue.setText(DashboardFormatters.formatMoney(summary.principalCents()));
                 pendingValue.setText("Pendiente: " + DashboardFormatters.formatMoney(pending));
 
             } catch (Exception ex) {
-                currentPrincipal[0] = 0L;
-                currentPaid[0] = 0L;
+                activeSummary[0] = null;
             }
 
             overlay.show("topup-loan");
@@ -1755,9 +1944,11 @@ public final class LoansView {
     }
 
     // ── Modal: Confirmar archivado ──────────────────────────────────────
-    private static Consumer<String> buildArchiveModal(
-        ModalOverlay overlay, LoanService loanService,
-        AuthSession session, Runnable refreshBalances
+    private static Consumer<LoanSummaryProjection> buildArchiveModal(
+        ModalOverlay overlay,
+        AuthSession session,
+        JdbcLoanAdminStateRepository loanAdminStateRepository,
+        Runnable refreshAll
     ) {
         String userUid = session.uid();
 
@@ -1780,8 +1971,8 @@ public final class LoansView {
         confirmLabel.setWrapText(true);
 
         Label detailLabel = new Label(
-            "El préstamo se marcará como cerrado y se ocultará de la lista principal. " +
-            "El historial financiero se conservará. Puedes ver préstamos archivados en una vista futura."
+            "El préstamo se ocultará de la lista activa. " +
+            "El historial financiero, los pagos y los movimientos se conservarán intactos."
         );
         detailLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #6B7280;");
         detailLabel.setWrapText(true);
@@ -1827,8 +2018,8 @@ public final class LoansView {
             errorLabel.setVisible(false);
             errorLabel.setManaged(false);
 
-            String activeLoanId = (String) confirmBtn.getProperties().get("loanId");
-            if (activeLoanId == null || activeLoanId.isBlank()) {
+            LoanSummaryProjection activeLoan = (LoanSummaryProjection) confirmBtn.getProperties().get("loan");
+            if (activeLoan == null) {
                 errorLabel.setText("Error: No se ha seleccionado un préstamo");
                 errorLabel.setVisible(true);
                 errorLabel.setManaged(true);
@@ -1836,11 +2027,10 @@ public final class LoansView {
             }
 
             try {
-                loanService.archiveLoan(userUid, session, activeLoanId);
+                LoanAdminState archivedState = loanAdminStateRepository.archive(userUid, activeLoan.loanId(), DeviceId.get());
+                publishLoanAdminState(session, archivedState, loanAdminStateRepository);
                 overlay.hide();
-                Platform.runLater(() -> {
-                    try { refreshBalances.run(); } catch (Exception ignored) {}
-                });
+                refreshAll.run();
             } catch (Exception ex) {
                 errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error al archivar préstamo");
                 errorLabel.setVisible(true);
@@ -1853,9 +2043,9 @@ public final class LoansView {
         overlay.register("archive-loan", 360,
             header, warningRow, errorLabel, footer);
 
-        // Retorna consumer que guarda el loanId y muestra el modal
-        return loanId -> {
-            confirmBtn.getProperties().put("loanId", loanId);
+        // Retorna consumer que guarda el préstamo y muestra el modal
+        return loan -> {
+            confirmBtn.getProperties().put("loan", loan);
             errorLabel.setVisible(false);
             errorLabel.setManaged(false);
             overlay.show("archive-loan");
@@ -1863,18 +2053,25 @@ public final class LoansView {
     }
 
     // ── Panel de actividad (timeline) ───────────────────────────────────
-    private static Node buildActivityTimeline(LoanService loanService, String userUid, boolean dk) {
+    private static Node buildActivityTimeline(
+        LoanProjectionQueryRepository queryRepo,
+        AccountRepository accountRepo,
+        String userUid,
+        boolean dk
+    ) {
         VBox timeline = new VBox(0);
         timeline.setFillWidth(true);
 
         try {
-            // Cargar todos los préstamos y pagos
-            List<LoanRepository.Loan> allLoans = loanService.listAll(userUid);
-            List<LoanPaymentRepository.LoanPayment> allPayments = loanService.listAllPayments(userUid);
+            // Cargar todos los préstamos y todos sus pagos
+            LoanSummaryFilter filter = new LoanSummaryFilter(
+                null, null, SortBy.LAST_ACTIVITY, false, null
+            );
+            List<LoanSummaryProjection> allLoans = queryRepo.listSummaries(userUid, filter);
 
-            // Mapa rápido de loan ID → Loan
-            java.util.Map<String, LoanRepository.Loan> loanMap = new java.util.HashMap<>();
-            for (LoanRepository.Loan l : allLoans) loanMap.put(l.id(), l);
+            // Mapa rápido de loan ID → LoanSummaryProjection
+            java.util.Map<String, LoanSummaryProjection> loanMap = new java.util.HashMap<>();
+            for (LoanSummaryProjection l : allLoans) loanMap.put(l.loanId(), l);
 
             // Mapa rápido de account ID → nombre
             java.util.Map<String, String> accountNameCache = new java.util.HashMap<>();
@@ -1885,47 +2082,27 @@ public final class LoansView {
 
             List<TimelineItem> items = new java.util.ArrayList<>();
 
-            // Agregar creaciones de préstamos
-            for (LoanRepository.Loan loan : allLoans) {
-                String accName = resolveAccountName(loanService, userUid, loan.accountId(), accountNameCache);
-                boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
+            // Agregar pagos de todos los préstamos
+            for (LoanSummaryProjection loan : allLoans) {
+                for (LoanPaymentProjection payment : queryRepo.getPaymentProjections(userUid, loan.loanId())) {
+                    String accName = resolveAccountName(accountRepo, userUid, payment.accountId(), accountNameCache);
+                    boolean isLent = loan.loanType() == LoanType.LENT;
 
-                String action = isLent ? "Prestaste" : "Pediste prestado";
-                String icon = isLent ? "fas-arrow-up" : "fas-arrow-down";
-                String color = isLent ? "#2563EB" : "#8B5CF6";
+                    String action = isLent
+                        ? loan.counterparty() + " pagó"
+                        : "Pagaste a " + loan.counterparty();
+                    String icon = isLent ? "fas-arrow-down" : "fas-arrow-up";
+                    String color = isLent ? "#16A34A" : "#EA580C";
 
-                items.add(new TimelineItem(
-                    loan.occurredAtEpochSec(),
-                    icon, color, color + "1A",
-                    action,
-                    DashboardFormatters.formatMoney(loan.principalCents()),
-                    (isLent ? "Préstamo a " : "Préstamo de ") + loan.counterpartyName() + " · " + accName,
-                    formatTimeOfDay(loan.occurredAtEpochSec())
-                ));
-            }
-
-            // Agregar pagos
-            for (LoanPaymentRepository.LoanPayment payment : allPayments) {
-                LoanRepository.Loan loan = loanMap.get(payment.loanId());
-                if (loan == null) continue;
-
-                String accName = resolveAccountName(loanService, userUid, payment.accountId(), accountNameCache);
-                boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
-
-                String action = isLent
-                    ? loan.counterpartyName() + " pagó"
-                    : "Pagaste a " + loan.counterpartyName();
-                String icon = isLent ? "fas-arrow-down" : "fas-arrow-up";
-                String color = isLent ? "#16A34A" : "#EA580C";
-
-                items.add(new TimelineItem(
-                    payment.occurredAtEpochSec(),
-                    icon, color, color + "1A",
-                    action,
-                    DashboardFormatters.formatMoney(payment.principalCents()),
-                    (isLent ? "Préstamo a " : "Préstamo de ") + loan.counterpartyName() + " · " + accName,
-                    formatTimeOfDay(payment.occurredAtEpochSec())
-                ));
+                    items.add(new TimelineItem(
+                        payment.occurredAt(),
+                        icon, color, color + "1A",
+                        action,
+                        DashboardFormatters.formatMoney(payment.amountCents()),
+                        (isLent ? "Préstamo a " : "Préstamo de ") + loan.counterparty() + " · " + accName,
+                        formatTimeOfDay(payment.occurredAt())
+                    ));
+                }
             }
 
             if (items.isEmpty()) {
@@ -1976,13 +2153,13 @@ public final class LoansView {
     }
 
     private static String resolveAccountName(
-        LoanService loanService, String userUid, String accountId,
+        AccountRepository accountRepo, String userUid, String accountId,
         java.util.Map<String, String> cache
     ) {
         if (accountId == null) return "Cuenta";
         return cache.computeIfAbsent(accountId, id -> {
             try {
-                AccountRepository.Account acc = loanService.getAccount(userUid, id);
+                AccountRepository.Account acc = accountRepo.getById(userUid, id);
                 return acc != null ? "Cuenta " + acc.name() : "Cuenta";
             } catch (Exception e) { return "Cuenta"; }
         });
@@ -2114,7 +2291,11 @@ public final class LoansView {
     }
 
     // ── Hero summary card ────────────────────────────────────────────
-    private static Node buildHeroSummaryCard(LoanService loanService, String userUid, boolean dk) {
+    private static Node buildHeroSummaryCard(
+        LoanProjectionQueryRepository queryRepo,
+        String userUid,
+        boolean dk
+    ) {
         // Métricas reales: solo préstamos otorgados (me deben)
         long totalLentCents     = 0L;
         long recoveredCents     = 0L;
@@ -2122,11 +2303,13 @@ public final class LoansView {
         int  recoveryPct        = 0;
 
         try {
-            List<LoanRepository.Loan> lentLoans = loanService.listLent(userUid);
-            for (LoanRepository.Loan loan : lentLoans) {
+            LoanSummaryFilter filter = new LoanSummaryFilter(
+                LoanType.LENT, null, SortBy.PENDING_CENTS, false, null
+            );
+            List<LoanSummaryProjection> lentLoans = queryRepo.listActiveSummaries(userUid, filter);
+            for (LoanSummaryProjection loan : lentLoans) {
                 totalLentCents += loan.principalCents();
-                long paid = loanService.getPaidCents(userUid, loan.id());
-                recoveredCents += paid;
+                recoveredCents += loan.totalPaidCents();
             }
             pendingCents = Math.max(0L, totalLentCents - recoveredCents);
             recoveryPct = totalLentCents > 0
@@ -2605,6 +2788,12 @@ public final class LoansView {
     /** Muestra side drawer con detalles del préstamo — animado, fintech style */
     private static void showLoanDetailDrawer(
         StackPane root,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository queryRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        TransactionRepository txRepo,
         LoanService loanService,
         String userUid,
         String loanId,
@@ -2615,15 +2804,16 @@ public final class LoansView {
     ) {
         try {
             // ── Datos del préstamo ─────────────────────────────────────
+            LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, loanId);
+            if (summary == null) return;
+            logUiSummary(summary, "detailDrawerOpen");
+
             LoanRepository.Loan loan = loanService.getLoan(userUid, loanId);
-            if (loan == null) return;
 
-            List<LoanMovementRepository.LoanMovement> movements = loanService.listMovements(userUid, loanId);
-            movements.sort((a, b) -> Long.compare(b.occurredAtEpochSec(), a.occurredAtEpochSec()));
+            List<LoanPaymentProjection> payments = new ArrayList<>(queryRepo.getPaymentProjections(userUid, loanId));
+            payments.sort((a, b) -> Long.compare(b.occurredAt(), a.occurredAt()));
 
-            long paidCents = loanService.getPaidCents(userUid, loanId);
-            long pendingCents = loan.principalCents() - paidCents;
-            boolean isClosed = LoanRepository.STATUS_CLOSED.equals(loan.status());
+            boolean isClosed = summary.status() == LoanStatus.CLOSED;
 
             // ── Backdrop oscuro semitransparente ───────────────────────
             Region backdrop = new Region();
@@ -2698,7 +2888,7 @@ public final class LoansView {
             header.getChildren().addAll(title, spacer, btnClose);
 
             // ── Persona destacada ──────────────────────────────────────
-            String initials = buildInitials(loan.counterpartyName());
+            String initials = buildInitials(summary.counterparty());
             Label avatar = new Label(initials);
             avatar.setStyle(
                 "-fx-background-color: #3B82F6; "
@@ -2709,7 +2899,7 @@ public final class LoansView {
                 + "-fx-alignment: center;"
             );
 
-            Label personName = new Label(loan.counterpartyName());
+            Label personName = new Label(summary.counterparty());
             personName.setStyle(
                 "-fx-font-size: 20px; -fx-font-weight: 800; "
                 + (dk ? "-fx-text-fill: #F8FAFC;" : "-fx-text-fill: #0F172A;")
@@ -2737,9 +2927,9 @@ public final class LoansView {
             HBox metricsRow = new HBox(12);
             metricsRow.setAlignment(Pos.CENTER);
 
-            VBox totalCard = buildMetricCard("Total", DashboardFormatters.formatMoney(loan.principalCents()), "#3B82F6", dk);
-            VBox paidCard = buildMetricCard("Pagado", DashboardFormatters.formatMoney(paidCents), "#10B981", dk);
-            VBox pendingCard = buildMetricCard("Pendiente", DashboardFormatters.formatMoney(Math.max(0, pendingCents)), "#F59E0B", dk);
+            VBox totalCard = buildMetricCard("Total", DashboardFormatters.formatMoney(summary.principalCents()), "#3B82F6", dk);
+            VBox paidCard = buildMetricCard("Pagado", DashboardFormatters.formatMoney(summary.totalPaidCents()), "#10B981", dk);
+            VBox pendingCard = buildMetricCard("Pendiente", DashboardFormatters.formatMoney(summary.pendingCents()), "#F59E0B", dk);
 
             HBox.setHgrow(totalCard, Priority.ALWAYS);
             HBox.setHgrow(paidCard, Priority.ALWAYS);
@@ -2776,12 +2966,12 @@ public final class LoansView {
                     if (closeDrawerRef[0] != null) closeDrawerRef[0].run();
                     
                     // Construir modal de edición dinámicamente con datos del préstamo
-                    buildEditLoanModal(modalOverlay, loanService, session, userUid, loanId, loan.accountId(), loan.principalCents(), () -> {
+                    buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, () -> {
                         refreshAll.run();
                         // Reabrir drawer después de editar
                         Platform.runLater(() -> {
                             try {
-                                showLoanDetailDrawer(root, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                                showLoanDetailDrawer(root, loanApplicationService, loanCommandFactory, queryRepo, accountRepo, categoryRepo, txRepo, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
                             } catch (Exception ignored) {}
                         });
                     });
@@ -2801,23 +2991,20 @@ public final class LoansView {
             VBox timelineBox = new VBox(8);
             timelineBox.setFillWidth(true);
 
-            // Guardar referencia a movimientos completos para historial
-            final List<LoanMovementRepository.LoanMovement>[] allMovementsRef = new List[]{ movements };
+            List<LoanPaymentProjection> visiblePayments = payments.size() > 5
+                ? payments.subList(0, 5)
+                : payments;
 
-            List<LoanMovementRepository.LoanMovement> visibleMovements = movements.size() > 5
-                ? movements.subList(0, 5)
-                : movements;
-
-            if (visibleMovements.isEmpty()) {
-                Label noMovements = new Label("Sin movimientos registrados");
+            if (visiblePayments.isEmpty()) {
+                Label noMovements = new Label("Sin pagos registrados");
                 noMovements.setStyle(
                     "-fx-font-size: 13px; -fx-text-fill: " + (dk ? "#94A3B8" : "#64748B") + "; "
                     + "-fx-font-style: italic;"
                 );
                 timelineBox.getChildren().add(noMovements);
             } else {
-                for (LoanMovementRepository.LoanMovement m : visibleMovements) {
-                    Node item = buildTimelineItem(m, dk);
+                for (LoanPaymentProjection p : visiblePayments) {
+                    Node item = buildTimelineItem(p, dk);
                     timelineBox.getChildren().add(item);
                 }
             }
@@ -2836,6 +3023,12 @@ public final class LoansView {
                     showFullLoanHistoryDrawer(
                         drawer,
                         new ArrayList<>(drawer.getChildren()),
+                        loanApplicationService,
+                        loanCommandFactory,
+                        queryRepo,
+                        accountRepo,
+                        categoryRepo,
+                        txRepo,
                         loanService,
                         session,
                         userUid,
@@ -2850,12 +3043,12 @@ public final class LoansView {
             });
 
             // ── Info adicional ───────────────────────────────────────────
-            String createdDate = formatLoanDate(loan.createdAtEpochSec());
-            Label createdLbl = new Label("Creado el " + createdDate);
-            createdLbl.setStyle(
+            String lastActivityDate = formatLoanDate(summary.lastActivity());
+            Label lastActivityLbl = new Label("Última actividad: " + lastActivityDate);
+            lastActivityLbl.setStyle(
                 "-fx-font-size: 12px; -fx-text-fill: " + (dk ? "#64748B" : "#94A3B8") + ";"
             );
-            createdLbl.setPadding(new Insets(16, 0, 0, 0));
+            lastActivityLbl.setPadding(new Insets(16, 0, 0, 0));
 
             // ── Ensamblar contenido ────────────────────────────────────
             if (btnEditRef[0] != null) {
@@ -2867,7 +3060,7 @@ public final class LoansView {
                     timelineTitle,
                     timelineBox,
                     viewHistoryBtn,
-                    createdLbl
+                    lastActivityLbl
                 );
             } else {
                 drawer.getChildren().addAll(
@@ -2877,7 +3070,7 @@ public final class LoansView {
                     timelineTitle,
                     timelineBox,
                     viewHistoryBtn,
-                    createdLbl
+                    lastActivityLbl
                 );
             }
 
@@ -3003,38 +3196,23 @@ public final class LoansView {
     }
 
     /** Item de timeline para movimiento */
-    private static HBox buildTimelineItem(LoanMovementRepository.LoanMovement m, boolean dk) {
+    private static HBox buildTimelineItem(LoanPaymentProjection payment, boolean dk) {
         String iconCode;
         String color;
         String label;
 
-        switch (m.movementType()) {
-            case LoanMovementRepository.MOV_TOPUP:
-                iconCode = "fas-plus-circle";
-                color = "#F59E0B";
-                label = "Agregado";
-                break;
-            case LoanMovementRepository.MOV_PAYMENT_IN:
-                iconCode = "fas-arrow-down";
-                color = "#10B981";
-                label = "Pago recibido";
-                break;
-            case LoanMovementRepository.MOV_PAYMENT_OUT:
-                iconCode = "fas-arrow-up";
-                color = "#3B82F6";
-                label = "Pago realizado";
-                break;
-            case LoanMovementRepository.MOV_CLOSE:
-                iconCode = "fas-check-circle";
-                color = "#8B5CF6";
-                label = "Cierre";
-                break;
-            case LoanMovementRepository.MOV_CREATION:
-            default:
-                iconCode = "fas-file-contract";
-                color = "#64748B";
-                label = "Creación";
-                break;
+        if (payment.direction() == LoanPaymentDirection.IN) {
+            iconCode = "fas-arrow-down";
+            color = "#10B981";
+            label = "Pago recibido";
+        } else if (payment.direction() == LoanPaymentDirection.OUT) {
+            iconCode = "fas-arrow-up";
+            color = "#3B82F6";
+            label = "Pago realizado";
+        } else {
+            iconCode = "fas-file-contract";
+            color = "#64748B";
+            label = "Pago";
         }
 
         FontIcon icon = new FontIcon(iconCode);
@@ -3051,7 +3229,7 @@ public final class LoansView {
             + (dk ? "-fx-text-fill: #E2E8F0;" : "-fx-text-fill: #1E293B;")
         );
 
-        String amountStr = DashboardFormatters.formatMoney(m.amountCents());
+        String amountStr = DashboardFormatters.formatMoney(payment.amountCents());
         Label lblAmount = new Label(amountStr);
         lblAmount.setWrapText(false);
         lblAmount.setStyle(
@@ -3059,7 +3237,7 @@ public final class LoansView {
             + "-fx-text-fill: " + color + ";"
         );
 
-        String dateStr = formatLoanDate(m.occurredAtEpochSec());
+        String dateStr = formatLoanDate(payment.occurredAt());
         Label lblDate = new Label(dateStr);
         lblDate.setStyle(
             "-fx-font-size: 11px; -fx-text-fill: " + (dk ? "#64748B" : "#94A3B8") + ";"
@@ -3098,50 +3276,33 @@ public final class LoansView {
     }
 
     private static Node buildLoanHistoryItem(
-        LoanService loanService,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository queryRepo,
         AuthSession session,
         String userUid,
         String loanId,
-        LoanRepository.Loan loan,
-        LoanMovementRepository.LoanMovement movement,
+        LoanPaymentProjection payment,
         boolean dk,
-        ModalOverlay modalOverlay,
         Runnable refreshAll,
-        Runnable refreshHistory,
-        Runnable[] closeDrawerRef,
         Runnable reopenDrawer
     ) {
         String iconCode;
         String color;
         String label;
 
-        switch (movement.movementType()) {
-            case LoanMovementRepository.MOV_TOPUP:
-                iconCode = "fas-plus-circle";
-                color = "#F59E0B";
-                label = "Agregado";
-                break;
-            case LoanMovementRepository.MOV_PAYMENT_IN:
-                iconCode = "fas-arrow-down";
-                color = "#10B981";
-                label = "Pago recibido";
-                break;
-            case LoanMovementRepository.MOV_PAYMENT_OUT:
-                iconCode = "fas-arrow-up";
-                color = "#3B82F6";
-                label = "Pago realizado";
-                break;
-            case LoanMovementRepository.MOV_CLOSE:
-                iconCode = "fas-check-circle";
-                color = "#8B5CF6";
-                label = "Cierre";
-                break;
-            case LoanMovementRepository.MOV_CREATION:
-            default:
-                iconCode = "fas-file-contract";
-                color = "#64748B";
-                label = "Creación";
-                break;
+        if (payment.direction() == LoanPaymentDirection.IN) {
+            iconCode = "fas-arrow-down";
+            color = "#10B981";
+            label = "Pago recibido";
+        } else if (payment.direction() == LoanPaymentDirection.OUT) {
+            iconCode = "fas-arrow-up";
+            color = "#3B82F6";
+            label = "Pago realizado";
+        } else {
+            iconCode = "fas-file-contract";
+            color = "#64748B";
+            label = "Pago";
         }
 
         FontIcon icon = new FontIcon(iconCode);
@@ -3158,14 +3319,14 @@ public final class LoansView {
             + (dk ? "-fx-text-fill: #E2E8F0;" : "-fx-text-fill: #1E293B;")
         );
 
-        String amountStr = DashboardFormatters.formatMoney(movement.amountCents());
+        String amountStr = DashboardFormatters.formatMoney(payment.amountCents());
         Label lblAmount = new Label(amountStr);
         lblAmount.setStyle(
             "-fx-font-size: 12px; -fx-font-weight: 600; "
             + "-fx-text-fill: " + color + ";"
         );
 
-        String dateStr = formatLoanDate(movement.occurredAtEpochSec());
+        String dateStr = formatLoanDate(payment.occurredAt());
         Label lblDate = new Label(dateStr);
         lblDate.setStyle(
             "-fx-font-size: 11px; -fx-text-fill: " + (dk ? "#64748B" : "#94A3B8") + ";"
@@ -3182,59 +3343,88 @@ public final class LoansView {
         right.setAlignment(Pos.CENTER_RIGHT);
         right.getChildren().add(lblAmount);
 
-        if (!LoanMovementRepository.MOV_CLOSE.equals(movement.movementType())) {
-            FontIcon moreIcon = new FontIcon("fas-ellipsis-v");
-            moreIcon.setIconSize(12);
-            moreIcon.setIconColor(Color.web(dk ? "#94A3B8" : "#64748B"));
+        FontIcon moreIcon = new FontIcon("fas-ellipsis-v");
+        moreIcon.setIconSize(12);
+        moreIcon.setIconColor(Color.web(dk ? "#94A3B8" : "#64748B"));
 
-            Button actionsBtn = new Button();
-            actionsBtn.setGraphic(moreIcon);
-            actionsBtn.setStyle(
-                "-fx-background-color: " + (dk ? "rgba(255,255,255,0.06)" : "#F8FAFC") + "; "
-                + "-fx-border-color: " + (dk ? "rgba(148,163,184,0.20)" : "#E2E8F0") + "; "
-                + "-fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; "
-                + "-fx-min-width: 30; -fx-min-height: 30; -fx-max-width: 30; -fx-max-height: 30; "
-                + "-fx-cursor: hand; -fx-padding: 0;"
-            );
+        Button actionsBtn = new Button();
+        actionsBtn.setGraphic(moreIcon);
+        actionsBtn.setStyle(
+            "-fx-background-color: " + (dk ? "rgba(255,255,255,0.06)" : "#F8FAFC") + "; "
+            + "-fx-border-color: " + (dk ? "rgba(148,163,184,0.20)" : "#E2E8F0") + "; "
+            + "-fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8; "
+            + "-fx-min-width: 30; -fx-min-height: 30; -fx-max-width: 30; -fx-max-height: 30; "
+            + "-fx-cursor: hand; -fx-padding: 0;"
+        );
 
-            MenuItem editItem = new MenuItem(
-                "Editar movimiento",
-                buildLoanHistoryActionBadge(
-                    "fas-edit",
-                    dk ? "rgba(59,130,246,0.16)" : "#DBEAFE",
-                    dk ? "#93C5FD" : "#2563EB"
-                )
-            );
-            MenuItem deleteItem = new MenuItem(
-                "Eliminar movimiento",
-                buildLoanHistoryActionBadge(
-                    "fas-trash-alt",
-                    dk ? "rgba(239,68,68,0.16)" : "#FEE2E2",
-                    dk ? "#FCA5A5" : "#DC2626"
-                )
-            );
-            ContextMenu menu = new ContextMenu(editItem, deleteItem);
-            menu.getStyleClass().add("loan-history-menu");
-            editItem.getStyleClass().add("loan-history-menu-item");
-            deleteItem.getStyleClass().addAll("loan-history-menu-item", "destructive");
+        MenuItem reverseItem = new MenuItem(
+            "Revertir pago",
+            buildLoanHistoryActionBadge(
+                "fas-undo",
+                dk ? "rgba(239,68,68,0.16)" : "#FEE2E2",
+                dk ? "#FCA5A5" : "#DC2626"
+            )
+        );
+        reverseItem.getStyleClass().addAll("loan-history-menu-item", "destructive");
 
-            editItem.setOnAction(ev -> showMovementEditDialog(
-                loanService, session, userUid, loan, movement, dk, modalOverlay, refreshAll, refreshHistory, closeDrawerRef, reopenDrawer
-            ));
+        ContextMenu menu = new ContextMenu(reverseItem);
+        menu.getStyleClass().add("loan-history-menu");
 
-            deleteItem.setOnAction(ev -> showMovementDeleteConfirm(
-                loanService, session, userUid, loan, movement, dk, modalOverlay, refreshAll, refreshHistory, closeDrawerRef, reopenDrawer
-            ));
-
-            actionsBtn.setOnAction(ev -> menu.show(actionsBtn, Side.BOTTOM, 0, 0));
-            right.getChildren().add(actionsBtn);
+        if (REVERSAL_GUARD.isInFlight(payment.sourceEventId())) {
+            reverseItem.setDisable(true);
         }
+
+        reverseItem.setOnAction(ev -> {
+            String paymentEventId = payment.sourceEventId();
+            if (!REVERSAL_GUARD.tryAcquire(paymentEventId)) {
+                return;
+            }
+            try {
+                LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, loanId);
+                if (summary == null) {
+                    new Alert(AlertType.ERROR, "Préstamo no encontrado", ButtonType.OK).showAndWait();
+                    return;
+                }
+
+                var command = loanCommandFactory.reversePayment(
+                    userUid,
+                    loanId,
+                    paymentEventId,
+                    summary.journalFingerprint(),
+                    "Reversión desde historial",
+                    null
+                );
+
+                LoanCommandResult result = loanApplicationService.process(command);
+                deleteReversedPaymentArtifacts(session, userUid, payment, result.currentSnapshot());
+                if (result.currentSnapshot() != null) {
+                    String msg = String.format(
+                        "Pago revertido.\nPendiente: %s\nTotal pagado: %s",
+                        DashboardFormatters.formatMoney(result.currentSnapshot().pendingCents()),
+                        DashboardFormatters.formatMoney(result.currentSnapshot().totalPaidCents())
+                    );
+                    new Alert(AlertType.INFORMATION, msg, ButtonType.OK).showAndWait();
+                }
+
+                refreshAll.run();
+                reopenDrawer.run();
+            } catch (LoanAggregateException ex) {
+                new Alert(AlertType.ERROR, "Error: " + ex.getMessage(), ButtonType.OK).showAndWait();
+            } catch (Exception ex) {
+                new Alert(AlertType.ERROR, "Error inesperado: " + ex.getMessage(), ButtonType.OK).showAndWait();
+            } finally {
+                REVERSAL_GUARD.release(paymentEventId);
+            }
+        });
+
+        actionsBtn.setOnAction(ev -> menu.show(actionsBtn, Side.BOTTOM, 0, 0));
+        right.getChildren().add(actionsBtn);
 
         HBox topRow = new HBox(12, iconBox, center, spacer, right);
         topRow.setAlignment(Pos.CENTER_LEFT);
 
         VBox item = new VBox(4, topRow);
-        String note = movement.note();
+        String note = payment.note();
         if (note != null && !note.isBlank()) {
             Label noteLabel = new Label(note);
             noteLabel.setWrapText(true);
@@ -3322,11 +3512,10 @@ public final class LoansView {
         VBox accountBlock = new VBox(6, accountLabel, accountCombo);
 
         Label amountLabel = ModalOverlay.fieldLabel("Monto", "fas-dollar-sign");
-        TextField amountField = new TextField();
+        MoneyInputField amountField = new MoneyInputField();
         amountField.setPromptText("Ej: 1000.00");
         amountField.getStyleClass().add("modal-text-input");
-        amountField.setText(String.valueOf(movement.amountCents() / 100.0));
-        UiDialogs.restrictToDecimalAmount(amountField);
+        amountField.setAmountCents(movement.amountCents());
 
         Label amountError = new Label();
         amountError.setStyle("-fx-text-fill: #DC2626; -fx-font-size: 11px;");
@@ -3377,16 +3566,7 @@ public final class LoansView {
                 return;
             }
 
-            long cents;
-            try {
-                BigDecimal v = DashboardFormatters.parseAmount(amountField.getText());
-                cents = v.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact();
-            } catch (Exception ex) {
-                amountError.setText("Ingresa un monto válido");
-                amountError.setVisible(true);
-                amountError.setManaged(true);
-                return;
-            }
+            long cents = amountField.getAmountCentsOrZero();
 
             if (cents <= 0) {
                 amountError.setText("El monto debe ser mayor a 0");
@@ -3560,10 +3740,16 @@ public final class LoansView {
         modalOverlay.show("delete-movement");
     }
 
-    // ── Método para mostrar historial completo de movimientos de préstamo ─────
+    // ── Método para mostrar historial completo de pagos del préstamo ──────────
     private static void showFullLoanHistoryDrawer(
         VBox drawer,
         List<Node> mainSnapshot,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository queryRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        TransactionRepository txRepo,
         LoanService loanService,
         AuthSession session,
         String userUid,
@@ -3573,29 +3759,25 @@ public final class LoansView {
         Runnable refreshAll,
         Runnable[] closeDrawerRef
     ) {
-        if (drawer == null || loanService == null || session == null || userUid == null || loanId == null) return;
+        if (drawer == null || queryRepo == null || userUid == null || loanId == null) return;
 
-        LoanRepository.Loan loan;
-        List<LoanMovementRepository.LoanMovement> allMovements;
+        LoanSummaryProjection summary;
+        List<LoanPaymentProjection> allPayments;
         try {
-            loan = loanService.getLoan(userUid, loanId);
-            if (loan == null) {
+            summary = queryRepo.getSummaryProjection(userUid, loanId);
+            if (summary == null) {
                 drawer.getChildren().setAll(buildLoanHistoryEmptyState(dk, "El préstamo ya no existe"));
                 return;
             }
-            allMovements = loanService.listMovements(userUid, loanId);
-            allMovements.sort((a, b) -> {
-                int cmp = Long.compare(b.occurredAtEpochSec(), a.occurredAtEpochSec());
-                if (cmp != 0) return cmp;
-                return Long.compare(b.createdAtEpochSec(), a.createdAtEpochSec());
-            });
+            logUiSummary(summary, "detailDrawerRefresh");
+            allPayments = new ArrayList<>(queryRepo.getPaymentProjections(userUid, loanId));
+            allPayments.sort((a, b) -> Long.compare(b.occurredAt(), a.occurredAt()));
         } catch (Exception ex) {
             drawer.getChildren().setAll(buildLoanHistoryEmptyState(dk, "No se pudo cargar el historial"));
             return;
         }
 
         String titleColor = dk ? "#E5E7EB" : "#0F172A";
-        String subtitleColor = dk ? "#94A3B8" : "#64748B";
         String dividerColor = dk ? "rgba(255,255,255,0.10)" : "#E2E8F0";
 
         List<Node> snapshot = mainSnapshot == null ? List.of() : new ArrayList<>(mainSnapshot);
@@ -3624,7 +3806,7 @@ public final class LoansView {
                 Timeline reopenMain = new Timeline(new KeyFrame(Duration.millis(310), ev -> {
                     try {
                         if (rootRef != null) {
-                            showLoanDetailDrawer(rootRef, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                            showLoanDetailDrawer(rootRef, loanApplicationService, loanCommandFactory, queryRepo, accountRepo, categoryRepo, txRepo, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
                         }
                     } catch (Exception ignored) {
                     }
@@ -3635,7 +3817,7 @@ public final class LoansView {
             }
         });
 
-        Label historyTitle = new Label("Historial de movimientos");
+        Label historyTitle = new Label("Historial de pagos");
         historyTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
 
         Region headerSpacer = new Region();
@@ -3649,7 +3831,7 @@ public final class LoansView {
         divider.setStyle("-fx-background-color: " + dividerColor + ";");
         divider.setMaxWidth(Double.MAX_VALUE);
 
-        Label loanNameLabel = new Label(loan.counterpartyName());
+        Label loanNameLabel = new Label(summary.counterparty());
         loanNameLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: 700; -fx-text-fill: " + titleColor + ";");
         VBox loanInfoBox = new VBox(4, loanNameLabel);
         loanInfoBox.setPadding(new Insets(12, 0, 0, 0));
@@ -3659,7 +3841,7 @@ public final class LoansView {
 
         final Runnable[] refreshHistoryRef = { null };
         refreshHistoryRef[0] = () -> showFullLoanHistoryDrawer(
-            drawer, snapshot, loanService, session, userUid, loanId, dk, modalOverlay, refreshAll, closeDrawerRef
+            drawer, snapshot, loanApplicationService, loanCommandFactory, queryRepo, accountRepo, categoryRepo, txRepo, loanService, session, userUid, loanId, dk, modalOverlay, refreshAll, closeDrawerRef
         );
 
         // Create reopenDrawer runnable for full history drawer
@@ -3674,7 +3856,7 @@ public final class LoansView {
                 Timeline reopenMain = new Timeline(new KeyFrame(Duration.millis(310), ev -> {
                     try {
                         if (rootRef != null) {
-                            showLoanDetailDrawer(rootRef, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
+                            showLoanDetailDrawer(rootRef, loanApplicationService, loanCommandFactory, queryRepo, accountRepo, categoryRepo, txRepo, loanService, userUid, loanId, dk, session, modalOverlay, refreshAll);
                         }
                     } catch (Exception ignored) {
                     }
@@ -3685,22 +3867,20 @@ public final class LoansView {
             }
         };
 
-        if (allMovements.isEmpty()) {
-            movementsList.getChildren().add(buildLoanHistoryEmptyState(dk, "No hay movimientos registrados"));
+        if (allPayments.isEmpty()) {
+            movementsList.getChildren().add(buildLoanHistoryEmptyState(dk, "No hay pagos registrados"));
         } else {
-            for (LoanMovementRepository.LoanMovement movement : allMovements) {
+            for (LoanPaymentProjection payment : allPayments) {
                 movementsList.getChildren().add(buildLoanHistoryItem(
-                    loanService,
+                    loanApplicationService,
+                    loanCommandFactory,
+                    queryRepo,
                     session,
                     userUid,
                     loanId,
-                    loan,
-                    movement,
+                    payment,
                     dk,
-                    modalOverlay,
                     refreshAll,
-                    refreshHistoryRef[0],
-                    closeDrawerRef,
                     reopenDrawer
                 ));
             }
@@ -3719,5 +3899,299 @@ public final class LoansView {
         content.setFillWidth(true);
 
         drawer.getChildren().add(content);
+    }
+
+    private static void showLoanCreatedConfirmation(LoanSnapshot snapshot) {
+        BigDecimal principal = BigDecimal.valueOf(snapshot.principalCents())
+            .movePointLeft(2)
+            .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal pending = BigDecimal.valueOf(snapshot.pendingCents())
+            .movePointLeft(2)
+            .setScale(2, RoundingMode.HALF_UP);
+        String message = String.format(
+            Locale.getDefault(),
+            "Contraparte: %s%nMonto: %s %s%nPendiente: %s %s",
+            snapshot.counterpartyName(),
+            principal.toPlainString(),
+            snapshot.currency(),
+            pending.toPlainString(),
+            snapshot.currency()
+        );
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Préstamo creado");
+        alert.setHeaderText("Préstamo creado correctamente");
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private static void showLoanPaymentConfirmation(LoanSnapshot snapshot) {
+        BigDecimal totalPaid = BigDecimal.valueOf(snapshot.totalPaidCents())
+            .movePointLeft(2)
+            .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal pending = BigDecimal.valueOf(snapshot.pendingCents())
+            .movePointLeft(2)
+            .setScale(2, RoundingMode.HALF_UP);
+        String message = String.format(
+            Locale.getDefault(),
+            "Contraparte: %s%nTotal abonado: %s %s%nPendiente: %s %s%nEstado: %s",
+            snapshot.counterpartyName(),
+            totalPaid.toPlainString(),
+            snapshot.currency(),
+            pending.toPlainString(),
+            snapshot.currency(),
+            snapshot.status()
+        );
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Pago registrado");
+        alert.setHeaderText("Pago registrado correctamente");
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private static String ensureRepaymentCategory(CategoryRepository categoryRepo, String userUid) throws Exception {
+        String categoryId = "sys_repayment_" + userUid;
+        if (categoryRepo.getById(userUid, categoryId) == null) {
+            categoryRepo.createWithId(userUid, categoryId, "Devoluciones", null);
+        }
+        return categoryId;
+    }
+
+    // Misma categoría de sistema que usa Android (system-loan-{uid}) y el
+    // diálogo legacy de préstamos, para que la transacción financiera del
+    // préstamo converja en ambas plataformas.
+    private static String ensureLoanCategory(CategoryRepository categoryRepo, AuthSession session,
+                                             String userUid) throws Exception {
+        String categoryId = "system-loan-" + userUid;
+        CategoryRepository.Category existing = null;
+        try {
+            existing = categoryRepo.getById(userUid, categoryId);
+        } catch (Exception ignored) {}
+        if (existing == null) {
+            CategoryRepository.Category created =
+                categoryRepo.createWithId(userUid, categoryId, "Préstamos", null);
+            try {
+                FirestoreSyncService sync =
+                    new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                sync.syncCategory(session, created);
+            } catch (Exception ignored) {}
+        }
+        return categoryId;
+    }
+
+    private static void deleteTransactionQuietly(TransactionRepository txRepo, String userUid, String transactionId) {
+        if (transactionId == null) return;
+        try {
+            txRepo.deleteFailedLoanTransaction(userUid, transactionId);
+        } catch (Exception ignored) {
+        }
+    }
+
+    // ── Publicación a Firestore (colección de transporte) ─────────────
+    // Espejo de publishLoanDoc/publishPaymentToFirestore en Android: la
+    // escritura canónica ocurre solo vía LoanApplicationService.process; aquí
+    // únicamente se replica el estado resultante a users/{uid}/loans y
+    // users/{uid}/loanPayments para que Android lo ingiera vía migración.
+    private static void publishLoanState(AuthSession session, LoanSnapshot snapshot,
+                                         Long occurredAtEpochSec, Long createdAtEpochSec) {
+        if (session == null || snapshot == null) return;
+        new Thread(() -> {
+            try {
+                FirestoreSyncService sync =
+                    new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                sync.publishCanonicalLoan(session, snapshot, occurredAtEpochSec, createdAtEpochSec);
+            } catch (Exception e) {
+                System.out.println("[LoansView] publishLoan failed loanId=" + snapshot.loanId()
+                    + " error=" + e.getMessage());
+            }
+        }, "loan-publish").start();
+    }
+
+    private static void publishLoanAdminState(AuthSession session, LoanAdminState state,
+                                              JdbcLoanAdminStateRepository adminRepo) {
+        if (session == null || state == null) return;
+        new Thread(() -> {
+            try {
+                FirestoreSyncService sync =
+                    new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                sync.publishLoanAdminState(session, state);
+                if (adminRepo != null) {
+                    try {
+                        adminRepo.markSynced(state.ownerId(), state.loanId());
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("[LoansView] publishLoanAdminState failed loanId=" + state.loanId()
+                    + " error=" + e.getMessage());
+            }
+        }, "loan-admin-publish").start();
+    }
+
+    // Publica la transacción financiera asociada (creación/corrección/topup)
+    // y el estado canónico del préstamo. Mismo patrón que publishLoanPayment.
+    private static void publishLoanStateWithTransaction(AuthSession session, String userUid,
+                                                        TransactionRepository txRepo, String transactionId,
+                                                        LoanSnapshot snapshot,
+                                                        Long occurredAtEpochSec, Long createdAtEpochSec) {
+        if (session == null || snapshot == null) return;
+        new Thread(() -> {
+            try {
+                FirestoreSyncService sync =
+                    new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                if (transactionId != null && txRepo != null) {
+                    try {
+                        TransactionRepository.TransactionSyncRow t =
+                            txRepo.getForSyncByIdOrNull(userUid, transactionId);
+                        if (t != null) {
+                            sync.syncTransaction(session, t);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoansView] publish loan tx failed id=" + transactionId
+                            + " error=" + e.getMessage());
+                    }
+                }
+                sync.publishCanonicalLoan(session, snapshot, occurredAtEpochSec, createdAtEpochSec);
+            } catch (Exception e) {
+                System.out.println("[LoansView] publishLoan failed loanId=" + snapshot.loanId()
+                    + " error=" + e.getMessage());
+            }
+        }, "loan-publish").start();
+    }
+
+    private static void publishLoanPayment(AuthSession session, String userUid,
+                                           TransactionRepository txRepo, String transactionId,
+                                           LoanMovement event, LoanSnapshot snapshot,
+                                           String accountId, long amountCents, String note) {
+        if (session == null || snapshot == null) return;
+        new Thread(() -> {
+            try {
+                FirestoreSyncService sync =
+                    new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                if (transactionId != null && txRepo != null) {
+                    try {
+                        TransactionRepository.TransactionSyncRow t =
+                            txRepo.getForSyncByIdOrNull(userUid, transactionId);
+                        if (t != null) {
+                            sync.syncTransaction(session, t);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoansView] publish tx failed id=" + transactionId
+                            + " error=" + e.getMessage());
+                    }
+                }
+                if (event != null) {
+                    sync.publishCanonicalLoanPayment(session, event.eventId(), snapshot.loanId(),
+                        accountId, amountCents, event.occurredAt(), transactionId, note,
+                        event.recordedAt());
+                }
+                sync.publishCanonicalLoan(session, snapshot, null, null);
+            } catch (Exception e) {
+                System.out.println("[LoansView] publishLoanPayment failed loanId=" + snapshot.loanId()
+                    + " error=" + e.getMessage());
+            }
+        }, "loan-payment-publish").start();
+    }
+
+    /**
+     * Tras revertir un pago, elimina sus representaciones de transporte para que
+     * ningún dispositivo pueda reconstruirlo por pull ni por replay:
+     * - fila/doc {@code loan_payments}: el doc remoto usa el eventId del
+     *   dispositivo origen, que puede diferir del eventId del journal local, así
+     *   que la fila se localiza por transactionId/firma y además se borra el doc
+     *   remoto por sourceEventId (cubre el caso del dispositivo origen, donde no
+     *   existe fila de transporte local);
+     * - movimiento PAYMENT_* vinculado (local y remoto);
+     * - transacción LOAN_REPAYMENT_* vinculada (local y remota; saldo de cuenta).
+     * Todos los borrados son idempotentes; los fallos remotos se reintentan en
+     * la siguiente sincronización vía el reconciliador de reversiones del
+     * journal.
+     */
+    private static void deleteReversedPaymentArtifacts(AuthSession session, String userUid,
+                                                       LoanPaymentProjection payment,
+                                                       LoanSnapshot snapshot) {
+        if (session == null || payment == null) return;
+        new Thread(() -> {
+            FirestoreSyncService sync = null;
+            try {
+                sync = new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+            } catch (Exception e) {
+                System.out.println("[LoansView] reversal cleanup: sync unavailable " + e.getMessage());
+            }
+            try {
+                SqliteDatabase db = SqliteDatabase.defaultDatabase();
+                LoanPaymentRepository paymentRepo = new LoanPaymentRepository(db);
+                LoanMovementRepository movementRepo = new LoanMovementRepository(db);
+                TransactionRepository txRepo = new TransactionRepository(db);
+                String txId = payment.transactionId();
+
+                try {
+                    LoanPaymentRepository.LoanPayment row = txId != null
+                        ? paymentRepo.getByLinkedTransactionId(userUid, txId)
+                        : null;
+                    if (row == null) {
+                        row = paymentRepo.getBySignature(userUid, payment.loanId(),
+                            payment.accountId(), payment.amountCents(), payment.occurredAt());
+                    }
+                    if (row != null) {
+                        paymentRepo.delete(userUid, row.id());
+                        if (sync != null) {
+                            try {
+                                sync.deleteLoanPayment(session, row.id());
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("[LoansView] reversal cleanup loanPayment failed " + e.getMessage());
+                }
+                if (sync != null) {
+                    try {
+                        sync.deleteLoanPayment(session, payment.sourceEventId());
+                    } catch (Exception ignored) {
+                    }
+                }
+
+                try {
+                    LoanMovementRepository.LoanMovement movement = txId != null
+                        ? movementRepo.getByLinkedTransactionId(userUid, txId)
+                        : null;
+                    if (movement == null) {
+                        movement = movementRepo.getPaymentBySignature(userUid, payment.loanId(),
+                            payment.accountId(), payment.amountCents(), payment.occurredAt());
+                    }
+                    if (movement != null) {
+                        movementRepo.delete(userUid, movement.id());
+                        if (sync != null) {
+                            try {
+                                sync.deleteLoanMovement(session, userUid, payment.loanId(), movement.id());
+                            } catch (Exception ignored) {
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("[LoansView] reversal cleanup movement failed " + e.getMessage());
+                }
+
+                if (txId != null) {
+                    deleteTransactionQuietly(txRepo, userUid, txId);
+                    if (sync != null) {
+                        try {
+                            sync.deleteTransaction(session, txId);
+                        } catch (Exception ignored) {
+                        }
+                    }
+                }
+
+                if (sync != null && snapshot != null) {
+                    try {
+                        sync.publishCanonicalLoan(session, snapshot, null, null);
+                    } catch (Exception e) {
+                        System.out.println("[LoansView] reversal cleanup publishLoan failed " + e.getMessage());
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("[LoansView] deleteReversedPaymentArtifacts failed " + e.getMessage());
+            }
+        }, "loan-payment-delete").start();
     }
 }

@@ -9,6 +9,10 @@ import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionKind;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.sync.FirestoreSyncService;
+import myfinances.application.loan.LoanApplicationService;
+import myfinances.application.loan.LoanCommandFactory;
+import myfinances.domain.loan.projection.LoanProjectionQueryRepository;
+import myfinances.domain.loan.projection.LoanSummaryProjection;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -33,7 +37,6 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Screen;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -54,6 +57,9 @@ public final class DashboardLoansDialog {
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
         TransactionRepository txRepo,
+        LoanApplicationService loanApplicationService,
+        LoanCommandFactory loanCommandFactory,
+        LoanProjectionQueryRepository loanProjectionQueryRepository,
         boolean darkTheme
         ,
         Runnable refreshBalances
@@ -231,14 +237,18 @@ public final class DashboardLoansDialog {
                                 if (draft.isEmpty()) {
                                     return;
                                 }
+                                String txId = null;
                                 try {
                                     LoanPaymentDraft d = draft.get();
-
+                                    LoanSummaryProjection summary = loanProjectionQueryRepository.getSummaryProjection(userUid, l.id());
+                                    if (summary == null) {
+                                        throw new IllegalStateException("Préstamo canónico no encontrado");
+                                    }
                                     String repaymentCategoryId = ensureSystemLoanCategories(userUid, categoryRepo, session).repaymentCategoryId();
                                     String kind = LoanRepository.TYPE_LENT.equals(l.type())
                                         ? TransactionKind.LOAN_REPAYMENT_PRINCIPAL_IN.name()
                                         : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
-                                    String txId = txRepo.create(
+                                    txId = txRepo.create(
                                         userUid,
                                         d.accountId(),
                                         repaymentCategoryId,
@@ -247,37 +257,17 @@ public final class DashboardLoansDialog {
                                         d.occurredAtEpochSec(),
                                         d.note() == null ? (kind + ": " + l.counterpartyName()) : d.note()
                                     );
-
-                                    String paymentId = loanPaymentRepo.create(userUid, l.id(), d.accountId(), d.principalCents(), d.occurredAtEpochSec(), txId, d.note());
-
-                                    long newPaid = loanPaymentRepo.sumPrincipalPaidCents(userUid, l.id());
-                                    long newPending = Math.max(0L, l.principalCents() - newPaid);
-                                    if (newPending <= 0L) {
-                                        loanRepo.update(userUid, l.id(), l.type(), l.counterpartyName(), l.principalCents(), l.currency(), LoanRepository.STATUS_CLOSED, l.notes());
-                                    }
-
-                                    try {
-                                        AppConfig cfg = AppConfig.loadDefault();
-                                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-
-                                        try {
-                                            TransactionRepository.TransactionSyncRow t = txRepo.getForSyncByIdOrNull(userUid, txId);
-                                            if (t != null) {
-                                                sync.syncTransaction(session, t);
-                                            }
-                                        } catch (Exception ignored) {
-                                        }
-
-                                        LoanPaymentRepository.LoanPayment p = loanPaymentRepo.getByIdOrNull(userUid, paymentId);
-                                        if (p != null) {
-                                            sync.syncLoanPayment(session, p);
-                                        }
-                                        LoanRepository.Loan updatedLoan = loanRepo.getByIdOrNull(userUid, l.id());
-                                        if (updatedLoan != null) {
-                                            sync.syncLoan(session, updatedLoan);
-                                        }
-                                    } catch (Exception ignored) {
-                                    }
+                                    var command = loanCommandFactory.registerPayment(
+                                        userUid,
+                                        l.id(),
+                                        summary.journalFingerprint(),
+                                        d.principalCents(),
+                                        d.accountId(),
+                                        txId,
+                                        d.note()
+                                    );
+                                    loanApplicationService.process(command);
+                                    syncTransaction(session, userUid, txId, txRepo);
 
                                     Platform.runLater(() -> {
                                         try {
@@ -291,6 +281,7 @@ public final class DashboardLoansDialog {
                                         }
                                     });
                                 } catch (Exception ex) {
+                                    deleteTransactionQuietly(txRepo, userUid, txId);
                                     error.setText(ex.getMessage() == null ? "No se pudo registrar el pago" : ex.getMessage());
                                     error.setVisible(true);
                                     error.setManaged(true);
@@ -526,10 +517,8 @@ public final class DashboardLoansDialog {
 
         DatePicker date = new DatePicker(LocalDate.now());
 
-        TextField amount = new TextField();
+        MoneyInputField amount = new MoneyInputField();
         amount.setPromptText("Ej: 50000.00");
-
-        UiDialogs.restrictToDecimalAmount(amount);
 
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
@@ -576,13 +565,7 @@ public final class DashboardLoansDialog {
             return Optional.empty();
         }
 
-        long cents;
-        try {
-            BigDecimal v = DashboardFormatters.parseAmount(amount.getText());
-            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
-        } catch (Exception ignored) {
-            return Optional.empty();
-        }
+        long cents = amount.getAmountCentsOrZero();
         if (cents <= 0L || cents > maxPendingCents) {
             return Optional.empty();
         }
@@ -692,10 +675,8 @@ public final class DashboardLoansDialog {
         TextField counterparty = new TextField();
         counterparty.setPromptText("Ej: Juan / Banco X");
 
-        TextField amount = new TextField();
+        MoneyInputField amount = new MoneyInputField();
         amount.setPromptText("Ej: 100000.00");
-
-        UiDialogs.restrictToDecimalAmount(amount);
 
         TextField notes = new TextField();
         notes.setPromptText("Nota (opcional)");
@@ -747,14 +728,8 @@ public final class DashboardLoansDialog {
             return Optional.empty();
         }
 
-        long cents;
-        try {
-            BigDecimal v = DashboardFormatters.parseAmount(amount.getText());
-            cents = v.movePointRight(2).setScale(0, java.math.RoundingMode.HALF_UP).longValueExact();
-        } catch (Exception ignored) {
-            return Optional.empty();
-        }
-        if (cents < 0) {
+        long cents = amount.getAmountCentsOrZero();
+        if (cents <= 0) {
             return Optional.empty();
         }
 
@@ -802,6 +777,32 @@ public final class DashboardLoansDialog {
             AppConfig cfg = AppConfig.loadDefault();
             FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
             sync.syncCategory(session, created);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void syncTransaction(
+        AuthSession session,
+        String userUid,
+        String transactionId,
+        TransactionRepository txRepo
+    ) {
+        new Thread(() -> {
+            try {
+                TransactionRepository.TransactionSyncRow transaction = txRepo.getForSyncByIdOrNull(userUid, transactionId);
+                if (transaction != null) {
+                    AppConfig config = AppConfig.loadDefault();
+                    new FirestoreSyncService(config.firebaseProjectId()).syncTransaction(session, transaction);
+                }
+            } catch (Exception ignored) {
+            }
+        }).start();
+    }
+
+    private static void deleteTransactionQuietly(TransactionRepository txRepo, String userUid, String transactionId) {
+        if (transactionId == null) return;
+        try {
+            txRepo.deleteFailedLoanTransaction(userUid, transactionId);
         } catch (Exception ignored) {
         }
     }

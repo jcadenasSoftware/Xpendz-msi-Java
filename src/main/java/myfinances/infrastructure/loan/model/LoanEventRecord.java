@@ -1,0 +1,33 @@
+package myfinances.infrastructure.loan.model;
+
+public record LoanEventRecord(
+    String eventId,
+    String operationId,
+    String loanId,
+    String ownerId,
+    String eventType,
+    int eventSchemaVersion,
+    Long amountCents,
+    String accountId,
+    String transactionId,
+    String note,
+    long occurredAt,
+    long recordedAt,
+    String actorId,
+    String originId,
+    String payloadLoanType,
+    String payloadCounterpartyName,
+    String payloadCurrency,
+    String payloadDefaultAccountId,
+    String payloadNotes,
+    String payloadLegacyDirection,
+    String payloadLegacySource,
+    String payloadReason,
+    String payloadTargetEventId,
+    boolean metadataCounterpartyPresent,
+    String metadataCounterpartyValue,
+    boolean metadataAccountPresent,
+    String metadataAccountValue,
+    boolean metadataNotesPresent,
+    String metadataNotesValue
+) {}

@@ -5,6 +5,7 @@ import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.TransferRepository;
+import com.myfinaces.service.GoalService;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -69,6 +70,7 @@ public final class DashboardGoalsDialog {
         Runnable refreshBalances
     ) {
         String userUid = session.uid();
+        GoalService goalService = new GoalService(goalRepo, accountRepo, transferRepo);
 
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Metas");
@@ -143,7 +145,7 @@ public final class DashboardGoalsDialog {
             list.getChildren().clear();
 
             try {
-                List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid);
+                List<GoalRepository.Goal> goals = goalService.obtenerMetas(userUid);
                 if (goals.isEmpty()) {
                     Label empty = new Label("Aún no tienes metas. Crea tu primera meta.");
                     empty.getStyleClass().add("text-secondary");
@@ -198,6 +200,11 @@ public final class DashboardGoalsDialog {
                                 sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
                             } catch (Exception ignored) {
                             }
+                            ModernDialogs.success(
+                                "Depósito registrado",
+                                "El depósito a la meta se guardó correctamente.",
+                                () -> darkTheme
+                            );
                             refreshBalances.run();
                             Runnable r = refreshListRef.get();
                             if (r != null) {
@@ -223,6 +230,11 @@ public final class DashboardGoalsDialog {
                                 sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
                             } catch (Exception ignored) {
                             }
+                            ModernDialogs.success(
+                                "Retiro registrado",
+                                "El retiro de la meta se guardó correctamente.",
+                                () -> darkTheme
+                            );
                             refreshBalances.run();
                             Runnable r = refreshListRef.get();
                             if (r != null) {
@@ -234,46 +246,56 @@ public final class DashboardGoalsDialog {
 
                     Button delete = new Button("Eliminar");
                     delete.getStyleClass().add("btn-danger");
-                    boolean canDelete = savedCents == 0L || savedCents >= g.targetCents();
+                    boolean canDelete = savedCents == 0L;
                     delete.setDisable(!canDelete);
                     delete.setOnAction(ev -> {
                         if (!canDelete) {
-                            Alert alert = buildAlert(
-                                AlertType.WARNING,
+                            ModernDialogs.warning(
                                 "No se puede eliminar",
-                                "Primero retira todo el dinero",
-                                "Para eliminar la meta, el saldo guardado debe estar en 0 o la meta debe estar completada.\n\n" +
-                                    "Guardado: " + formatMoney(savedCents, g.currency()),
-                                darkTheme
+                                "Primero retira todo el dinero.\n\nNo puedes eliminar una meta que aún tiene dinero.\n\nGuardado: " + formatMoney(savedCents, g.currency()),
+                                () -> darkTheme
                             );
-                            alert.showAndWait();
                             return;
                         }
-                        Dialog<ButtonType> confirm = new Dialog<>();
-                        confirm.setTitle("Eliminar");
-                        UiDialogs.applyAppTheme(confirm, darkTheme);
-                        confirm.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-                        confirm.setContentText("¿Eliminar la meta '" + g.name() + "'?\n\nNota: la cuenta vinculada no se eliminará automáticamente.");
-                        confirm.showAndWait().ifPresent(btn -> {
-                            if (btn != ButtonType.OK) {
-                                return;
-                            }
+                        boolean hasHistory = goalService.tieneHistorial(userUid, g.accountId());
+                        String title = hasHistory ? "Archivar meta" : "Eliminar meta";
+                        String description = hasHistory
+                            ? "Esta meta tiene historial financiero.\n\nPara conservar la integridad de reportes y estadísticas será archivada y dejará de aparecer entre las metas activas.\n\n¿Deseas continuar?"
+                            : "¿Eliminar la meta '" + g.name() + "'?\n\nEsta acción no se puede deshacer.";
+                        if (!ModernDialogs.confirmDestructive(title, description, () -> darkTheme)) {
+                            return;
+                        }
+                        try {
+                            GoalService.GoalDeletionOutcome outcome = goalService.eliminarMeta(userUid, g.id(), true);
                             try {
-                                goalRepo.delete(userUid, g.id());
-                                try {
-                                    AppConfig cfg = AppConfig.loadDefault();
-                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                if (outcome == GoalService.GoalDeletionOutcome.DELETED) {
                                     sync.deleteGoal(session, g.id());
-                                } catch (Exception ignored) {
-                                }
-                                refreshBalances.run();
-                                Runnable r = refreshListRef.get();
-                                if (r != null) {
-                                    r.run();
+                                    sync.deleteAccount(session, g.accountId());
+                                } else {
+                                    GoalRepository.Goal archivedGoal = goalRepo.getByIdOrNull(userUid, g.id());
+                                    if (archivedGoal != null) {
+                                        sync.syncGoal(session, archivedGoal);
+                                    }
                                 }
                             } catch (Exception ignored) {
                             }
-                        });
+                            if (outcome == GoalService.GoalDeletionOutcome.ARCHIVED) {
+                                ModernDialogs.info(
+                                    "Meta archivada",
+                                    "Esta meta tiene historial financiero. Para conservar la integridad de reportes y estadísticas ha sido archivada y dejará de aparecer entre las metas activas.",
+                                    () -> darkTheme
+                                );
+                            }
+                            refreshBalances.run();
+                            Runnable r = refreshListRef.get();
+                            if (r != null) {
+                                r.run();
+                            }
+                        } catch (Exception ex) {
+                            ex.printStackTrace();
+                        }
                     });
 
                     Region spacer = new Region();
@@ -367,10 +389,8 @@ public final class DashboardGoalsDialog {
         );
         currency.getSelectionModel().select("COP");
 
-        TextField target = new TextField();
+        MoneyInputField target = new MoneyInputField();
         target.setPromptText("Ej: 1000000.00");
-
-        UiDialogs.restrictToDecimalAmount(target);
 
         DatePicker targetDate = new DatePicker(LocalDate.now().plusMonths(1));
 
@@ -451,10 +471,8 @@ public final class DashboardGoalsDialog {
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
         Label balance = new Label("");
         balance.getStyleClass().add("text-secondary");
-        TextField amount = new TextField();
+        MoneyInputField amount = new MoneyInputField();
         amount.setPromptText("Ej: 10000.00");
-
-        UiDialogs.restrictToDecimalAmount(amount);
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
 
@@ -570,10 +588,8 @@ public final class DashboardGoalsDialog {
 
         DatePicker date = new DatePicker(LocalDate.now());
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
-        TextField amount = new TextField();
+        MoneyInputField amount = new MoneyInputField();
         amount.setPromptText("Ej: 10000.00");
-
-        UiDialogs.restrictToDecimalAmount(amount);
         TextField note = new TextField();
         note.setPromptText("Nota (opcional)");
 

@@ -1841,7 +1841,9 @@ public final class SummaryView {
                 if (goalRepo == null) {
                     return;
                 }
-                List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid);
+                List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid).stream()
+                    .filter(g -> GoalRepository.STATUS_OPEN.equals(g.status()))
+                    .toList();
                 if (goals.isEmpty()) {
                     goalsTable.add(new Label("Sin metas"), 0, 0);
                     return;

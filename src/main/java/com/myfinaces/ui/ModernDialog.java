@@ -350,12 +350,25 @@ public final class ModernDialog {
                     for (ButtonType bt : pane.getButtonTypes()) {
                         var node = pane.lookupButton(bt);
                         if (node instanceof Button b) {
+                            b.getStyleClass().removeAll(
+                                "btn-primary",
+                                "btn-secondary",
+                                "btn-danger",
+                                "modern-dialog-primary-btn",
+                                "modern-dialog-secondary-btn"
+                            );
                             if (bt.getButtonData() == ButtonBar.ButtonData.OK_DONE || bt == ButtonType.OK) {
-                                b.getStyleClass().add("btn-primary");
-                                b.setMinWidth(142);
+                                b.getStyleClass().add("modern-dialog-primary-btn");
+                                b.setDefaultButton(true);
+                                b.setCancelButton(false);
+                                b.setMinWidth(168);
+                                b.setPrefWidth(168);
                             } else {
-                                b.getStyleClass().add("btn-secondary");
-                                b.setMinWidth(118);
+                                b.getStyleClass().add("modern-dialog-secondary-btn");
+                                b.setDefaultButton(false);
+                                b.setCancelButton(true);
+                                b.setMinWidth(132);
+                                b.setPrefWidth(132);
                             }
                         }
                     }
@@ -364,9 +377,6 @@ public final class ModernDialog {
 
             pane.getButtonTypes().addListener((ListChangeListener<ButtonType>) change -> styleButtons.run());
             styleButtons.run();
-
-            // Also style on dialog shown to ensure buttons are styled when visible
-            dialog.setOnShown(e -> styleButtons.run());
 
             // Handle button actions
             dialog.setResultConverter(buttonType -> {

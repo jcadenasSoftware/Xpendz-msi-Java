@@ -1,20 +1,32 @@
 package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
+import com.myfinaces.auth.AuthSessionManager;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
+import com.myfinaces.service.GoalService;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.application.Platform;
+import myfinances.application.loan.LoanApplicationService;
+import myfinances.domain.loan.admin.LoanAdminState;
+import myfinances.infrastructure.loan.admin.JdbcLoanAdminStateRepository;
+import myfinances.infrastructure.loan.migration.CanonicalLoanDuplicateReconciler;
+import myfinances.infrastructure.loan.migration.LegacyLoanMigration;
+import myfinances.infrastructure.loan.migration.PhantomLoanTransactionReconciler;
+import myfinances.infrastructure.loan.migration.ReversedLoanPaymentReconciler;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,14 +46,18 @@ public final class DashboardSyncCoordinator {
 
     public static SyncActions setup(
         AuthSession session,
+        AuthSessionManager sessionManager,
         AccountRepository accountRepo,
         GoalRepository goalRepo,
         CategoryRepository categoryRepo,
         LoanRepository loanRepo,
+        JdbcLoanAdminStateRepository loanAdminStateRepository,
         LoanPaymentRepository loanPaymentRepo,
+        LoanMovementRepository loanMovementRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
         BudgetRepository budgetRepo,
+        LoanApplicationService loanApplicationService,
         Runnable refreshBalances,
         AtomicBoolean syncInProgress,
         AtomicLong lastSyncMs,
@@ -50,12 +66,15 @@ public final class DashboardSyncCoordinator {
         Runnable onSyncSuccess,
         Consumer<String> onSyncStatus
     ) {
+        GoalService goalService = new GoalService(goalRepo, accountRepo, transferRepo);
+
         Runnable pullCategories = () -> {
             System.out.println("[Sync] pullCategories start");
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<CategoryRepository.Category> remote = sync.pullCategories(session);
+                List<CategoryRepository.Category> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullCategories(sessionManager.current()));
                 System.out.println("[Sync] pulled categories=" + remote.size());
 
                 Set<String> remoteIds = new HashSet<>();
@@ -123,6 +142,7 @@ public final class DashboardSyncCoordinator {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullCategories failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -139,9 +159,67 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                sync.syncTransactions(session, txRepo);
-                sync.syncTransfers(session, transferRepo);
+                sessionManager.executeWithAuthRetry(() -> {
+                    AuthSession s = sessionManager.current();
+                    sync.syncTransactions(s, txRepo);
+                    sync.syncTransfers(s, transferRepo);
+
+                    List<LoanRepository.Loan> pendingLoans = loanRepo.listPendingForSync(s.uid());
+                    System.out.println("[Sync] loans pending=" + pendingLoans.size());
+                    for (LoanRepository.Loan l : pendingLoans) {
+                        sync.syncLoan(s, l);
+                        try {
+                            loanRepo.markSynced(s.uid(), l.id());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    List<LoanPaymentRepository.LoanPayment> pendingPayments = loanPaymentRepo.listPendingForSync(s.uid());
+                    System.out.println("[Sync] loanPayments pending=" + pendingPayments.size());
+                    for (LoanPaymentRepository.LoanPayment p : pendingPayments) {
+                        sync.syncLoanPayment(s, p);
+                        try {
+                            loanPaymentRepo.markSynced(s.uid(), p.id());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    List<LoanMovementRepository.LoanMovement> pendingMovements = loanMovementRepo.listPendingForSync(s.uid());
+                    System.out.println("[Sync] loanMovements pending=" + pendingMovements.size());
+                    for (LoanMovementRepository.LoanMovement m : pendingMovements) {
+                        sync.syncLoanMovement(s, m);
+                        try {
+                            loanMovementRepo.markSynced(s.uid(), m.id());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    List<LoanAdminState> pendingAdminStates = loanAdminStateRepository.listPendingForSync(s.uid());
+                    System.out.println("[Sync] loanAdminStates pending=" + pendingAdminStates.size());
+                    for (LoanAdminState st : pendingAdminStates) {
+                        sync.publishLoanAdminState(s, st);
+                        try {
+                            loanAdminStateRepository.markSynced(s.uid(), st.loanId());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    // Reversiones del journal: reintenta los borrados remotos de
+                    // pagos/movimientos/transacciones que pudieron fallar offline.
+                    ReversedLoanPaymentReconciler.reconcile(SqliteDatabase.defaultDatabase(), sync, s);
+
+                    // Fantasmas históricos: transacciones materializadas por el
+                    // backfill desde ADJUSTMENT sintéticos previas a Sprint 7J.2.
+                    PhantomLoanTransactionReconciler.reconcile(SqliteDatabase.defaultDatabase(), sync, s);
+
+                    // Duplicados canónicos históricos: materializaciones del
+                    // backfill para eventos cuya transacción legacy ya existía
+                    // sin estar enlazada (reparados por Sprint 7J.5/7J.6).
+                    CanonicalLoanDuplicateReconciler.reconcile(SqliteDatabase.defaultDatabase(), sync, s);
+                    return null;
+                });
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pushPending failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED") || msg.contains("429"))) {
@@ -158,35 +236,55 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<LoanPaymentRepository.LoanPayment> remote = sync.pullLoanPayments(session);
+                List<LoanPaymentRepository.LoanPayment> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullLoanPayments(sessionManager.current()));
                 System.out.println("[Sync] pulled loanPayments=" + remote.size());
+                System.out.println("[Sync] remote loanPayment ids=" + remote.stream().map(LoanPaymentRepository.LoanPayment::id).toList());
 
                 Set<String> remoteIds = new HashSet<>();
                 for (LoanPaymentRepository.LoanPayment p : remote) {
                     remoteIds.add(p.id());
+                    logPaymentPull("PAYMENT_PULL_START", p, "stage=coordinator");
                     if (loanRepo.getByIdOrNull(session.uid(), p.loanId()) == null) {
+                        logPaymentPull("PAYMENT_PULL_REJECTED", p, "stage=coordinator reason=missingLoan");
                         continue;
                     }
                     if (accountRepo.getById(session.uid(), p.accountId()) == null) {
+                        logPaymentPull("PAYMENT_PULL_REJECTED", p, "stage=coordinator reason=missingAccount");
                         continue;
                     }
                     try {
                         loanPaymentRepo.upsertFromRemote(session.uid(), p);
-                    } catch (Exception ignored) {
+                        logPaymentPull("PAYMENT_PULL_ACCEPTED", p, "stage=coordinator reason=upserted");
+                    } catch (Exception e) {
+                        logPaymentPull("PAYMENT_PULL_REJECTED", p, "stage=coordinator reason=upsertFailed error=" + e.getMessage());
                     }
                 }
 
                 List<LoanPaymentRepository.LoanPayment> localAll = loanPaymentRepo.listAllByUser(session.uid());
+                // Filas pendientes de push no aparecen en el snapshot remoto
+                // (REST no tiene cola offline): conservarlas para reintento.
+                Set<String> pendingIds = loanPaymentRepo.listPendingSyncIds(session.uid());
+                System.out.println("[Sync] local loanPayments before reconciliation=" + localAll.size()
+                    + " pendingSync=" + pendingIds.size());
                 for (LoanPaymentRepository.LoanPayment p : localAll) {
-                    if (remoteIds.contains(p.id())) {
+                    if (remoteIds.contains(p.id()) || pendingIds.contains(p.id())) {
                         continue;
                     }
+                    System.out.println("[Sync] deleting local loanPayment missing from remote paymentId=" + p.id()
+                        + " loanId=" + p.loanId()
+                        + " amount=" + p.principalCents()
+                        + " linkedTransactionId=" + p.linkedTransactionId()
+                        + " reason=absentInFirestoreRemoteSnapshot remoteCount=" + remote.size()
+                        + " remoteIds=" + remoteIds);
                     try {
                         loanPaymentRepo.delete(session.uid(), p.id());
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                        System.out.println("[Sync] delete local loanPayment failed paymentId=" + p.id() + " error=" + e.getMessage());
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullLoanPayments failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -198,12 +296,93 @@ public final class DashboardSyncCoordinator {
             }
         };
 
+        Runnable pullLoanMovements = () -> {
+            System.out.println("[Sync] pullLoanMovements start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+
+                // Cobertura: préstamos remotos + préstamos locales (uno borrado
+                // en remoto sigue siendo consultable; su subcolección vuelve
+                // vacía y sus movimientos locales se podan).
+                Set<String> loanIds = new LinkedHashSet<>();
+                for (LoanRepository.Loan l : sessionManager.executeWithAuthRetry(() -> sync.pullLoans(sessionManager.current()))) {
+                    loanIds.add(l.id());
+                }
+                for (LoanRepository.Loan l : loanRepo.listAllByUser(session.uid())) {
+                    loanIds.add(l.id());
+                }
+
+                Set<String> remoteKeys = new HashSet<>();
+                Set<String> failedLoanIds = new HashSet<>();
+                int ingested = 0;
+                for (String loanId : loanIds) {
+                    List<LoanMovementRepository.LoanMovement> remote;
+                    try {
+                        remote = sessionManager.executeWithAuthRetry(
+                            () -> sync.pullLoanMovements(sessionManager.current(), session.uid(), loanId));
+                    } catch (Exception e) {
+                        rethrowIfAuthFailure(e);
+                        System.out.println("[Sync] pull movements failed loanId=" + loanId + ": " + e.getMessage());
+                        failedLoanIds.add(loanId);
+                        continue;
+                    }
+                    for (LoanMovementRepository.LoanMovement m : remote) {
+                        remoteKeys.add(loanId + "/" + m.id());
+                        try {
+                            loanMovementRepo.upsertFromRemote(session.uid(), m);
+                            ingested++;
+                        } catch (Exception e) {
+                            System.out.println("[Sync] upsert remote movement failed id=" + m.id() + " loanId=" + loanId + " error=" + e.getMessage());
+                        }
+                    }
+                }
+                System.out.println("[Sync] pulled loanMovements loans=" + loanIds.size() + " docs=" + remoteKeys.size()
+                    + " ingested=" + ingested + " failedLoans=" + failedLoanIds.size());
+
+                // Poda: una fila local ausente del snapshot remoto fue eliminada
+                // en otro dispositivo (p. ej. pago revertido). Se conservan las
+                // filas pending_sync=1 (push pendiente) y las de préstamos cuya
+                // subcolección no pudo leerse (snapshot parcial).
+                Set<String> pendingIds = loanMovementRepo.listPendingSyncIds(session.uid());
+                int pruned = 0;
+                for (LoanMovementRepository.LoanMovement m : loanMovementRepo.listAllByUser(session.uid())) {
+                    if (failedLoanIds.contains(m.loanId()) || pendingIds.contains(m.id())) {
+                        continue;
+                    }
+                    if (remoteKeys.contains(m.loanId() + "/" + m.id())) {
+                        continue;
+                    }
+                    try {
+                        loanMovementRepo.delete(session.uid(), m.id());
+                        pruned++;
+                    } catch (Exception e) {
+                        System.out.println("[Sync] delete local movement failed id=" + m.id() + " error=" + e.getMessage());
+                    }
+                }
+                if (pruned > 0) {
+                    System.out.println("[Sync] pruned local loanMovements absent in remote=" + pruned);
+                }
+            } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullLoanMovements failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullLoanMovements end");
+            }
+        };
+
         Runnable pullLoans = () -> {
             System.out.println("[Sync] pullLoans start");
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<LoanRepository.Loan> remote = sync.pullLoans(session);
+                List<LoanRepository.Loan> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullLoans(sessionManager.current()));
                 System.out.println("[Sync] pulled loans=" + remote.size());
 
                 Set<String> remoteIds = new HashSet<>();
@@ -211,10 +390,19 @@ public final class DashboardSyncCoordinator {
                     remoteIds.add(l.id());
                     try {
                         loanRepo.upsertFromRemote(session.uid(), l);
+                        loanAdminStateRepository.upsertFromRemote(
+                            session.uid(),
+                            l.id(),
+                            l.archived(),
+                            l.archivedAtEpochSec(),
+                            l.updatedAtEpochSec(),
+                            l.updatedBy()
+                        );
                     } catch (Exception ignored) {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullLoans failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -231,7 +419,8 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<TransferRepository.TransferSyncRow> remote = sync.pullTransfers(session);
+                List<TransferRepository.TransferSyncRow> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullTransfers(sessionManager.current()));
                 System.out.println("[Sync] pulled transfers=" + remote.size());
 
                 int appliedInsert = 0;
@@ -281,7 +470,10 @@ public final class DashboardSyncCoordinator {
                             if (local.amountCents() != tr.amountCents() || local.occurredAtEpochSec() != tr.occurredAtEpochSec() || !java.util.Objects.equals(local.note(), tr.note())) {
                                 staleButDifferent++;
                                 if (local.updatedAtEpochSec() > tr.updatedAtEpochSec()) {
-                                    sync.syncTransfer(session, local);
+                                    sessionManager.executeWithAuthRetry(() -> {
+                                        sync.syncTransfer(sessionManager.current(), local);
+                                        return null;
+                                    });
                                     pushedLocalNewer++;
                                 }
                                 if (printed++ < 8) {
@@ -296,6 +488,7 @@ public final class DashboardSyncCoordinator {
                             }
                         }
                     } catch (Exception ignored) {
+                        rethrowIfAuthFailure(ignored);
                     }
                 }
 
@@ -319,6 +512,7 @@ public final class DashboardSyncCoordinator {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullTransfers failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -335,7 +529,8 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<TransactionRepository.TransactionSyncRow> remote = sync.pullTransactions(session);
+                List<TransactionRepository.TransactionSyncRow> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullTransactions(sessionManager.current()));
                 System.out.println("[Sync] pulled transactions=" + remote.size());
 
                 int appliedInsert = 0;
@@ -350,12 +545,21 @@ public final class DashboardSyncCoordinator {
                 Set<String> remoteIds = new HashSet<>();
                 for (TransactionRepository.TransactionSyncRow t : remote) {
                     remoteIds.add(t.id());
+                    if (isLoanRepaymentKind(t.kind())) {
+                        logTransactionPull("TRANSACTION_PULL_START", t, "stage=coordinator");
+                    }
                     if (accountRepo.getById(session.uid(), t.accountId()) == null) {
                         skippedMissingAccount++;
+                        if (isLoanRepaymentKind(t.kind())) {
+                            logTransactionPull("TRANSACTION_PULL_REJECTED", t, "stage=coordinator reason=missingAccount");
+                        }
                         continue;
                     }
                     if (categoryRepo.getById(session.uid(), t.categoryId()) == null) {
                         skippedMissingCategory++;
+                        if (isLoanRepaymentKind(t.kind())) {
+                            logTransactionPull("TRANSACTION_PULL_REJECTED", t, "stage=coordinator reason=missingCategory");
+                        }
                         continue;
                     }
                     try {
@@ -384,6 +588,9 @@ public final class DashboardSyncCoordinator {
                             appliedUpdate++;
                         } else {
                             skippedStale++;
+                            if (isLoanRepaymentKind(t.kind())) {
+                                logTransactionPull("TRANSACTION_PULL_ACCEPTED", t, "stage=coordinator resolution=staleNoChange");
+                            }
                             if (
                                 local.amountCents() != t.amountCents() ||
                                     local.occurredAtEpochSec() != t.occurredAtEpochSec() ||
@@ -394,7 +601,10 @@ public final class DashboardSyncCoordinator {
                             ) {
                                 staleButDifferent++;
                                 if (local.updatedAtEpochSec() > t.updatedAtEpochSec()) {
-                                    sync.syncTransaction(session, local);
+                                    sessionManager.executeWithAuthRetry(() -> {
+                                        sync.syncTransaction(sessionManager.current(), local);
+                                        return null;
+                                    });
                                     pushedLocalNewer++;
                                 }
                                 if (printed++ < 12) {
@@ -409,8 +619,17 @@ public final class DashboardSyncCoordinator {
                                     );
                                 }
                             }
+                            continue;
                         }
-                    } catch (Exception ignored) {
+                        if (isLoanRepaymentKind(t.kind())) {
+                            String resolution = local == null ? "inserted" : "updated";
+                            logTransactionPull("TRANSACTION_PULL_ACCEPTED", t, "stage=coordinator resolution=" + resolution);
+                        }
+                    } catch (Exception e) {
+                        rethrowIfAuthFailure(e);
+                        if (isLoanRepaymentKind(t.kind())) {
+                            logTransactionPull("TRANSACTION_PULL_REJECTED", t, "stage=coordinator reason=upsertFailed error=" + e.getMessage());
+                        }
                     }
                 }
 
@@ -430,11 +649,14 @@ public final class DashboardSyncCoordinator {
                         continue;
                     }
                     try {
-                        txRepo.delete(session.uid(), id);
+                        // La poda usa el borrado interno: el snapshot remoto es
+                        // autoritativo y la guarda de delete() solo protege la UI.
+                        txRepo.deleteFailedLoanTransaction(session.uid(), id);
                     } catch (Exception ignored) {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullTransactions failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -451,7 +673,8 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<AccountRepository.Account> remote = sync.pullAccounts(session);
+                List<AccountRepository.Account> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullAccounts(sessionManager.current()));
                 System.out.println("[Sync] pulled accounts=" + remote.size());
 
                 Set<String> remoteIds = new HashSet<>();
@@ -471,6 +694,7 @@ public final class DashboardSyncCoordinator {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullAccounts failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -487,7 +711,8 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<GoalRepository.Goal> remote = sync.pullGoals(session);
+                List<GoalRepository.Goal> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullGoals(sessionManager.current()));
                 System.out.println("[Sync] pulled goals=" + remote.size());
 
                 Set<String> remoteIds = new HashSet<>();
@@ -508,11 +733,16 @@ public final class DashboardSyncCoordinator {
                         continue;
                     }
                     try {
-                        goalRepo.delete(session.uid(), g.id());
+                        if (goalService.tieneHistorial(session.uid(), g.accountId())) {
+                            goalRepo.archive(session.uid(), g.id());
+                        } else {
+                            goalRepo.delete(session.uid(), g.id());
+                        }
                     } catch (Exception ignored) {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullGoals failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -529,7 +759,8 @@ public final class DashboardSyncCoordinator {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                List<BudgetRepository.Budget> remote = sync.pullBudgets(session);
+                List<BudgetRepository.Budget> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullBudgets(sessionManager.current()));
                 System.out.println("[Sync] pulled budgets=" + remote.size());
 
                 Set<String> remoteIds = new HashSet<>();
@@ -541,6 +772,7 @@ public final class DashboardSyncCoordinator {
                     }
                 }
             } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
                 String msg = ex.getMessage();
                 System.out.println("[Sync] pullBudgets failed: " + msg);
                 if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
@@ -552,7 +784,18 @@ public final class DashboardSyncCoordinator {
             }
         };
 
-        Runnable runSyncNow = () -> {
+        Runnable ingestCanonicalLoans = () -> {
+            System.out.println("[Sync] ingestCanonicalLoans start");
+            try {
+                LegacyLoanMigration.migrate(SqliteDatabase.defaultDatabase(), loanApplicationService);
+            } catch (Exception ex) {
+                System.out.println("[Sync] ingestCanonicalLoans failed: " + ex.getMessage());
+            } finally {
+                System.out.println("[Sync] ingestCanonicalLoans end");
+            }
+        };
+
+        Consumer<Boolean> startSync = (manual) -> {
             long nowMs = System.currentTimeMillis();
             long blockedUntil = syncBlockedUntilMs.get();
             if (blockedUntil > nowMs) {
@@ -560,30 +803,44 @@ public final class DashboardSyncCoordinator {
                 Platform.runLater(() -> onSyncStatus.accept("Sincronización pausada por cuota (intenta más tarde)"));
                 return;
             }
-            long last = lastSyncMs.get();
-            if (last > 0 && (nowMs - last) < 120_000L) {
-                System.out.println("[Sync] skip: cooldown active");
-                return;
+            if (!manual) {
+                long last = lastSyncMs.get();
+                if (last > 0 && (nowMs - last) < 120_000L) {
+                    System.out.println("[Sync] skip: cooldown active");
+                    return;
+                }
             }
             if (!syncInProgress.compareAndSet(false, true)) {
                 System.out.println("[Sync] skip: sync already in progress");
+                if (manual) {
+                    Platform.runLater(() -> onSyncStatus.accept("Sincronización ya en curso"));
+                }
                 return;
             }
             lastSyncMs.set(nowMs);
             Platform.runLater(onSyncStart);
             new Thread(() -> {
                 System.out.println("[Sync] refresh thread start");
+                boolean[] authFailed = {false};
                 try {
                     try {
+                        sessionManager.validSession();
                         pushPending.run();
                         pullCategories.run();
                         pullAccounts.run();
                         pullGoals.run();
                         pullLoans.run();
                         pullLoanPayments.run();
+                        pullLoanMovements.run();
                         pullTransactions.run();
                         pullTransfers.run();
                         pullBudgets.run();
+                        ingestCanonicalLoans.run();
+                    } catch (AuthSessionManager.SyncAuthenticationException authEx) {
+                        authFailed[0] = true;
+                        System.out.println("[Sync] aborted: authentication could not be renewed: " + authEx.getMessage());
+                        Platform.runLater(() -> onSyncStatus.accept(
+                            "La sesión expiró y no pudo renovarse. Vuelve a iniciar sesión."));
                     } catch (RuntimeException quotaAbort) {
                         System.out.println("[Sync] aborted due to quota (429)");
                         Platform.runLater(() -> onSyncStatus.accept("Sincronización pausada por cuota (intenta más tarde)"));
@@ -592,6 +849,10 @@ public final class DashboardSyncCoordinator {
                     syncInProgress.set(false);
                 }
                 Platform.runLater(() -> {
+                    if (authFailed[0]) {
+                        System.out.println("[Sync] refresh thread end (authentication aborted)");
+                        return;
+                    }
                     try {
                         refreshBalances.run();
                         onSyncSuccess.run();
@@ -602,11 +863,64 @@ public final class DashboardSyncCoordinator {
             }).start();
         };
 
+        Runnable runSyncNow = () -> startSync.accept(false);
+
         Runnable doRefreshNow = () -> {
             System.out.println("[Sync] manual refresh triggered");
-            runSyncNow.run();
+            startSync.accept(true);
         };
 
         return new SyncActions(runSyncNow, doRefreshNow);
+    }
+
+    private static boolean isLoanRepaymentKind(String kind) {
+        if (kind == null) {
+            return false;
+        }
+        String normalized = kind.trim().toUpperCase();
+        return "LOAN_REPAYMENT_PRINCIPAL_IN".equals(normalized)
+            || "LOAN_REPAYMENT_PRINCIPAL_OUT".equals(normalized);
+    }
+
+    private static void logPaymentPull(String label, LoanPaymentRepository.LoanPayment payment, String extras) {
+        System.out.println(
+            "[LoanPaymentTrace] " + label
+                + " loanId=" + valueOrDash(payment.loanId())
+                + " paymentId=" + valueOrDash(payment.id())
+                + " transactionId=" + valueOrDash(payment.linkedTransactionId())
+                + " operationId=- eventId=" + valueOrDash(payment.id())
+                + " updatedAt=" + payment.updatedAtEpochSec()
+                + " updatedBy=" + valueOrDash(payment.updatedBy())
+                + " accountId=" + valueOrDash(payment.accountId())
+                + " principalCents=" + payment.principalCents()
+                + " occurredAt=" + payment.occurredAtEpochSec()
+                + (extras == null || extras.isBlank() ? "" : " " + extras)
+        );
+    }
+
+    private static void logTransactionPull(String label, TransactionRepository.TransactionSyncRow transaction, String extras) {
+        System.out.println(
+            "[LoanPaymentTrace] " + label
+                + " loanId=- paymentId=- transactionId=" + valueOrDash(transaction.id())
+                + " operationId=- eventId=-"
+                + " updatedAt=" + transaction.updatedAtEpochSec()
+                + " updatedBy=-"
+                + " accountId=" + valueOrDash(transaction.accountId())
+                + " categoryId=" + valueOrDash(transaction.categoryId())
+                + " kind=" + valueOrDash(transaction.kind())
+                + " amountCents=" + transaction.amountCents()
+                + " occurredAt=" + transaction.occurredAtEpochSec()
+                + (extras == null || extras.isBlank() ? "" : " " + extras)
+        );
+    }
+
+    private static String valueOrDash(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private static void rethrowIfAuthFailure(Exception ex) {
+        if (ex instanceof AuthSessionManager.SyncAuthenticationException authEx) {
+            throw authEx;
+        }
     }
 }

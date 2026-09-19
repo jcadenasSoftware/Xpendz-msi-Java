@@ -255,26 +255,23 @@ public final class DashboardTransactionsDialog {
         newTx.getStyleClass().add("btn-primary");
         newTx.getStyleClass().add("tx-new-button");
         newTx.setOnAction(e -> {
-            Optional<NewTransaction> t = showCreateTransactionDialog(userUid, accountRepo, categoryRepo, darkTheme.getAsBoolean());
-            if (t.isEmpty()) {
-                return;
-            }
-            try {
-                NewTransaction tx = t.get();
-                String txId = txRepo.create(userUid, tx.accountId(), tx.categoryId(), tx.kind(), tx.amountCents(), tx.occurredAtEpochSec(), tx.note());
-                try {
-                    AppConfig cfg = AppConfig.loadDefault();
-                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                    sync.syncTransaction(session, txRepo.getForSyncById(userUid, txId));
-                } catch (Exception ignored) {
-                }
-                refreshBalances.run();
-                Runnable refreshTx = refreshTxRef.get();
-                if (refreshTx != null) {
-                    refreshTx.run();
-                }
-            } catch (Exception ignored) {
-            }
+            openCreateTransactionDialog(
+                session,
+                txRepo,
+                accountRepo,
+                categoryRepo,
+                darkTheme.getAsBoolean(),
+                () -> {
+                    refreshBalances.run();
+                    Runnable refreshTx = refreshTxRef.get();
+                    if (refreshTx != null) {
+                        refreshTx.run();
+                    }
+                },
+                null,
+                null,
+                null
+            );
         });
 
         Label title = new Label("Transacciones");
@@ -721,7 +718,13 @@ public final class DashboardTransactionsDialog {
                 VBox rightBox = new VBox(2, amount, time);
                 rightBox.setAlignment(Pos.CENTER_RIGHT);
 
+                boolean loanProtected = LoanTransactionPolicy.isLoanKind(t.kind());
+
                 Runnable doEdit = () -> {
+                    if (loanProtected) {
+                        ModernDialogs.warning("Transacción bloqueada", LoanTransactionPolicy.protectedMessage(), () -> darkTheme);
+                        return;
+                    }
                     Optional<EditTransactionResult> updated = showEditTransactionDialog(
                         t,
                         userUid,
@@ -761,6 +764,10 @@ public final class DashboardTransactionsDialog {
                 };
 
                 Runnable doDelete = () -> {
+                    if (loanProtected) {
+                        ModernDialogs.warning("Transacción bloqueada", LoanTransactionPolicy.protectedMessage(), () -> darkTheme);
+                        return;
+                    }
                     if (ModernDialogs.confirmDelete("esta transacción", () -> darkTheme)) {
                         try {
                             txRepo.delete(userUid, t.id());
@@ -781,7 +788,7 @@ public final class DashboardTransactionsDialog {
                 edit.setOnAction(ev -> doEdit.run());
                 MenuItem del = new MenuItem("Eliminar");
                 del.setOnAction(ev -> doDelete.run());
-                ContextMenu menu = new ContextMenu(edit, del);
+                ContextMenu menu = loanProtected ? new ContextMenu() : new ContextMenu(edit, del);
 
                 Button more = new Button();
                 more.getStyleClass().add("tx-item-more");
@@ -789,19 +796,29 @@ public final class DashboardTransactionsDialog {
                 dots.getStyleClass().add("tx-item-more-icon");
                 more.setGraphic(dots);
                 more.setOpacity(0);
-                more.setOnAction(ev -> menu.show(more, javafx.geometry.Side.BOTTOM, 0, 0));
+                more.setOnAction(ev -> {
+                    if (!loanProtected) {
+                        menu.show(more, javafx.geometry.Side.BOTTOM, 0, 0);
+                    }
+                });
 
                 HBox row = new HBox(12, iconBubble, txText, rightBox, more);
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.getStyleClass().add("tx-item");
-                row.setOnMouseEntered(ev -> more.setOpacity(1));
+                more.setVisible(!loanProtected);
+                more.setManaged(!loanProtected);
+                row.setOnMouseEntered(ev -> more.setOpacity(loanProtected ? 0 : 1));
                 row.setOnMouseExited(ev -> more.setOpacity(0));
                 row.setOnMouseClicked(ev -> {
                     if (ev.getClickCount() >= 2) {
                         doEdit.run();
                     }
                 });
-                row.setOnContextMenuRequested(ev -> menu.show(row, ev.getScreenX(), ev.getScreenY()));
+                row.setOnContextMenuRequested(ev -> {
+                    if (!loanProtected) {
+                        menu.show(row, ev.getScreenX(), ev.getScreenY());
+                    }
+                });
                 txBox.getChildren().add(row);
             }
         } catch (Exception ex) {
@@ -853,11 +870,70 @@ public final class DashboardTransactionsDialog {
         return toEpochSecondKeepingTime(date, LocalTime.now());
     }
 
+    public static void openCreateTransactionDialog(
+        AuthSession session,
+        TransactionRepository txRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        boolean darkTheme,
+        Runnable afterSave,
+        String initialAccountId,
+        String initialKind,
+        Long initialAmountCents
+    ) {
+        Optional<NewTransaction> t = showCreateTransactionDialog(
+            session.uid(),
+            accountRepo,
+            categoryRepo,
+            darkTheme,
+            initialAccountId,
+            initialKind,
+            initialAmountCents
+        );
+        if (t.isEmpty()) {
+            return;
+        }
+
+        try {
+            NewTransaction tx = t.get();
+            String txId = txRepo.create(session.uid(), tx.accountId(), tx.categoryId(), tx.kind(), tx.amountCents(), tx.occurredAtEpochSec(), tx.note());
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                sync.syncTransaction(session, txRepo.getForSyncById(session.uid(), txId));
+            } catch (Exception ignored) {
+            }
+            ModernDialogs.success(
+                "Transacción registrada",
+                "La transacción se guardó correctamente.",
+                () -> darkTheme
+            );
+            if (afterSave != null) {
+                afterSave.run();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    public static void openCreateTransactionDialog(
+        AuthSession session,
+        TransactionRepository txRepo,
+        AccountRepository accountRepo,
+        CategoryRepository categoryRepo,
+        boolean darkTheme,
+        Runnable afterSave
+    ) {
+        openCreateTransactionDialog(session, txRepo, accountRepo, categoryRepo, darkTheme, afterSave, null, null, null);
+    }
+
     private static Optional<NewTransaction> showCreateTransactionDialog(
         String userUid,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo,
-        boolean darkTheme
+        boolean darkTheme,
+        String initialAccountId,
+        String initialKind,
+        Long initialAmountCents
     ) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Nueva transacción");
@@ -946,14 +1022,15 @@ public final class DashboardTransactionsDialog {
         Label currencySymbol = new Label("$");
         currencySymbol.getStyleClass().add("currency-symbol");
 
-        TextField amountField = new TextField("0.00");
+        MoneyInputField amountField = new MoneyInputField();
         amountField.getStyleClass().add("amount-field");
         amountField.setAlignment(Pos.CENTER_LEFT);
         amountField.setMaxWidth(Double.MAX_VALUE);
         amountField.setPromptText("0.00");
+        if (initialAmountCents != null) {
+            amountField.setAmountCents(initialAmountCents);
+        }
         HBox.setHgrow(amountField, Priority.ALWAYS);
-
-        UiDialogs.restrictToDecimalAmount(amountField);
 
         amountRow.getChildren().addAll(currencySymbol, amountField);
         amountContainer.getChildren().add(amountRow);
@@ -1084,7 +1161,8 @@ public final class DashboardTransactionsDialog {
         dialog.getDialogPane().setContent(root);
 
         // Lógica de datos
-        java.util.concurrent.atomic.AtomicReference<String> currentKind = new java.util.concurrent.atomic.AtomicReference<>("EXPENSE");
+        String normalizedInitialKind = "INCOME".equalsIgnoreCase(initialKind) ? "INCOME" : "EXPENSE";
+        java.util.concurrent.atomic.AtomicReference<String> currentKind = new java.util.concurrent.atomic.AtomicReference<>(normalizedInitialKind);
         
         // Balance refresh
         Runnable refreshBalance = () -> {
@@ -1141,7 +1219,15 @@ public final class DashboardTransactionsDialog {
                 Comparator.comparing((AccountRepository.Account a) -> a == null ? "" : a.name(), String.CASE_INSENSITIVE_ORDER)
             );
             account.getItems().addAll(accounts);
-            if (!account.getItems().isEmpty()) {
+            if (initialAccountId != null && !initialAccountId.isBlank()) {
+                accounts.stream()
+                    .filter(a -> a != null && initialAccountId.equals(a.id()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                        account.getSelectionModel()::select,
+                        account.getSelectionModel()::selectFirst
+                    );
+            } else if (!account.getItems().isEmpty()) {
                 account.getSelectionModel().selectFirst();
             }
         } catch (Exception ignored) {
@@ -1249,6 +1335,12 @@ public final class DashboardTransactionsDialog {
             refreshRootCatsByKind.run();
             refreshSubcats.run();
         });
+
+        if ("INCOME".equalsIgnoreCase(normalizedInitialKind)) {
+            kindToggle.selectToggle(incomeBtn);
+        } else {
+            kindToggle.selectToggle(expenseBtn);
+        }
 
         account.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> refreshBalance.run());
 
@@ -1419,6 +1511,11 @@ public final class DashboardTransactionsDialog {
         CategoryRepository categoryRepo,
         boolean darkTheme
     ) {
+        if (LoanTransactionPolicy.isLoanKind(existing.kind())) {
+            ModernDialogs.warning("Transacción bloqueada", LoanTransactionPolicy.protectedMessage(), () -> darkTheme);
+            return Optional.empty();
+        }
+
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Editar transacción");
         ButtonType saveBtnType = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
@@ -1521,14 +1618,13 @@ public final class DashboardTransactionsDialog {
         Label currencySymbol = new Label("$");
         currencySymbol.getStyleClass().add("currency-symbol");
 
-        TextField amountField = new TextField(BigDecimal.valueOf(existing.amountCents(), 2).toPlainString());
+        MoneyInputField amountField = new MoneyInputField();
         amountField.getStyleClass().add("amount-field");
         amountField.setAlignment(Pos.CENTER_LEFT);
         amountField.setMaxWidth(Double.MAX_VALUE);
         amountField.setPromptText("0.00");
+        amountField.setAmountCents(existing.amountCents());
         HBox.setHgrow(amountField, Priority.ALWAYS);
-
-        UiDialogs.restrictToDecimalAmount(amountField);
 
         amountRow.getChildren().addAll(currencySymbol, amountField);
         amountContainer.getChildren().add(amountRow);

@@ -258,6 +258,11 @@ public final class DashboardTransfersDialog {
                     sync.syncTransfer(session, transferRepo.getForSyncById(userUid, transferId));
                 } catch (Exception ignored) {
                 }
+                ModernDialogs.success(
+                    "Transferencia registrada",
+                    "La transferencia se guardó correctamente.",
+                    () -> darkTheme
+                );
                 refreshBalances.run();
                 refresh.run();
             } catch (Exception ignored) {
@@ -540,7 +545,7 @@ public final class DashboardTransfersDialog {
 
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
-        TextField amount = new TextField();
+        MoneyInputField amount = new MoneyInputField();
         amount.setPromptText("Ej: 10000.00");
         amount.setPrefWidth(340);
         TextField note = new TextField();
@@ -833,7 +838,8 @@ public final class DashboardTransfersDialog {
         });
         ChoiceBox<AccountRepository.Account> from = new ChoiceBox<>();
         ChoiceBox<AccountRepository.Account> to = new ChoiceBox<>();
-        TextField amount = new TextField(new java.math.BigDecimal(existing.amountCents()).movePointLeft(2).toPlainString());
+        MoneyInputField amount = new MoneyInputField();
+        amount.setAmountCents(existing.amountCents());
         amount.setPrefWidth(340);
         TextField note = new TextField(existing.note() == null ? "" : existing.note());
         note.setPrefWidth(340);

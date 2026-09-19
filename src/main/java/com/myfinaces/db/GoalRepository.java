@@ -203,6 +203,25 @@ public final class GoalRepository {
         }
     }
 
+    public void archive(String userUid, String goalId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(goalId, "goalId");
+
+        long now = Instant.now().getEpochSecond();
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "UPDATE goals SET status = ?, updated_at_epoch_sec = ? WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, STATUS_CLOSED);
+            ps.setLong(2, now);
+            ps.setString(3, userUid);
+            ps.setString(4, goalId);
+            int updated = ps.executeUpdate();
+            if (updated == 0) {
+                throw new IllegalArgumentException("goal");
+            }
+        }
+    }
+
     public void upsertFromRemote(String userUid, Goal remote) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(remote, "remote");

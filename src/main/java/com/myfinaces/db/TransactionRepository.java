@@ -168,6 +168,30 @@ public final class TransactionRepository {
         }
 
         String id = UUID.randomUUID().toString();
+        createWithId(id, userUid, accountId, categoryId, kind, amountCents, occurredAtEpochSec, note);
+        return id;
+    }
+
+    public String createWithId(
+        String id,
+        String userUid,
+        String accountId,
+        String categoryId,
+        String kind,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) throws SQLException {
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(accountId, "accountId");
+        Objects.requireNonNull(categoryId, "categoryId");
+        Objects.requireNonNull(kind, "kind");
+
+        if (amountCents < 0) {
+            throw new IllegalArgumentException("amountCents");
+        }
+
         long now = Instant.now().getEpochSecond();
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
@@ -508,12 +532,15 @@ public final class TransactionRepository {
         try (Connection c = db.openConnection()) {
             long existingUpdatedAt = 0L;
             try (PreparedStatement ps = c.prepareStatement(
-                "SELECT updated_at_epoch_sec FROM transactions WHERE user_uid = ? AND id = ?"
+                "SELECT kind, updated_at_epoch_sec FROM transactions WHERE user_uid = ? AND id = ?"
             )) {
                 ps.setString(1, userUid);
                 ps.setString(2, transactionId);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
+                        if (isLoanRepaymentKind(rs.getString("kind"))) {
+                            throw new IllegalArgumentException("Los pagos de préstamos deben modificarse desde Préstamos");
+                        }
                         existingUpdatedAt = rs.getLong("updated_at_epoch_sec");
                     }
                 }
@@ -603,7 +630,27 @@ public final class TransactionRepository {
     public void delete(String userUid, String transactionId) throws SQLException {
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(transactionId, "transactionId");
+        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+            "SELECT kind FROM transactions WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, transactionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && isLoanRepaymentKind(rs.getString("kind"))) {
+                    throw new IllegalArgumentException("Los pagos de préstamos deben eliminarse desde Préstamos");
+                }
+            }
+        }
+        deleteDirect(userUid, transactionId);
+    }
 
+    public void deleteFailedLoanTransaction(String userUid, String transactionId) throws SQLException {
+        Objects.requireNonNull(userUid, "userUid");
+        Objects.requireNonNull(transactionId, "transactionId");
+        deleteDirect(userUid, transactionId);
+    }
+
+    private void deleteDirect(String userUid, String transactionId) throws SQLException {
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
             "DELETE FROM transactions WHERE user_uid = ? AND id = ?"
         )) {
@@ -611,6 +658,11 @@ public final class TransactionRepository {
             ps.setString(2, transactionId);
             ps.executeUpdate();
         }
+    }
+
+    private static boolean isLoanRepaymentKind(String kind) {
+        return "LOAN_REPAYMENT_PRINCIPAL_IN".equals(kind)
+            || "LOAN_REPAYMENT_PRINCIPAL_OUT".equals(kind);
     }
 
     public List<MonthlyCategoryTotal> listMonthlyTotalsByRootCategory(

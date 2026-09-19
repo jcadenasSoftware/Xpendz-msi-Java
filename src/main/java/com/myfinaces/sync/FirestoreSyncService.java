@@ -12,6 +12,8 @@ import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 
+import myfinances.domain.loan.snapshot.LoanSnapshot;
+
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -259,6 +261,7 @@ public final class FirestoreSyncService {
 
             Object fieldsObj = doc.get("fields");
             if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                logPaymentPullRaw("PAYMENT_PULL_REJECTED", id, null, null, null, null, null, "stage=parse reason=missingFields");
                 continue;
             }
 
@@ -266,25 +269,30 @@ public final class FirestoreSyncService {
             String accountId = readStringField(fields, "accountId");
             Long principalCents = readLongField(fields, "principalCents");
             Long occurredAt = readLongField(fields, "occurredAtEpochSec");
-
-            if (loanId == null || loanId.isBlank()) {
-                continue;
-            }
-            if (accountId == null || accountId.isBlank()) {
-                continue;
-            }
-            if (principalCents == null) {
-                continue;
-            }
-            if (occurredAt == null) {
-                continue;
-            }
-
             String linkedTransactionId = readStringField(fields, "linkedTransactionId");
             String note = readStringField(fields, "note");
             Long createdAt = readLongField(fields, "createdAtEpochSec");
             Long updatedAt = readLongField(fields, "updatedAtEpochSec");
             String updatedBy = readStringField(fields, "updatedBy");
+
+            logPaymentPullRaw("PAYMENT_PULL_START", id, loanId, linkedTransactionId, updatedAt, updatedBy, accountId, "stage=parse");
+
+            if (loanId == null || loanId.isBlank()) {
+                logPaymentPullRaw("PAYMENT_PULL_REJECTED", id, loanId, linkedTransactionId, updatedAt, updatedBy, accountId, "stage=parse reason=missingLoanId");
+                continue;
+            }
+            if (accountId == null || accountId.isBlank()) {
+                logPaymentPullRaw("PAYMENT_PULL_REJECTED", id, loanId, linkedTransactionId, updatedAt, updatedBy, accountId, "stage=parse reason=missingAccountId");
+                continue;
+            }
+            if (principalCents == null) {
+                logPaymentPullRaw("PAYMENT_PULL_REJECTED", id, loanId, linkedTransactionId, updatedAt, updatedBy, accountId, "stage=parse reason=missingPrincipalCents");
+                continue;
+            }
+            if (occurredAt == null) {
+                logPaymentPullRaw("PAYMENT_PULL_REJECTED", id, loanId, linkedTransactionId, updatedAt, updatedBy, accountId, "stage=parse reason=missingOccurredAt");
+                continue;
+            }
 
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
@@ -316,6 +324,93 @@ public final class FirestoreSyncService {
         List<LoanPaymentRepository.LoanPayment> out = new ArrayList<>();
         for (String body : pages) {
             out.addAll(parseLoanPaymentsList(session.uid(), body));
+        }
+        return out;
+    }
+
+    private static void logPaymentPullRaw(
+        String label,
+        String paymentId,
+        String loanId,
+        String transactionId,
+        Long updatedAt,
+        String updatedBy,
+        String accountId,
+        String extras
+    ) {
+        System.out.println(
+            "[LoanPaymentTrace] " + label
+                + " loanId=" + valueOrDash(loanId)
+                + " paymentId=" + valueOrDash(paymentId)
+                + " transactionId=" + valueOrDash(transactionId)
+                + " operationId=- eventId=" + valueOrDash(paymentId)
+                + " updatedAt=" + (updatedAt == null ? "-" : updatedAt)
+                + " updatedBy=" + valueOrDash(updatedBy)
+                + " accountId=" + valueOrDash(accountId)
+                + (extras == null || extras.isBlank() ? "" : " " + extras)
+        );
+    }
+
+    /**
+     * Pull completo de {@code loans/{loanId}/movements}: devuelve registros
+     * equivalentes a {@code loan_movements} para ingestión local y para la
+     * reconciliación de reversiones.
+     */
+    @SuppressWarnings("unchecked")
+    public List<LoanMovementRepository.LoanMovement> pullLoanMovements(AuthSession session, String userUid, String loanId) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(userUid)
+            + "/loans/" + urlEncode(loanId) + "/movements";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        long now = Instant.now().getEpochSecond();
+        List<LoanMovementRepository.LoanMovement> out = new ArrayList<>();
+        for (String body : pages) {
+            Map<String, Object> root = MAPPER.readValue(body, Map.class);
+            Object docsObj = root.get("documents");
+            if (!(docsObj instanceof List<?> docs)) {
+                continue;
+            }
+            for (Object d : docs) {
+                if (!(d instanceof Map<?, ?> doc)) {
+                    continue;
+                }
+                Object nameObj = doc.get("name");
+                if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                    continue;
+                }
+                String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+                Object fieldsObj = doc.get("fields");
+                if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                    continue;
+                }
+                String movementType = readStringField(fields, "movementType");
+                if (movementType == null || movementType.isBlank()) {
+                    continue;
+                }
+                Long amountCents = readLongField(fields, "amountCents");
+                Long occurredAt = readLongField(fields, "occurredAtEpochSec");
+                if (amountCents == null || occurredAt == null) {
+                    continue;
+                }
+                Long createdAt = readLongField(fields, "createdAtEpochSec");
+                Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+                long cAt = createdAt == null ? now : createdAt;
+                out.add(new LoanMovementRepository.LoanMovement(
+                    id,
+                    loanId,
+                    userUid,
+                    movementType,
+                    amountCents,
+                    readStringField(fields, "accountId"),
+                    readStringField(fields, "linkedTransactionId"),
+                    readStringField(fields, "note"),
+                    occurredAt,
+                    cAt,
+                    updatedAt == null ? cAt : updatedAt,
+                    readStringField(fields, "updatedBy")
+                ));
+            }
         }
         return out;
     }
@@ -353,6 +448,8 @@ public final class FirestoreSyncService {
             String status = readStringField(fields, "status");
             String notes = readStringField(fields, "notes");
             Long occurredAt = readLongField(fields, "occurredAtEpochSec");
+            Boolean archived = readBooleanField(fields, "archived");
+            Long archivedAt = readLongField(fields, "archivedAtEpochSec");
 
             if (type == null || type.isBlank()) {
                 continue;
@@ -377,6 +474,8 @@ public final class FirestoreSyncService {
             long cAt = createdAt == null ? now : createdAt;
             long uAt = updatedAt == null ? cAt : updatedAt;
             long occ = occurredAt == null ? cAt : occurredAt;
+            boolean isArchived = archived != null && archived;
+            Long archivedAtEpochSec = isArchived ? (archivedAt == null ? uAt : archivedAt) : null;
 
             out.add(new LoanRepository.Loan(
                 id,
@@ -391,7 +490,9 @@ public final class FirestoreSyncService {
                 occ,
                 cAt,
                 uAt,
-                updatedBy
+                updatedBy,
+                isArchived,
+                archivedAtEpochSec
             ));
         }
 
@@ -640,11 +741,139 @@ public final class FirestoreSyncService {
     }
 
     public void syncLoanPayment(AuthSession session, LoanPaymentRepository.LoanPayment payment) throws Exception {
+        if (payment == null || payment.id() == null) return;
+        System.out.println("[FirestoreSync] syncLoanPayment start id=" + payment.id()
+            + " loanId=" + payment.loanId()
+            + " transactionId=" + payment.linkedTransactionId()
+            + " amount=" + payment.principalCents());
+
         upsertLoanPayment(session, payment);
+
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loanPayments/" + urlEncode(payment.id());
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .GET()
+            .build();
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore verify loanPayment failed (" + resp.statusCode() + "): " + resp.body());
+        }
+        System.out.println("[FirestoreSync] syncLoanPayment verified id=" + payment.id()
+            + " loanId=" + payment.loanId()
+            + " amount=" + payment.principalCents()
+            + " body=" + resp.body());
     }
 
     public void syncLoan(AuthSession session, LoanRepository.Loan loan) throws Exception {
         upsertLoan(session, loan);
+    }
+
+    /**
+     * Publica el estado canónico del préstamo (LoanSnapshot) en la colección de
+     * transporte users/{uid}/loans, con el mismo contrato que
+     * LoanRepository.publishLoanToFirestore en Android. occurredAtEpochSec y
+     * createdAtEpochSec solo se envían en creación; en actualizaciones se omiten
+     * para que el merge de Firestore preserve los valores originales.
+     */
+    public void publishCanonicalLoan(AuthSession session, LoanSnapshot snapshot,
+            Long occurredAtEpochSec, Long createdAtEpochSec) throws Exception {
+        if (snapshot == null || snapshot.loanId() == null) return;
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loans/" + urlEncode(snapshot.loanId());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(snapshot.loanId()));
+        fields.put("userUid", stringField(snapshot.ownerId()));
+        fields.put("type", stringField(snapshot.loanType().name()));
+        fields.put("counterpartyName", stringField(snapshot.counterpartyName()));
+        if (snapshot.defaultAccountId() != null && !snapshot.defaultAccountId().isBlank()) {
+            fields.put("accountId", stringField(snapshot.defaultAccountId()));
+        }
+        fields.put("principalCents", intField(snapshot.principalCents()));
+        fields.put("currency", stringField(snapshot.currency()));
+        fields.put("status", stringField(snapshot.status().name()));
+        if (snapshot.notes() != null) {
+            fields.put("notes", stringField(snapshot.notes()));
+        }
+        if (occurredAtEpochSec != null) {
+            fields.put("occurredAtEpochSec", intField(occurredAtEpochSec));
+        }
+        if (createdAtEpochSec != null) {
+            fields.put("createdAtEpochSec", intField(createdAtEpochSec));
+        }
+        fields.put("updatedAtEpochSec", intField(Instant.now().getEpochSecond()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        // updateMask obligatorio: un PATCH sin máscara reemplaza el documento
+        // entero y borraría los campos administrativos (archived, archivedAtEpochSec).
+        List<String> mask = new ArrayList<>(fields.keySet());
+        if (!fields.containsKey("accountId")) mask.add("accountId");
+        if (!fields.containsKey("notes")) mask.add("notes");
+        patchDoc(session, url, fields, "canonicalLoan", mask);
+    }
+
+    public void publishLoanAdminState(AuthSession session, myfinances.domain.loan.admin.LoanAdminState state) throws Exception {
+        if (state == null || state.loanId() == null) return;
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loans/" + urlEncode(state.loanId());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(state.loanId()));
+        fields.put("userUid", stringField(state.ownerId()));
+        fields.put("archived", booleanField(state.archived()));
+        if (state.archivedAtEpochSec() != null) {
+            fields.put("archivedAtEpochSec", intField(state.archivedAtEpochSec()));
+        } else {
+            fields.put("archivedAtEpochSec", nullField());
+        }
+        fields.put("updatedAtEpochSec", intField(state.updatedAtEpochSec()));
+        if (state.updatedBy() == null || state.updatedBy().isBlank()) {
+            fields.put("updatedBy", nullField());
+        } else {
+            fields.put("updatedBy", stringField(state.updatedBy()));
+        }
+
+        // updateMask obligatorio: un PATCH sin máscara reemplaza el documento
+        // entero y borraría los campos canónicos del préstamo.
+        patchDoc(session, url, fields, "loanAdminState",
+            List.of("id", "userUid", "archived", "archivedAtEpochSec", "updatedAtEpochSec", "updatedBy"));
+    }
+
+    /**
+     * Publica un pago canónico en users/{uid}/loanPayments usando el eventId del
+     * journal como id de documento, mismo contrato que
+     * LoanPaymentRepository.publishPaymentToFirestore en Android.
+     */
+    public void publishCanonicalLoanPayment(AuthSession session, String paymentId, String loanId,
+            String accountId, long principalCents, long occurredAtEpochSec,
+            String linkedTransactionId, String note, long createdAtEpochSec) throws Exception {
+        if (paymentId == null || paymentId.isBlank()) return;
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/loanPayments/" + urlEncode(paymentId);
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(paymentId));
+        fields.put("userUid", stringField(session.uid()));
+        fields.put("loanId", stringField(loanId));
+        fields.put("accountId", stringField(accountId));
+        fields.put("principalCents", intField(principalCents));
+        fields.put("occurredAtEpochSec", intField(occurredAtEpochSec));
+        fields.put("createdAtEpochSec", intField(createdAtEpochSec));
+        if (linkedTransactionId != null && !linkedTransactionId.isBlank()) {
+            fields.put("linkedTransactionId", stringField(linkedTransactionId));
+        }
+        if (note != null && !note.isBlank()) {
+            fields.put("note", stringField(note));
+        }
+        fields.put("updatedAtEpochSec", intField(Instant.now().getEpochSecond()));
+        fields.put("updatedBy", stringField(DeviceId.get()));
+
+        patchDoc(session, url, fields, "canonicalLoanPayment");
     }
 
     public void deleteTransaction(AuthSession session, String transactionId) throws Exception {
@@ -850,7 +1079,9 @@ public final class FirestoreSyncService {
         fields.put("updatedAtEpochSec", intField(l.updatedAtEpochSec()));
         fields.put("updatedBy", stringField(DeviceId.get()));
 
-        patchDoc(session, url, fields, "loan");
+        // updateMask obligatorio: un PATCH sin máscara reemplaza el documento
+        // entero y borraría los campos administrativos (archived, archivedAtEpochSec).
+        patchDoc(session, url, fields, "loan", new ArrayList<>(fields.keySet()));
     }
 
     private void upsertLoanPayment(AuthSession session, LoanPaymentRepository.LoanPayment p) throws Exception {
@@ -1107,6 +1338,10 @@ public final class FirestoreSyncService {
         return out;
     }
 
+    private static String valueOrDash(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
     private static String readStringField(Map<?, ?> fields, String key) {
         Object f = fields.get(key);
         if (!(f instanceof Map<?, ?> fm)) {
@@ -1135,6 +1370,21 @@ public final class FirestoreSyncService {
         }
         if (iv instanceof Number n) {
             return n.longValue();
+        }
+        return null;
+    }
+
+    private static Boolean readBooleanField(Map<?, ?> fields, String key) {
+        Object f = fields.get(key);
+        if (!(f instanceof Map<?, ?> fm)) {
+            return null;
+        }
+        Object bv = fm.get("booleanValue");
+        if (bv instanceof Boolean b) {
+            return b;
+        }
+        if (bv instanceof String s) {
+            return Boolean.parseBoolean(s);
         }
         return null;
     }
@@ -1181,6 +1431,18 @@ public final class FirestoreSyncService {
     }
 
     private void patchDoc(AuthSession session, String url, Map<String, Object> fields, String kind) throws Exception {
+        patchDoc(session, url, fields, kind, List.of());
+    }
+
+    private void patchDoc(AuthSession session, String url, Map<String, Object> fields, String kind,
+            List<String> maskFieldPaths) throws Exception {
+        if (maskFieldPaths != null && !maskFieldPaths.isEmpty()) {
+            StringBuilder masked = new StringBuilder(url).append('?');
+            for (String path : maskFieldPaths) {
+                masked.append("updateMask.fieldPaths=").append(urlEncode(path)).append('&');
+            }
+            url = masked.substring(0, masked.length() - 1);
+        }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("fields", fields);
 
@@ -1210,6 +1472,12 @@ public final class FirestoreSyncService {
         return m;
     }
 
+    private static Map<String, Object> booleanField(boolean v) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("booleanValue", v);
+        return m;
+    }
+
     private static Map<String, Object> intField(long v) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("integerValue", Long.toString(v));
@@ -1225,6 +1493,12 @@ public final class FirestoreSyncService {
         String base = "https://firestore.googleapis.com/v1/projects/" + projectId + "/databases/(default)/documents";
         String url = base + "/users/" + movement.userUid() + "/loans/" + movement.loanId() + "/movements/" + movement.id();
 
+        System.out.println("[FirestoreSync] syncLoanMovement start id=" + movement.id()
+            + " loanId=" + movement.loanId()
+            + " type=" + movement.movementType()
+            + " amount=" + movement.amountCents()
+            + " transactionId=" + movement.linkedTransactionId());
+
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("movementType", stringField(movement.movementType()));
         fields.put("amountCents", intField(movement.amountCents()));
@@ -1237,6 +1511,20 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "loanMovement");
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .GET()
+            .build();
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore verify loanMovement failed (" + resp.statusCode() + "): " + resp.body());
+        }
+        System.out.println("[FirestoreSync] syncLoanMovement verified id=" + movement.id()
+            + " loanId=" + movement.loanId()
+            + " type=" + movement.movementType()
+            + " amount=" + movement.amountCents()
+            + " body=" + resp.body());
     }
 
     public void deleteLoanMovement(AuthSession session, String userUid, String loanId, String movementId) throws Exception {

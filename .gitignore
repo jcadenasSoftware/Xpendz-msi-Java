@@ -11,6 +11,9 @@
 /.idea/
 /.vscode/
 *.iml
+nbproject/
+nbactions.xml
+/out/
 
 # OS
 .DS_Store
@@ -22,3 +25,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Databases & local artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.bak
+*.dump

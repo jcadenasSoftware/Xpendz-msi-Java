@@ -45,25 +45,14 @@ public final class ModernDialogs {
      * Shows a confirmation dialog.
      */
     public static boolean confirm(String title, String description, Supplier<Boolean> darkTheme) {
-        Dialog<ButtonType> dialog = ModernDialog.builder()
-            .type(ModernDialog.DialogType.CONFIRM)
-            .title(title)
-            .description(description)
-            .primaryButton("Confirmar")
-            .secondaryButton("Cancelar")
-            .darkTheme(darkTheme)
-            .build();
-
-        dialog.showAndWait();
-        ButtonType result = dialog.getResult();
-        return result != null && result.getButtonData() == ButtonBar.ButtonData.OK_DONE;
+        return confirm(title, description, "Confirmar", "Cancelar", ModernDialog.DialogType.CONFIRM, darkTheme);
     }
 
     /**
      * Shows a delete confirmation dialog.
      */
     public static boolean confirmDelete(String itemName, Supplier<Boolean> darkTheme) {
-        return confirm(
+        return confirmDestructive(
             "Eliminar " + itemName,
             "Esta acción no se puede deshacer. ¿Estás seguro de que deseas eliminar este elemento?",
             darkTheme
@@ -74,8 +63,15 @@ public final class ModernDialogs {
      * Shows a custom dialog with specific button text.
      */
     public static boolean confirm(String title, String description, String primaryText, String secondaryText, Supplier<Boolean> darkTheme) {
+        return confirm(title, description, primaryText, secondaryText, ModernDialog.DialogType.CONFIRM, darkTheme);
+    }
+
+    /**
+     * Shows a confirmation dialog with an explicit visual type.
+     */
+    public static boolean confirm(String title, String description, String primaryText, String secondaryText, ModernDialog.DialogType type, Supplier<Boolean> darkTheme) {
         Dialog<ButtonType> dialog = ModernDialog.builder()
-            .type(ModernDialog.DialogType.CONFIRM)
+            .type(type)
             .title(title)
             .description(description)
             .primaryButton(primaryText)
@@ -86,6 +82,13 @@ public final class ModernDialogs {
         dialog.showAndWait();
         ButtonType result = dialog.getResult();
         return result != null && result.getButtonData() == ButtonBar.ButtonData.OK_DONE;
+    }
+
+    /**
+     * Shows a destructive confirmation dialog.
+     */
+    public static boolean confirmDestructive(String title, String description, Supplier<Boolean> darkTheme) {
+        return confirm(title, description, "Eliminar", "Cancelar", ModernDialog.DialogType.DANGER, darkTheme);
     }
 
     /**

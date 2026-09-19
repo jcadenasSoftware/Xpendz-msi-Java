@@ -31,7 +31,9 @@ public final class GoalService {
      * Obtiene todas las metas activas de un usuario.
      */
     public List<GoalRepository.Goal> obtenerMetas(String userUid) throws SQLException {
-        return goalRepo.listByUser(userUid);
+        return goalRepo.listByUser(userUid).stream()
+            .filter(g -> GoalRepository.STATUS_OPEN.equals(g.status()))
+            .toList();
     }
 
     /**
@@ -163,24 +165,46 @@ public final class GoalService {
     /**
      * Elimina una meta y opcionalmente su cuenta asociada.
      */
-    public void eliminarMeta(String userUid, String goalId, boolean eliminarCuenta) throws SQLException {
+    public GoalDeletionOutcome eliminarMeta(String userUid, String goalId, boolean eliminarCuenta) throws SQLException {
         GoalRepository.Goal goal = goalRepo.getByIdOrNull(userUid, goalId);
         if (goal == null) {
             throw new IllegalArgumentException("Meta no encontrada");
         }
 
-        // Eliminar la meta
-        goalRepo.delete(userUid, goalId);
-
-        // Eliminar la cuenta asociada si se solicita
-        if (eliminarCuenta) {
-            try {
-                accountRepo.delete(userUid, goal.accountId());
-            } catch (Exception e) {
-                // Si falla la eliminación de la cuenta, no es crítico
-                // La meta ya fue eliminada
-            }
+        long saldoActual = calcularSaldo(userUid, goal.accountId());
+        if (saldoActual > 0L) {
+            throw new IllegalStateException("goal_has_balance");
         }
+
+        boolean hasHistory = tieneHistorial(userUid, goal.accountId());
+        if (!hasHistory) {
+            goalRepo.delete(userUid, goalId);
+            if (eliminarCuenta) {
+                try {
+                    accountRepo.delete(userUid, goal.accountId());
+                } catch (Exception e) {
+                    // Si falla la eliminación de la cuenta, no es crítico
+                    // La meta ya fue eliminada
+                }
+            }
+            return GoalDeletionOutcome.DELETED;
+        } else {
+            goalRepo.archive(userUid, goalId);
+            return GoalDeletionOutcome.ARCHIVED;
+        }
+    }
+
+    public boolean tieneHistorial(String userUid, String accountId) {
+        try {
+            return accountRepo.hasMovements(userUid, accountId);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public enum GoalDeletionOutcome {
+        DELETED,
+        ARCHIVED
     }
 
     // ── Operaciones financieras ─────────────────────────────────

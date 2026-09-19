@@ -7,9 +7,11 @@ import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionKind;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.sync.FirestoreSyncService;
+import myfinances.infrastructure.loan.replay.HistoricalLoanReplayTool;
 
 import java.sql.SQLException;
 import java.time.Instant;
@@ -217,11 +219,7 @@ public final class LoanService {
     // ══════════════════════════════════════════════════════════════════
 
     /**
-     * Registra un pago/abono a un préstamo con integración financiera.
-     * <p>
-     * Además del pago en loan_payments, registra un movimiento
-     * PAYMENT_IN o PAYMENT_OUT en el historial.
-     * Si la deuda se liquida, registra un movimiento CLOSE adicional.
+     * Ruta legacy deshabilitada. Los pagos se procesan mediante RegisterPaymentCommand.
      */
     public PaymentResult registerPayment(
         String userUid,
@@ -232,87 +230,7 @@ public final class LoanService {
         long occurredAt,
         String note
     ) throws SQLException {
-        Objects.requireNonNull(userUid);
-        Objects.requireNonNull(loanId);
-        Objects.requireNonNull(accountId);
-
-        if (amountCents <= 0) {
-            throw new IllegalArgumentException("El monto del pago debe ser mayor a 0");
-        }
-
-        // Obtener préstamo
-        LoanRepository.Loan loan = loanRepo.getByIdOrNull(userUid, loanId);
-        if (loan == null) {
-            throw new IllegalStateException("Préstamo no encontrado");
-        }
-        if (LoanRepository.STATUS_CLOSED.equals(loan.status())) {
-            throw new IllegalStateException("El préstamo ya está liquidado");
-        }
-
-        // Validar que no pague más de lo pendiente
-        long paidSoFar = paymentRepo.sumPrincipalPaidCents(userUid, loanId);
-        long pendingCents = Math.max(0L, loan.principalCents() - paidSoFar);
-        if (amountCents > pendingCents) {
-            throw new IllegalArgumentException("El monto excede la deuda pendiente ($" + (pendingCents / 100) + ")");
-        }
-
-        // Determinar kind y movimiento
-        boolean isLent = LoanRepository.TYPE_LENT.equals(loan.type());
-        String kind = isLent
-            ? TransactionKind.LOAN_REPAYMENT_PRINCIPAL_IN.name()
-            : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
-        String movType = isLent
-            ? LoanMovementRepository.MOV_PAYMENT_IN
-            : LoanMovementRepository.MOV_PAYMENT_OUT;
-
-        String repaymentCategoryId = ensureRepaymentCategory(userUid, session);
-
-        long occ = occurredAt > 0 ? occurredAt : Instant.now().getEpochSecond();
-
-        // 1. Crear transacción (afecta saldo)
-        String txNote;
-        if (note != null && !note.isBlank()) {
-            txNote = note;
-        } else if (isLent) {
-            txNote = "Pago recibido de: " + loan.counterpartyName();
-        } else {
-            txNote = "Pago realizado a: " + loan.counterpartyName();
-        }
-        String txId = txRepo.create(
-            userUid, accountId, repaymentCategoryId, kind, amountCents, occ, txNote
-        );
-
-        // 2. Registrar pago (tabla legacy)
-        String paymentId = paymentRepo.create(
-            userUid, loanId, accountId, amountCents, occ, txId, note
-        );
-
-        // 3. Registrar movimiento de pago
-        String movId = movementRepo.create(
-            userUid, loanId, movType, amountCents, accountId, txId, note, occ
-        );
-
-        // 4. Verificar si el préstamo se cierra
-        long newPaid = paymentRepo.sumPrincipalPaidCents(userUid, loanId);
-        long newPending = Math.max(0L, loan.principalCents() - newPaid);
-        boolean closed = newPending <= 0L;
-        if (closed) {
-            loanRepo.update(
-                userUid, loanId, loan.type(), loan.counterpartyName(),
-                loan.principalCents(), loan.currency(),
-                LoanRepository.STATUS_CLOSED, loan.notes()
-            );
-            // Movimiento de cierre
-            movementRepo.create(
-                userUid, loanId, LoanMovementRepository.MOV_CLOSE,
-                0L, accountId, null, "Préstamo liquidado", occ
-            );
-        }
-
-        // 5. Sync
-        syncInBackground(session, userUid, txId, loanId, paymentId, movId);
-
-        return new PaymentResult(paymentId, txId, movId, closed);
+        throw new UnsupportedOperationException("Use LoanApplicationService.process(RegisterPaymentCommand)");
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -530,6 +448,9 @@ public final class LoanService {
         }
 
         MovementMutationResult result = rebuildLoanState(userUid, session, loan.id());
+        if (!result.loanDeleted()) {
+            replayCanonicalLoan(userUid, loan.id());
+        }
         syncInBackground(session, userUid, movement.linkedTransactionId(), result.loanDeleted() ? null : loan.id(), syncPaymentId, movement.id());
         if (!result.loanDeleted()) {
             try {
@@ -597,6 +518,9 @@ public final class LoanService {
         }
 
         MovementMutationResult result = rebuildLoanState(userUid, session, loanId);
+        if (!result.loanDeleted()) {
+            replayCanonicalLoan(userUid, loanId);
+        }
         if (result.loanDeleted() && closeBefore != null) {
             syncDeleteInBackground(session, userUid, null, loanId, null, closeBefore.id(), false);
         }
@@ -795,6 +719,10 @@ public final class LoanService {
      * No elimina registros; solo oculta el préstamo de la lista activa.
      * Mantiene historial financiero completo.
      */
+    /**
+     * @deprecated Misleading API: administrative archiving uses LoanAdminStateRepository.
+     */
+    @Deprecated
     public void archiveLoan(String userUid, AuthSession session, String loanId) throws SQLException {
         Objects.requireNonNull(userUid);
         Objects.requireNonNull(loanId);
@@ -843,45 +771,96 @@ public final class LoanService {
         return existing + "\n---\n" + addition;
     }
 
+    private void replayCanonicalLoan(String ownerId, String loanId) {
+        try {
+            new HistoricalLoanReplayTool(SqliteDatabase.defaultDatabase()).replay(ownerId, loanId);
+        } catch (Exception e) {
+            System.out.println("[LoanService] canonical replay failed loanId=" + loanId + " error=" + e.getMessage());
+        }
+    }
+
     private void syncInBackground(AuthSession session, String userUid,
                                    String txId, String loanId, String paymentId, String movementId) {
         new Thread(() -> {
             try {
                 AppConfig cfg = AppConfig.loadDefault();
                 FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                System.out.println("[LoanService] syncInBackground start txId=" + txId
+                    + " loanId=" + loanId
+                    + " paymentId=" + paymentId
+                    + " movementId=" + movementId);
 
-                // Sync transaction
                 if (txId != null) {
                     try {
                         TransactionRepository.TransactionSyncRow t = txRepo.getForSyncByIdOrNull(userUid, txId);
-                        if (t != null) sync.syncTransaction(session, t);
-                    } catch (Exception ignored) {}
+                        if (t != null) {
+                            System.out.println("[LoanService] syncTransaction start id=" + t.id()
+                                + " amount=" + t.amountCents());
+                            sync.syncTransaction(session, t);
+                            System.out.println("[LoanService] syncTransaction ok id=" + t.id());
+                        } else {
+                            System.out.println("[LoanService] syncTransaction skipped missing local txId=" + txId);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoanService] syncTransaction failed txId=" + txId + " error=" + e.getMessage());
+                    }
                 }
 
-                // Sync loan
                 if (loanId != null) {
                     try {
                         LoanRepository.Loan l = loanRepo.getByIdOrNull(userUid, loanId);
-                        if (l != null) sync.syncLoan(session, l);
-                    } catch (Exception ignored) {}
+                        if (l != null) {
+                            System.out.println("[LoanService] syncLoan start id=" + l.id());
+                            sync.syncLoan(session, l);
+                            System.out.println("[LoanService] syncLoan ok id=" + l.id());
+                        } else {
+                            System.out.println("[LoanService] syncLoan skipped missing local loanId=" + loanId);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoanService] syncLoan failed loanId=" + loanId + " error=" + e.getMessage());
+                    }
                 }
 
-                // Sync payment
                 if (paymentId != null) {
                     try {
                         LoanPaymentRepository.LoanPayment p = paymentRepo.getByIdOrNull(userUid, paymentId);
-                        if (p != null) sync.syncLoanPayment(session, p);
-                    } catch (Exception ignored) {}
+                        if (p != null) {
+                            System.out.println("[LoanService] syncLoanPayment start id=" + p.id()
+                                + " loanId=" + p.loanId()
+                                + " transactionId=" + p.linkedTransactionId()
+                                + " amount=" + p.principalCents());
+                            sync.syncLoanPayment(session, p);
+                            System.out.println("[LoanService] syncLoanPayment ok id=" + p.id());
+                        } else {
+                            System.out.println("[LoanService] syncLoanPayment skipped missing local paymentId=" + paymentId);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoanService] syncLoanPayment failed paymentId=" + paymentId + " error=" + e.getMessage());
+                    }
                 }
 
-                // Sync movement
                 if (movementId != null) {
                     try {
                         LoanMovementRepository.LoanMovement m = movementRepo.getByIdOrNull(userUid, movementId);
-                        if (m != null) sync.syncLoanMovement(session, m);
-                    } catch (Exception ignored) {}
+                        if (m != null) {
+                            System.out.println("[LoanService] syncLoanMovement start id=" + m.id()
+                                + " loanId=" + m.loanId()
+                                + " type=" + m.movementType()
+                                + " amount=" + m.amountCents());
+                            sync.syncLoanMovement(session, m);
+                            System.out.println("[LoanService] syncLoanMovement ok id=" + m.id());
+                        } else {
+                            System.out.println("[LoanService] syncLoanMovement skipped missing local movementId=" + movementId);
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[LoanService] syncLoanMovement failed movementId=" + movementId + " error=" + e.getMessage());
+                    }
                 }
-            } catch (Exception ignored) {}
+
+                System.out.println("[LoanService] syncInBackground end txId=" + txId + " loanId=" + loanId + " paymentId=" + paymentId + " movementId=" + movementId);
+            } catch (Exception e) {
+                System.out.println("[LoanService] syncInBackground failed error=" + e.getMessage());
+            }
         }, "loan-sync").start();
     }
 

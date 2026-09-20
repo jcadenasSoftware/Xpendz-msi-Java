@@ -38,6 +38,10 @@ public final class AppSchema {
             );
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_uid)");
 
+            if (!columnExists(c, "accounts", "color")) {
+                st.executeUpdate("ALTER TABLE accounts ADD COLUMN color TEXT");
+            }
+
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS categories (" +
                 "  id TEXT PRIMARY KEY," +
@@ -51,6 +55,16 @@ public final class AppSchema {
                 "  FOREIGN KEY(parent_id) REFERENCES categories(id) ON DELETE CASCADE" +
                 ")"
             );
+
+            if (!columnExists(c, "categories", "kind")) {
+                st.executeUpdate("ALTER TABLE categories ADD COLUMN kind TEXT");
+            }
+            if (!columnExists(c, "categories", "icon")) {
+                st.executeUpdate("ALTER TABLE categories ADD COLUMN icon TEXT");
+            }
+            if (!columnExists(c, "categories", "color")) {
+                st.executeUpdate("ALTER TABLE categories ADD COLUMN color TEXT");
+            }
 
             try {
                 st.executeUpdate(
@@ -80,7 +94,8 @@ public final class AppSchema {
                     "     WHERE s.id = categories.id AND s.user_uid = categories.user_uid" +
                     "   )"
                 );
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                System.err.println("[AppSchema] categories kind backfill failed: " + ex.getMessage());
             }
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_uid)");
@@ -259,6 +274,46 @@ public final class AppSchema {
             }
 
             st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_payments_pending_sync ON loan_payments(user_uid, pending_sync)");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS loan_movements (" +
+                "  id TEXT PRIMARY KEY," +
+                "  loan_id TEXT NOT NULL," +
+                "  user_uid TEXT NOT NULL," +
+                "  movement_type TEXT NOT NULL," +
+                "  amount_cents INTEGER NOT NULL," +
+                "  account_id TEXT NULL," +
+                "  linked_transaction_id TEXT NULL," +
+                "  note TEXT NULL," +
+                "  occurred_at_epoch_sec INTEGER NOT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(loan_id) REFERENCES loans(id) ON DELETE CASCADE" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_movements_user ON loan_movements(user_uid)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_movements_loan ON loan_movements(loan_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_movements_occurred ON loan_movements(occurred_at_epoch_sec)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_loan_movements_pending_sync ON loan_movements(user_uid, pending_sync)");
+
+            if (!columnExists(c, "loan_movements", "account_id")) {
+                st.executeUpdate("ALTER TABLE loan_movements ADD COLUMN account_id TEXT");
+            }
+            if (!columnExists(c, "loan_movements", "linked_transaction_id")) {
+                st.executeUpdate("ALTER TABLE loan_movements ADD COLUMN linked_transaction_id TEXT");
+            }
+            if (!columnExists(c, "loan_movements", "note")) {
+                st.executeUpdate("ALTER TABLE loan_movements ADD COLUMN note TEXT");
+            }
+            if (!columnExists(c, "loan_movements", "updated_by")) {
+                st.executeUpdate("ALTER TABLE loan_movements ADD COLUMN updated_by TEXT");
+            }
+            if (!columnExists(c, "loan_movements", "pending_sync")) {
+                st.executeUpdate("ALTER TABLE loan_movements ADD COLUMN pending_sync INTEGER NOT NULL DEFAULT 0");
+            }
 
             st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS outbox (" +

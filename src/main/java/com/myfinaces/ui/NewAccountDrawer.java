@@ -137,6 +137,13 @@ public final class NewAccountDrawer {
         VBox colorSection = new VBox(6, colorLabel, colorPicker.getNode(), colorHint);
         colorSection.getStyleClass().add("drawer-section");
 
+        // ── Error feedback ───────────────────────────────────────────
+        Label errorLabel = new Label();
+        errorLabel.getStyleClass().add("text-danger");
+        errorLabel.setWrapText(true);
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+
         // ── Footer ───────────────────────────────────────────────────
         VBox footer = drawer.buildFooter("Crear cuenta", "fas-plus");
         Button primaryBtn = (Button) footer.getChildren().stream()
@@ -150,12 +157,17 @@ public final class NewAccountDrawer {
             nameCurrencyRow,
             balanceSection,
             colorSection,
+            errorLabel,
             footer
         );
 
         // ── Wire create action ───────────────────────────────────────
         if (primaryBtn != null) {
             primaryBtn.setOnAction(ev -> {
+                errorLabel.setText("");
+                errorLabel.setVisible(false);
+                errorLabel.setManaged(false);
+
                 String name = nameField.getText() == null ? "" : nameField.getText().trim();
                 if (name.isBlank()) {
                     shakeNode(nameField);
@@ -232,7 +244,14 @@ public final class NewAccountDrawer {
                 } catch (Exception ex) {
                     primaryBtn.setText(originalText);
                     primaryBtn.setDisable(false);
+                    String detail = ex.getMessage();
+                    errorLabel.setText("No se pudo crear la cuenta."
+                        + (detail == null || detail.isBlank() ? "" : " Detalle: " + detail));
+                    errorLabel.setVisible(true);
+                    errorLabel.setManaged(true);
                     shakeNode(primaryBtn);
+                    System.err.println("[NewAccountDrawer] create account failed for uid="
+                        + session.uid() + ": " + ex);
                     ex.printStackTrace();
                 }
             });

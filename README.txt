@@ -90,7 +90,7 @@ El instalador incluye el runtime necesario para ejecutar la aplicación, por lo 
 ### Instalación
 
 1. Descargar el instalador MSI desde la sección **Releases**.
-2. Ejecutar `Xpendz-1.0.0.msi`.
+2. Ejecutar `Xpendz-1.0.01.msi`.
 3. Seguir las instrucciones del instalador.
 4. Utilizar el acceso directo creado en el escritorio o en el menú Inicio.
 

@@ -261,7 +261,7 @@ try {
 }
 
 if ($hasJavaFx) {
-    $modules = @('javafx.controls','javafx.fxml','javafx.media','javafx.graphics','javafx.base','java.net.http','jdk.httpserver','jdk.crypto.ec','java.naming')
+    $modules = @('javafx.controls','javafx.fxml','javafx.media','javafx.graphics','javafx.base','java.net.http','jdk.httpserver','jdk.crypto.ec','java.naming','jdk.localedata')
     if ($hasSqlite) {
         $modules += @('java.sql','java.logging')
     }

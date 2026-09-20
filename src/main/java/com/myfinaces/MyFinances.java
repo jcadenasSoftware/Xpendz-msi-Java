@@ -112,7 +112,13 @@ public class MyFinances extends Application {
         var root = LoginView.create(authService, googleClientId, googleClientSecret, sessionRepo, session -> {
             try {
                 userRepo.upsert(session.uid(), session.email());
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                // La fila local users(uid) es precondición de todas las FK; si
+                // falla aquí, toda escritura posterior fallará con un error
+                // ajeno al origen. No es fatal para entrar al dashboard, pero
+                // debe quedar registrado.
+                System.err.println("[Bootstrap] No se pudo registrar el usuario local uid="
+                    + session.uid() + ": " + ex);
             }
             showDashboard(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, session, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
         });

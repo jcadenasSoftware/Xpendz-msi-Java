@@ -298,6 +298,7 @@ class HistoricalLoanReplayToolTest {
         seedTransaction("tx-create", "LOAN_LENT_OUT", 100_000L, ACCOUNT_ID, 1_000L);
         seedMovement("mov-1", "CREATION", 100_000L, ACCOUNT_ID, "tx-create", 1_000L, null, 1_000L);
         seedTransaction("tx-adjust", "LOAN_LENT_CORRECTION_OUT", 20_000L, ACCOUNT_ID, 1_500L);
+        seedLoanForId("loan-2", 50_000L, "OPEN", 1_200L, 1_200L, 1_200L);
         seedMovementForLoan("loan-2", "mov-foreign", "TOPUP", 20_000L, ACCOUNT_ID, "tx-adjust", 1_500L, null, 1_500L);
 
         HistoricalLoanReplayTool.ReplayResult result = tool.replay(OWNER_ID, LOAN_ID);
@@ -457,12 +458,16 @@ class HistoricalLoanReplayToolTest {
     }
 
     private void seedLoan(long principal, String status, long occurredAt, long createdAt, long updatedAt) throws Exception {
+        seedLoanForId(LOAN_ID, principal, status, occurredAt, createdAt, updatedAt);
+    }
+
+    private void seedLoanForId(String loanId, long principal, String status, long occurredAt, long createdAt, long updatedAt) throws Exception {
         String sql =
             "INSERT INTO loans (id, user_uid, type, counterparty_name, principal_cents, currency, status, notes, " +
             "occurred_at_epoch_sec, account_id, created_at_epoch_sec, updated_at_epoch_sec, updated_by, pending_sync) " +
             "VALUES (?, ?, 'LENT', 'Counterparty', ?, 'COP', ?, NULL, ?, ?, ?, ?, NULL, 0)";
         try (Connection connection = database.openConnection(); PreparedStatement ps = connection.prepareStatement(sql)) {
-            ps.setString(1, LOAN_ID);
+            ps.setString(1, loanId);
             ps.setString(2, OWNER_ID);
             ps.setLong(3, principal);
             ps.setString(4, status);

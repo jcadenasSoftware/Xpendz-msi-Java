@@ -267,16 +267,17 @@ public final class AccountRepository {
         Account local = getById(userUid, normalized.id());
         if (local == null) {
             try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-                "INSERT INTO accounts (id, user_uid, name, type, currency, created_at_epoch_sec, updated_at_epoch_sec) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO accounts (id, user_uid, name, type, currency, color, created_at_epoch_sec, updated_at_epoch_sec) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             )) {
                 ps.setString(1, normalized.id());
                 ps.setString(2, userUid);
                 ps.setString(3, normalized.name());
                 ps.setString(4, normalized.type());
                 ps.setString(5, normalized.currency());
-                ps.setLong(6, normalized.createdAtEpochSec());
-                ps.setLong(7, normalized.updatedAtEpochSec());
+                ps.setString(6, normalized.color());
+                ps.setLong(7, normalized.createdAtEpochSec());
+                ps.setLong(8, normalized.updatedAtEpochSec());
                 ps.executeUpdate();
             }
             return;
@@ -287,16 +288,17 @@ public final class AccountRepository {
         }
 
         try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
-            "UPDATE accounts SET name = ?, type = ?, currency = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
+            "UPDATE accounts SET name = ?, type = ?, currency = ?, color = ?, created_at_epoch_sec = ?, updated_at_epoch_sec = ? " +
             "WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, normalized.name());
             ps.setString(2, normalized.type());
             ps.setString(3, normalized.currency());
-            ps.setLong(4, normalized.createdAtEpochSec());
-            ps.setLong(5, normalized.updatedAtEpochSec());
-            ps.setString(6, userUid);
-            ps.setString(7, normalized.id());
+            ps.setString(4, normalized.color());
+            ps.setLong(5, normalized.createdAtEpochSec());
+            ps.setLong(6, normalized.updatedAtEpochSec());
+            ps.setString(7, userUid);
+            ps.setString(8, normalized.id());
             ps.executeUpdate();
         }
     }

@@ -14,11 +14,14 @@ import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.service.GoalService;
+import com.myfinaces.sync.CanonicalLoanPublishQueue;
 import com.myfinaces.sync.FirestoreSyncService;
 import javafx.application.Platform;
 import myfinances.application.loan.LoanApplicationService;
+import myfinances.domain.loan.snapshot.LoanSnapshot;
 import myfinances.domain.loan.admin.LoanAdminState;
 import myfinances.infrastructure.loan.admin.JdbcLoanAdminStateRepository;
+import myfinances.infrastructure.loan.jdbc.JdbcLoanRepositoryAdapter;
 import myfinances.infrastructure.loan.migration.CanonicalLoanDuplicateReconciler;
 import myfinances.infrastructure.loan.migration.LegacyLoanMigration;
 import myfinances.infrastructure.loan.migration.PhantomLoanTransactionReconciler;
@@ -201,6 +204,35 @@ public final class DashboardSyncCoordinator {
                         try {
                             loanAdminStateRepository.markSynced(s.uid(), st.loanId());
                         } catch (Exception ignored) {
+                        }
+                    }
+
+                    // Reintenta la publicación del documento canónico
+                    // users/{uid}/loans/{loanId} para préstamos cuyo publish
+                    // inmediato falló (401, timeout, red). Solo procesa las
+                    // entradas encoladas; nunca republica préstamos ya publicados.
+                    SqliteDatabase outboxDb = SqliteDatabase.defaultDatabase();
+                    List<CanonicalLoanPublishQueue.Entry> pendingCanonicalLoans =
+                        CanonicalLoanPublishQueue.listPending(outboxDb);
+                    if (!pendingCanonicalLoans.isEmpty()) {
+                        System.out.println("[Sync] canonicalLoans pending=" + pendingCanonicalLoans.size());
+                        JdbcLoanRepositoryAdapter canonicalRepo = new JdbcLoanRepositoryAdapter(outboxDb);
+                        for (CanonicalLoanPublishQueue.Entry e : pendingCanonicalLoans) {
+                            try {
+                                LoanSnapshot snap = canonicalRepo
+                                    .loadSnapshot(e.userUid(), e.loanId()).orElse(null);
+                                if (snap != null) {
+                                    sync.publishCanonicalLoan(s, snap, null, null);
+                                }
+                                CanonicalLoanPublishQueue.markDone(outboxDb, e.loanId());
+                            } catch (Exception ex) {
+                                try {
+                                    CanonicalLoanPublishQueue.recordFailure(outboxDb, e.id(), ex.getMessage());
+                                } catch (Exception ignored) {
+                                }
+                                System.out.println("[Sync] canonical loan publish retry failed loanId="
+                                    + e.loanId() + " error=" + ex.getMessage());
+                            }
                         }
                     }
 

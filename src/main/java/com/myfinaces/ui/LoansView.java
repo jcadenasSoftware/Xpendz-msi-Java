@@ -1,6 +1,8 @@
 package com.myfinaces.ui;
 
 import com.myfinaces.auth.AuthSession;
+import com.myfinaces.auth.AuthSessionManager;
+import com.myfinaces.auth.FirebaseAuthService;
 import com.myfinaces.config.AccountStyles;
 import com.myfinaces.config.AppConfig;
 import com.myfinaces.db.AccountRepository;
@@ -8,10 +10,12 @@ import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.SessionRepository;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionKind;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.service.LoanService;
+import com.myfinaces.sync.CanonicalLoanPublishQueue;
 import com.myfinaces.sync.DeviceId;
 import com.myfinaces.sync.FirestoreSyncService;
 import myfinances.application.loan.LoanApplicationService;
@@ -47,21 +51,16 @@ import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Alert.AlertType;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -82,8 +81,7 @@ import javafx.util.Duration;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -91,7 +89,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
+
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -402,10 +400,10 @@ public final class LoansView {
         };
 
         // Registrar modals
-        buildNewLoanModal(modalOverlay, loanApplicationService, loanCommandFactory, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
-        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
-        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, refreshAllRef[0]);
-        Consumer<LoanSummaryProjection> showArchiveModal = buildArchiveModal(modalOverlay, session, loanAdminStateRepository, refreshAllRef[0]);
+        buildNewLoanModal(modalOverlay, loanApplicationService, loanCommandFactory, accountRepo, categoryRepo, txRepo, session, darkTheme, refreshAllRef[0]);
+        Consumer<String> showPaymentModal = buildPaymentModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, darkTheme, refreshAllRef[0]);
+        Consumer<String> showTopupModal = buildTopupModal(modalOverlay, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository, accountRepo, categoryRepo, txRepo, session, darkTheme, refreshAllRef[0]);
+        Consumer<LoanSummaryProjection> showArchiveModal = buildArchiveModal(session, loanAdminStateRepository, darkTheme, refreshAllRef[0]);
 
         // Wiring
         btnNew.setOnAction(e -> modalOverlay.show("new-loan"));
@@ -641,7 +639,7 @@ public final class LoansView {
         btnDetail.setOnAction(ev -> {
             ev.consume();
             // Abrir modal de edición directamente
-            buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, refreshAll);
+            buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, () -> dk, refreshAll);
             modalOverlay.show("edit-loan");
         });
 
@@ -892,7 +890,7 @@ public final class LoansView {
         ModalOverlay overlay, LoanApplicationService loanApplicationService,
         LoanCommandFactory loanCommandFactory, AccountRepository accountRepo,
         CategoryRepository categoryRepo, TransactionRepository txRepo,
-        AuthSession session, Runnable refreshBalances
+        AuthSession session, Supplier<Boolean> darkTheme, Runnable refreshBalances
     ) {
         String userUid = session.uid();
 
@@ -1069,6 +1067,18 @@ public final class LoansView {
                     boolean isLent = loanType == LoanType.LENT;
                     long occurredAt = System.currentTimeMillis() / 1000;
 
+                    // Pre-validación UI: un préstamo otorgado no puede dejar
+                    // la cuenta en negativo. Se ejecuta antes de crear la
+                    // transacción o procesar el comando.
+                    if (isLent && accountRepo.computeBalanceCents(userUid, acc.id()) < cents) {
+                        ModernDialogs.warning(
+                            "Saldo insuficiente",
+                            "La cuenta seleccionada no tiene saldo suficiente para otorgar este préstamo.",
+                            darkTheme
+                        );
+                        return;
+                    }
+
                     // Movimiento financiero único: misma convención que el resto
                     // de la app y que Android (LOAN_LENT_OUT / LOAN_BORROWED_IN
                     // en la categoría de sistema "Préstamos").
@@ -1095,7 +1105,7 @@ public final class LoansView {
                     amountField.clear();
                     noteField.clear();
                     Platform.runLater(() -> {
-                        showLoanCreatedConfirmation(snapshot);
+                        showLoanCreatedConfirmation(snapshot, darkTheme);
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
                 } catch (LoanAggregateException ex) {
@@ -1115,6 +1125,7 @@ public final class LoansView {
         overlay.register("new-loan", 480,
             header, segmentRow, accountBlock, personBlock,
             amountBlock, noteBlock, errorLabel, footer);
+        overlay.setInitialFocus("new-loan", personField);
     }
 
     // ── Modal: Editar préstamo ───────────────────────────────────────────
@@ -1122,7 +1133,8 @@ public final class LoansView {
         ModalOverlay overlay, AccountRepository accountRepo, LoanApplicationService loanApplicationService,
         LoanCommandFactory loanCommandFactory,
         CategoryRepository categoryRepo, TransactionRepository txRepo,
-        AuthSession session, String userUid, LoanSummaryProjection summary, Runnable refreshBalances
+        AuthSession session, String userUid, LoanSummaryProjection summary,
+        Supplier<Boolean> darkTheme, Runnable refreshBalances
     ) {
         HBox header = overlay.buildHeader("Editar préstamo",
             "Ajusta el monto del préstamo existente");
@@ -1347,6 +1359,11 @@ public final class LoansView {
                 }
 
                 overlay.hide();
+                Platform.runLater(() -> ModernDialogs.success(
+                    "Préstamo actualizado",
+                    "Los cambios se guardaron correctamente.",
+                    darkTheme
+                ));
                 refreshBalances.run();
             } catch (Exception ex) {
                 deleteTransactionQuietly(txRepo, userUid, pendingTxId);
@@ -1360,6 +1377,7 @@ public final class LoansView {
 
         overlay.register("edit-loan", 440,
             header, accountBlock, currentBlock, amountBlock, noteBlock, errorLabel, footer);
+        overlay.setInitialFocus("edit-loan", amountField);
     }
 
     // ── Modal: Registrar pago ──────────────────────────────────────────
@@ -1367,7 +1385,8 @@ public final class LoansView {
         ModalOverlay overlay, LoanApplicationService loanApplicationService,
         LoanCommandFactory loanCommandFactory, LoanProjectionQueryRepository queryRepo,
         AccountRepository accountRepo, CategoryRepository categoryRepo,
-        TransactionRepository txRepo, AuthSession session, Runnable refreshBalances
+        TransactionRepository txRepo, AuthSession session,
+        Supplier<Boolean> darkTheme, Runnable refreshBalances
     ) {
         String userUid = session.uid();
 
@@ -1577,7 +1596,7 @@ public final class LoansView {
                     overlay.hide();
                     amtField.clear();
                     Platform.runLater(() -> {
-                        showLoanPaymentConfirmation(snapshot);
+                        showLoanPaymentConfirmation(snapshot, darkTheme);
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
                 } catch (LoanAggregateException ex) {
@@ -1597,6 +1616,7 @@ public final class LoansView {
         overlay.register("pay-loan", 440,
             header, personRow, progressBlock, pendingBlock,
             accountBlock, amountBlock, errorLabel, footer);
+        overlay.setInitialFocus("pay-loan", amtField);
 
         // Retorna consumer que popula datos y muestra el modal
         return loanId -> {
@@ -1661,7 +1681,7 @@ public final class LoansView {
         LoanProjectionQueryRepository queryRepo,
         AccountRepository accountRepo,
         CategoryRepository categoryRepo, TransactionRepository txRepo,
-        AuthSession session, Runnable refreshBalances
+        AuthSession session, Supplier<Boolean> darkTheme, Runnable refreshBalances
     ) {
         String userUid = session.uid();
 
@@ -1742,7 +1762,7 @@ public final class LoansView {
 
         Label summaryValue = new Label("$0");
         summaryValue.setStyle(
-            "-fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: #059669;"
+            "-fx-font-size: 22px; -fx-font-weight: 800; -fx-text-fill: #16A34A;"
         );
 
         Label pendingLabel = new Label("Pendiente total");
@@ -1757,7 +1777,7 @@ public final class LoansView {
         summaryBlock.setAlignment(Pos.CENTER);
         summaryBlock.setPadding(new Insets(8, 0, 6, 0));
         summaryBlock.setStyle(
-            "-fx-background-color: rgba(5,150,105,0.08); "
+            "-fx-background-color: rgba(22,163,74,0.08); "
             + "-fx-background-radius: 10; -fx-border-radius: 10;"
         );
 
@@ -1796,7 +1816,7 @@ public final class LoansView {
 
         // ── Footer ───────────────────────────────────────────────
         VBox footer = overlay.buildFooter("Confirmar agregado", "fas-check-circle",
-            "#059669", "#047857");
+            "#16A34A", "#15803D");
 
         // Wire submit
         Button submitBtn = null;
@@ -1882,6 +1902,11 @@ public final class LoansView {
                     amtField.clear();
                     noteArea.clear();
                     Platform.runLater(() -> {
+                        ModernDialogs.success(
+                            "Capital agregado",
+                            "El monto del préstamo se actualizó correctamente.",
+                            darkTheme
+                        );
                         try { refreshBalances.run(); } catch (Exception ignored) {}
                     });
                 } catch (Exception ex) {
@@ -1897,6 +1922,7 @@ public final class LoansView {
             header, personRow,
             accountBlock, amtLabel, amtField, summaryBlock,
             noteBlock, errorLabel, footer);
+        overlay.setInitialFocus("topup-loan", amtField);
 
         // Retorna consumer que popula datos y muestra el modal
         return loanId -> {
@@ -1944,111 +1970,43 @@ public final class LoansView {
     }
 
     // ── Modal: Confirmar archivado ──────────────────────────────────────
+    // Confirmación destructiva con el diálogo oficial (mismo patrón que
+    // "Eliminar cuenta" / "Eliminar transferencia").
     private static Consumer<LoanSummaryProjection> buildArchiveModal(
-        ModalOverlay overlay,
         AuthSession session,
         JdbcLoanAdminStateRepository loanAdminStateRepository,
+        Supplier<Boolean> darkTheme,
         Runnable refreshAll
     ) {
         String userUid = session.uid();
 
-        HBox header = overlay.buildHeader("Archivar préstamo",
-            "El préstamo se ocultará de la lista activa");
-
-        // ── Icono de advertencia ─────────────────────────────
-        Label warningIcon = new Label("!");
-        warningIcon.setStyle(
-            "-fx-background-color: #FEF3C7; -fx-background-radius: 50; "
-            + "-fx-text-fill: #D97706; -fx-font-weight: 800; -fx-font-size: 24px; "
-            + "-fx-min-width: 60; -fx-min-height: 60; "
-            + "-fx-max-width: 60; -fx-max-height: 60; "
-            + "-fx-alignment: center;"
-        );
-
-        // ── Mensaje de confirmación ──────────────────────────
-        Label confirmLabel = new Label("¿Estás seguro de archivar este préstamo?");
-        confirmLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: 700; -fx-text-fill: #374151;");
-        confirmLabel.setWrapText(true);
-
-        Label detailLabel = new Label(
-            "El préstamo se ocultará de la lista activa. " +
-            "El historial financiero, los pagos y los movimientos se conservarán intactos."
-        );
-        detailLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #6B7280;");
-        detailLabel.setWrapText(true);
-
-        VBox messageBox = new VBox(10, confirmLabel, detailLabel);
-        messageBox.setAlignment(Pos.CENTER);
-        messageBox.setPadding(new Insets(10, 0, 10, 0));
-
-        HBox warningRow = new HBox(16, warningIcon, messageBox);
-        warningRow.setAlignment(Pos.CENTER_LEFT);
-        warningRow.setPadding(new Insets(16, 12, 16, 12));
-        warningRow.setStyle(
-            "-fx-background-color: #FFFBEB; "
-            + "-fx-background-radius: 12; -fx-border-radius: 12;"
-        );
-
-        // ── Error label ──────────────────────────────────────
-        Label errorLabel = new Label();
-        errorLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #DC2626;");
-        errorLabel.setWrapText(true);
-        errorLabel.setVisible(false);
-        errorLabel.setManaged(false);
-
-        // ── Footer ───────────────────────────────────────────
-        HBox footer = new HBox(10);
-        footer.setAlignment(Pos.CENTER);
-        footer.setPadding(new Insets(10, 0, 0, 0));
-
-        Button cancelBtn = new Button("Cancelar");
-        cancelBtn.getStyleClass().addAll("btn-secondary");
-        cancelBtn.setStyle("-fx-min-width: 120;");
-        cancelBtn.setOnAction(e -> overlay.hide());
-
-        Button confirmBtn = new Button("Archivar");
-        confirmBtn.getStyleClass().addAll("btn-primary");
-        confirmBtn.setStyle(
-            "-fx-min-width: 120; "
-            + "-fx-background-color: #EF4444; "
-            + "-fx-text-fill: white; "
-            + "-fx-font-weight: 700;"
-        );
-        confirmBtn.setOnAction(ev -> {
-            errorLabel.setVisible(false);
-            errorLabel.setManaged(false);
-
-            LoanSummaryProjection activeLoan = (LoanSummaryProjection) confirmBtn.getProperties().get("loan");
-            if (activeLoan == null) {
-                errorLabel.setText("Error: No se ha seleccionado un préstamo");
-                errorLabel.setVisible(true);
-                errorLabel.setManaged(true);
-                return;
-            }
-
-            try {
-                LoanAdminState archivedState = loanAdminStateRepository.archive(userUid, activeLoan.loanId(), DeviceId.get());
-                publishLoanAdminState(session, archivedState, loanAdminStateRepository);
-                overlay.hide();
-                refreshAll.run();
-            } catch (Exception ex) {
-                errorLabel.setText(ex.getMessage() != null ? ex.getMessage() : "Error al archivar préstamo");
-                errorLabel.setVisible(true);
-                errorLabel.setManaged(true);
-            }
-        });
-
-        footer.getChildren().addAll(cancelBtn, confirmBtn);
-
-        overlay.register("archive-loan", 360,
-            header, warningRow, errorLabel, footer);
-
-        // Retorna consumer que guarda el préstamo y muestra el modal
         return loan -> {
-            confirmBtn.getProperties().put("loan", loan);
-            errorLabel.setVisible(false);
-            errorLabel.setManaged(false);
-            overlay.show("archive-loan");
+            boolean confirmed = ModernDialogs.confirm(
+                "Archivar préstamo",
+                "El préstamo se ocultará de la lista activa. "
+                    + "El historial financiero, los pagos y los movimientos se conservarán intactos.",
+                "Archivar",
+                "Cancelar",
+                ModernDialog.DialogType.DANGER,
+                darkTheme
+            );
+            if (!confirmed) return;
+            try {
+                LoanAdminState archivedState = loanAdminStateRepository.archive(userUid, loan.loanId(), DeviceId.get());
+                publishLoanAdminState(session, archivedState, loanAdminStateRepository);
+                refreshAll.run();
+                ModernDialogs.success(
+                    "Préstamo archivado",
+                    "El préstamo de " + loan.counterparty() + " se archivó correctamente.",
+                    darkTheme
+                );
+            } catch (Exception ex) {
+                ModernDialogs.danger(
+                    "No se pudo archivar",
+                    ex.getMessage() != null ? ex.getMessage() : "Error al archivar préstamo",
+                    darkTheme
+                );
+            }
         };
     }
 
@@ -2966,7 +2924,7 @@ public final class LoansView {
                     if (closeDrawerRef[0] != null) closeDrawerRef[0].run();
                     
                     // Construir modal de edición dinámicamente con datos del préstamo
-                    buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, () -> {
+                    buildEditLoanModal(modalOverlay, accountRepo, loanApplicationService, loanCommandFactory, categoryRepo, txRepo, session, userUid, summary, () -> dk, () -> {
                         refreshAll.run();
                         // Reabrir drawer después de editar
                         Platform.runLater(() -> {
@@ -3375,6 +3333,18 @@ public final class LoansView {
         }
 
         reverseItem.setOnAction(ev -> {
+            boolean confirmed = ModernDialogs.confirm(
+                "Revertir pago",
+                "Se revertirá el abono y se restaurará el saldo pendiente del préstamo. "
+                    + "Esta acción no se puede deshacer.",
+                "Revertir",
+                "Cancelar",
+                ModernDialog.DialogType.DANGER,
+                () -> dk
+            );
+            if (!confirmed) {
+                return;
+            }
             String paymentEventId = payment.sourceEventId();
             if (!REVERSAL_GUARD.tryAcquire(paymentEventId)) {
                 return;
@@ -3382,7 +3352,8 @@ public final class LoansView {
             try {
                 LoanSummaryProjection summary = queryRepo.getSummaryProjection(userUid, loanId);
                 if (summary == null) {
-                    new Alert(AlertType.ERROR, "Préstamo no encontrado", ButtonType.OK).showAndWait();
+                    ModernDialogs.warning("Préstamo no encontrado",
+                        "No se encontró el préstamo asociado al pago.", () -> dk);
                     return;
                 }
 
@@ -3398,20 +3369,22 @@ public final class LoansView {
                 LoanCommandResult result = loanApplicationService.process(command);
                 deleteReversedPaymentArtifacts(session, userUid, payment, result.currentSnapshot());
                 if (result.currentSnapshot() != null) {
-                    String msg = String.format(
-                        "Pago revertido.\nPendiente: %s\nTotal pagado: %s",
+                    showLoanDetailDialog("Pago revertido", buildLoanDetailCard(
+                        "Saldo pendiente",
                         DashboardFormatters.formatMoney(result.currentSnapshot().pendingCents()),
+                        "Total pagado",
                         DashboardFormatters.formatMoney(result.currentSnapshot().totalPaidCents())
-                    );
-                    new Alert(AlertType.INFORMATION, msg, ButtonType.OK).showAndWait();
+                    ), () -> dk);
                 }
 
                 refreshAll.run();
                 reopenDrawer.run();
             } catch (LoanAggregateException ex) {
-                new Alert(AlertType.ERROR, "Error: " + ex.getMessage(), ButtonType.OK).showAndWait();
+                ModernDialogs.danger("No se pudo revertir",
+                    ex.getMessage() != null ? ex.getMessage() : "Error al revertir el pago", () -> dk);
             } catch (Exception ex) {
-                new Alert(AlertType.ERROR, "Error inesperado: " + ex.getMessage(), ButtonType.OK).showAndWait();
+                ModernDialogs.danger("Error inesperado",
+                    ex.getMessage() != null ? ex.getMessage() : "Error al revertir el pago", () -> dk);
             } finally {
                 REVERSAL_GUARD.release(paymentEventId);
             }
@@ -3614,7 +3587,8 @@ public final class LoansView {
 
         modalOverlay.register("edit-movement", 460,
             header, accountBlock, amountBlock, dateBlock, noteBlock, errorLabel, footer);
-        
+        modalOverlay.setInitialFocus("edit-movement", amountField);
+
         // Cerrar drawer antes de mostrar el modal
         if (closeDrawerRef != null && closeDrawerRef[0] != null) {
             closeDrawerRef[0].run();
@@ -3901,51 +3875,51 @@ public final class LoansView {
         drawer.getChildren().add(content);
     }
 
-    private static void showLoanCreatedConfirmation(LoanSnapshot snapshot) {
-        BigDecimal principal = BigDecimal.valueOf(snapshot.principalCents())
-            .movePointLeft(2)
-            .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal pending = BigDecimal.valueOf(snapshot.pendingCents())
-            .movePointLeft(2)
-            .setScale(2, RoundingMode.HALF_UP);
-        String message = String.format(
-            Locale.getDefault(),
-            "Contraparte: %s%nMonto: %s %s%nPendiente: %s %s",
-            snapshot.counterpartyName(),
-            principal.toPlainString(),
-            snapshot.currency(),
-            pending.toPlainString(),
-            snapshot.currency()
-        );
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Préstamo creado");
-        alert.setHeaderText("Préstamo creado correctamente");
-        alert.setContentText(message);
-        alert.showAndWait();
+    // ── Diálogo de detalle de préstamo (jerarquía label/valor) ──────────
+    private static Node buildLoanDetailCard(String... labelValuePairs) {
+        VBox box = new VBox(12);
+        box.setFillWidth(true);
+        for (int i = 0; i + 1 < labelValuePairs.length; i += 2) {
+            Label lbl = new Label(labelValuePairs[i]);
+            lbl.getStyleClass().add("modern-dialog-detail-label");
+            javafx.scene.text.Text val = new javafx.scene.text.Text(labelValuePairs[i + 1]);
+            val.getStyleClass().add("modern-dialog-detail-value");
+            // Text + wrappingWidth: measured height accounts for wrapping,
+            // so long counterparties never truncate or shift the buttons.
+            val.setWrappingWidth(360);
+            VBox row = new VBox(2, lbl, val);
+            row.setFillWidth(true);
+            box.getChildren().add(row);
+        }
+        return box;
     }
 
-    private static void showLoanPaymentConfirmation(LoanSnapshot snapshot) {
-        BigDecimal totalPaid = BigDecimal.valueOf(snapshot.totalPaidCents())
-            .movePointLeft(2)
-            .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal pending = BigDecimal.valueOf(snapshot.pendingCents())
-            .movePointLeft(2)
-            .setScale(2, RoundingMode.HALF_UP);
-        String message = String.format(
-            Locale.getDefault(),
-            "Contraparte: %s%nTotal abonado: %s %s%nPendiente: %s %s%nEstado: %s",
-            snapshot.counterpartyName(),
-            totalPaid.toPlainString(),
-            snapshot.currency(),
-            pending.toPlainString(),
-            snapshot.currency(),
-            snapshot.status()
-        );
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Pago registrado");
-        alert.setHeaderText("Pago registrado correctamente");
-        alert.setContentText(message);
-        alert.showAndWait();
+    private static void showLoanDetailDialog(String title, Node details, Supplier<Boolean> darkTheme) {
+        ModernDialog.builder()
+            .type(ModernDialog.DialogType.SUCCESS)
+            .title(title)
+            .content(details)
+            .primaryButton("Entendido")
+            .showSecondaryButton(false)
+            .darkTheme(darkTheme)
+            .build()
+            .showAndWait();
+    }
+
+    private static void showLoanCreatedConfirmation(LoanSnapshot snapshot, Supplier<Boolean> darkTheme) {
+        showLoanDetailDialog("Préstamo creado", buildLoanDetailCard(
+            "Contraparte", snapshot.counterpartyName(),
+            "Monto", DashboardFormatters.formatMoney(snapshot.principalCents(), snapshot.currency()),
+            "Saldo pendiente", DashboardFormatters.formatMoney(snapshot.pendingCents(), snapshot.currency())
+        ), darkTheme);
+    }
+
+    private static void showLoanPaymentConfirmation(LoanSnapshot snapshot, Supplier<Boolean> darkTheme) {
+        showLoanDetailDialog("Pago registrado", buildLoanDetailCard(
+            "Contraparte", snapshot.counterpartyName(),
+            "Abonado", DashboardFormatters.formatMoney(snapshot.totalPaidCents(), snapshot.currency()),
+            "Saldo pendiente", DashboardFormatters.formatMoney(snapshot.pendingCents(), snapshot.currency())
+        ), darkTheme);
     }
 
     private static String ensureRepaymentCategory(CategoryRepository categoryRepo, String userUid) throws Exception {
@@ -3998,12 +3972,49 @@ public final class LoansView {
             try {
                 FirestoreSyncService sync =
                     new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
-                sync.publishCanonicalLoan(session, snapshot, occurredAtEpochSec, createdAtEpochSec);
+                AuthSessionManager sm = publishSessionManager(session);
+                sm.executeWithAuthRetry(() -> {
+                    sync.publishCanonicalLoan(sm.current(), snapshot,
+                        occurredAtEpochSec, createdAtEpochSec);
+                    return null;
+                });
+                markLoanPublishDone(snapshot.loanId());
             } catch (Exception e) {
+                markLoanPublishPending(snapshot);
                 System.out.println("[LoansView] publishLoan failed loanId=" + snapshot.loanId()
                     + " error=" + e.getMessage());
             }
         }, "loan-publish").start();
+    }
+
+    /**
+     * Construye un {@link AuthSessionManager} para el publish partiendo de la
+     * sesión persistida (puede estar más fresca que la capturada por la vista si
+     * el sync principal ya la renovó). Reutiliza el mismo mecanismo de retry
+     * del Sync: ante HTTP 401 renueva el idToken y reintenta una vez.
+     */
+    private static AuthSessionManager publishSessionManager(AuthSession session) throws Exception {
+        AppConfig cfg = AppConfig.loadDefault();
+        SqliteDatabase db = SqliteDatabase.defaultDatabase();
+        SessionRepository sessionRepo = new SessionRepository(db);
+        AuthSession base = sessionRepo.load().orElse(session);
+        return new AuthSessionManager(sessionRepo,
+            new FirebaseAuthService(cfg.firebaseApiKey())::refresh, base);
+    }
+
+    private static void markLoanPublishPending(LoanSnapshot snapshot) {
+        try {
+            CanonicalLoanPublishQueue.markPending(
+                SqliteDatabase.defaultDatabase(), snapshot.ownerId(), snapshot.loanId());
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void markLoanPublishDone(String loanId) {
+        try {
+            CanonicalLoanPublishQueue.markDone(SqliteDatabase.defaultDatabase(), loanId);
+        } catch (Exception ignored) {
+        }
     }
 
     private static void publishLoanAdminState(AuthSession session, LoanAdminState state,
@@ -4013,7 +4024,11 @@ public final class LoansView {
             try {
                 FirestoreSyncService sync =
                     new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
-                sync.publishLoanAdminState(session, state);
+                AuthSessionManager sm = publishSessionManager(session);
+                sm.executeWithAuthRetry(() -> {
+                    sync.publishLoanAdminState(sm.current(), state);
+                    return null;
+                });
                 if (adminRepo != null) {
                     try {
                         adminRepo.markSynced(state.ownerId(), state.loanId());
@@ -4038,20 +4053,27 @@ public final class LoansView {
             try {
                 FirestoreSyncService sync =
                     new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
-                if (transactionId != null && txRepo != null) {
-                    try {
-                        TransactionRepository.TransactionSyncRow t =
-                            txRepo.getForSyncByIdOrNull(userUid, transactionId);
-                        if (t != null) {
-                            sync.syncTransaction(session, t);
+                AuthSessionManager sm = publishSessionManager(session);
+                sm.executeWithAuthRetry(() -> {
+                    AuthSession s = sm.current();
+                    if (transactionId != null && txRepo != null) {
+                        try {
+                            TransactionRepository.TransactionSyncRow t =
+                                txRepo.getForSyncByIdOrNull(userUid, transactionId);
+                            if (t != null) {
+                                sync.syncTransaction(s, t);
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[LoansView] publish loan tx failed id=" + transactionId
+                                + " error=" + e.getMessage());
                         }
-                    } catch (Exception e) {
-                        System.out.println("[LoansView] publish loan tx failed id=" + transactionId
-                            + " error=" + e.getMessage());
                     }
-                }
-                sync.publishCanonicalLoan(session, snapshot, occurredAtEpochSec, createdAtEpochSec);
+                    sync.publishCanonicalLoan(s, snapshot, occurredAtEpochSec, createdAtEpochSec);
+                    return null;
+                });
+                markLoanPublishDone(snapshot.loanId());
             } catch (Exception e) {
+                markLoanPublishPending(snapshot);
                 System.out.println("[LoansView] publishLoan failed loanId=" + snapshot.loanId()
                     + " error=" + e.getMessage());
             }
@@ -4067,25 +4089,32 @@ public final class LoansView {
             try {
                 FirestoreSyncService sync =
                     new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
-                if (transactionId != null && txRepo != null) {
-                    try {
-                        TransactionRepository.TransactionSyncRow t =
-                            txRepo.getForSyncByIdOrNull(userUid, transactionId);
-                        if (t != null) {
-                            sync.syncTransaction(session, t);
+                AuthSessionManager sm = publishSessionManager(session);
+                sm.executeWithAuthRetry(() -> {
+                    AuthSession s = sm.current();
+                    if (transactionId != null && txRepo != null) {
+                        try {
+                            TransactionRepository.TransactionSyncRow t =
+                                txRepo.getForSyncByIdOrNull(userUid, transactionId);
+                            if (t != null) {
+                                sync.syncTransaction(s, t);
+                            }
+                        } catch (Exception e) {
+                            System.out.println("[LoansView] publish tx failed id=" + transactionId
+                                + " error=" + e.getMessage());
                         }
-                    } catch (Exception e) {
-                        System.out.println("[LoansView] publish tx failed id=" + transactionId
-                            + " error=" + e.getMessage());
                     }
-                }
-                if (event != null) {
-                    sync.publishCanonicalLoanPayment(session, event.eventId(), snapshot.loanId(),
-                        accountId, amountCents, event.occurredAt(), transactionId, note,
-                        event.recordedAt());
-                }
-                sync.publishCanonicalLoan(session, snapshot, null, null);
+                    if (event != null) {
+                        sync.publishCanonicalLoanPayment(s, event.eventId(), snapshot.loanId(),
+                            accountId, amountCents, event.occurredAt(), transactionId, note,
+                            event.recordedAt());
+                    }
+                    sync.publishCanonicalLoan(s, snapshot, null, null);
+                    return null;
+                });
+                markLoanPublishDone(snapshot.loanId());
             } catch (Exception e) {
+                markLoanPublishPending(snapshot);
                 System.out.println("[LoansView] publishLoanPayment failed loanId=" + snapshot.loanId()
                     + " error=" + e.getMessage());
             }
@@ -4112,11 +4141,15 @@ public final class LoansView {
         if (session == null || payment == null) return;
         new Thread(() -> {
             FirestoreSyncService sync = null;
+            AuthSessionManager sm = null;
             try {
                 sync = new FirestoreSyncService(AppConfig.loadDefault().firebaseProjectId());
+                sm = publishSessionManager(session);
             } catch (Exception e) {
                 System.out.println("[LoansView] reversal cleanup: sync unavailable " + e.getMessage());
             }
+            final AuthSessionManager sessionManager = sm;
+            final FirestoreSyncService syncF = sync;
             try {
                 SqliteDatabase db = SqliteDatabase.defaultDatabase();
                 LoanPaymentRepository paymentRepo = new LoanPaymentRepository(db);
@@ -4134,9 +4167,13 @@ public final class LoansView {
                     }
                     if (row != null) {
                         paymentRepo.delete(userUid, row.id());
-                        if (sync != null) {
+                        String paymentRowId = row.id();
+                        if (syncF != null && sessionManager != null) {
                             try {
-                                sync.deleteLoanPayment(session, row.id());
+                                sessionManager.executeWithAuthRetry(() -> {
+                                    syncF.deleteLoanPayment(sessionManager.current(), paymentRowId);
+                                    return null;
+                                });
                             } catch (Exception ignored) {
                             }
                         }
@@ -4144,9 +4181,12 @@ public final class LoansView {
                 } catch (Exception e) {
                     System.out.println("[LoansView] reversal cleanup loanPayment failed " + e.getMessage());
                 }
-                if (sync != null) {
+                if (syncF != null && sessionManager != null) {
                     try {
-                        sync.deleteLoanPayment(session, payment.sourceEventId());
+                        sessionManager.executeWithAuthRetry(() -> {
+                            syncF.deleteLoanPayment(sessionManager.current(), payment.sourceEventId());
+                            return null;
+                        });
                     } catch (Exception ignored) {
                     }
                 }
@@ -4161,9 +4201,14 @@ public final class LoansView {
                     }
                     if (movement != null) {
                         movementRepo.delete(userUid, movement.id());
-                        if (sync != null) {
+                        String movementId = movement.id();
+                        if (syncF != null && sessionManager != null) {
                             try {
-                                sync.deleteLoanMovement(session, userUid, payment.loanId(), movement.id());
+                                sessionManager.executeWithAuthRetry(() -> {
+                                    syncF.deleteLoanMovement(sessionManager.current(), userUid,
+                                        payment.loanId(), movementId);
+                                    return null;
+                                });
                             } catch (Exception ignored) {
                             }
                         }
@@ -4174,18 +4219,26 @@ public final class LoansView {
 
                 if (txId != null) {
                     deleteTransactionQuietly(txRepo, userUid, txId);
-                    if (sync != null) {
+                    if (syncF != null && sessionManager != null) {
                         try {
-                            sync.deleteTransaction(session, txId);
+                            sessionManager.executeWithAuthRetry(() -> {
+                                syncF.deleteTransaction(sessionManager.current(), txId);
+                                return null;
+                            });
                         } catch (Exception ignored) {
                         }
                     }
                 }
 
-                if (sync != null && snapshot != null) {
+                if (syncF != null && sessionManager != null && snapshot != null) {
                     try {
-                        sync.publishCanonicalLoan(session, snapshot, null, null);
+                        sessionManager.executeWithAuthRetry(() -> {
+                            syncF.publishCanonicalLoan(sessionManager.current(), snapshot, null, null);
+                            return null;
+                        });
+                        markLoanPublishDone(snapshot.loanId());
                     } catch (Exception e) {
+                        markLoanPublishPending(snapshot);
                         System.out.println("[LoansView] reversal cleanup publishLoan failed " + e.getMessage());
                     }
                 }

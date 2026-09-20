@@ -162,21 +162,22 @@ public final class ModernDialog {
                 setupOutsideClick(dialog, pane);
             }
 
-            // Set dialog size
+            // Set dialog size: fixed width, height grows with content so
+            // wrapped text is never truncated.
             dialog.setResizable(false);
             dialog.getDialogPane().setPrefWidth(440);
             dialog.getDialogPane().setMinWidth(400);
             dialog.getDialogPane().setMaxWidth(470);
-            dialog.getDialogPane().setPrefHeight(260);
             dialog.getDialogPane().setMinHeight(240);
-            dialog.getDialogPane().setMaxHeight(310);
+            dialog.getDialogPane().setPrefHeight(Region.USE_COMPUTED_SIZE);
+            dialog.getDialogPane().setMaxHeight(460);
 
             return dialog;
         }
 
         private VBox buildContent() {
-            VBox root = new VBox(8);
-            root.setPadding(new Insets(14, 18, 10, 18));
+            VBox root = new VBox(12);
+            root.setPadding(new Insets(14, 18, 12, 18));
             root.setFillWidth(true);
             root.getStyleClass().add("modern-dialog-root");
 
@@ -304,12 +305,13 @@ public final class ModernDialog {
             card.setMinWidth(0);
             card.setFillWidth(true);
 
-            Label descLabel = new Label(text);
-            descLabel.getStyleClass().add("modern-dialog-description");
-            descLabel.setWrapText(true);
-            descLabel.setMaxWidth(Double.MAX_VALUE);
+            // Text (not Label): its bounds reflect wrappingWidth during
+            // measurement, so multi-line messages size the card correctly.
+            javafx.scene.text.Text descText = new javafx.scene.text.Text(text);
+            descText.getStyleClass().add("modern-dialog-description");
+            descText.setWrappingWidth(360);
 
-            card.getChildren().add(descLabel);
+            card.getChildren().add(descText);
             return card;
         }
 
@@ -408,6 +410,14 @@ public final class ModernDialog {
             String cssPath = isDark ? "/styles/dark.css" : "/styles/light.css";
             var cssUrl = ModernDialog.class.getResource(cssPath);
 
+            // Apply the stylesheet to the pane BEFORE the first layout pass.
+            // Otherwise the stage sizes itself with unstyled metrics and the
+            // taller styled content overflows onto the button bar, blocking
+            // clicks on the buttons.
+            if (cssUrl != null && !pane.getStylesheets().contains(cssUrl.toExternalForm())) {
+                pane.getStylesheets().add(cssUrl.toExternalForm());
+            }
+
             pane.getStyleClass().addAll("app-root", "modern-dialog", "modern-dialog-" + type.name().toLowerCase());
             if (isDark) {
                 pane.getStyleClass().add("dark");
@@ -447,8 +457,9 @@ public final class ModernDialog {
             dialog.setOnShown(ev -> {
                 Platform.runLater(() -> {
                     // Load CSS on scene
-                    if (pane.getScene() != null && cssUrl != null) {
-                        pane.getScene().getStylesheets().setAll(cssUrl.toExternalForm());
+                    if (pane.getScene() != null && cssUrl != null
+                        && !pane.getScene().getStylesheets().contains(cssUrl.toExternalForm())) {
+                        pane.getScene().getStylesheets().add(cssUrl.toExternalForm());
                     }
                     if (isDark) {
                         pane.setStyle("-fx-background-color: #0F172A;");
@@ -476,6 +487,11 @@ public final class ModernDialog {
                     // Force icon to be set on show
                     if (pane.getScene() != null) {
                         trySetStageIcon(pane.getScene().getWindow());
+                    }
+                    // Refit the window to the fully styled content so the
+                    // button bar never overlaps the message card.
+                    if (pane.getScene() != null && pane.getScene().getWindow() != null) {
+                        pane.getScene().getWindow().sizeToScene();
                     }
                 });
             });

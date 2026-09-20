@@ -3892,6 +3892,11 @@
     -fx-background-color: #1E293B;
     -fx-border-color: #334155;
     -fx-text-fill: #3B82F6;
+    -fx-prompt-text-fill: #64748B;
+}
+
+.modal-amount-input:focused {
+    -fx-border-color: #3B82F6;
 }
 
 .modal-help-text {
@@ -3902,6 +3907,11 @@
     -fx-background-color: #1E293B;
     -fx-border-color: #334155;
     -fx-text-fill: #E5E7EB;
+    -fx-prompt-text-fill: #64748B;
+}
+
+.modal-text-input:focused {
+    -fx-border-color: #3B82F6;
 }
 
 .modal-date-wrap {
@@ -4044,6 +4054,53 @@
 .account-combo .list-view .list-cell:filled:selected {
     -fx-background-color: #3B82F6;
     -fx-text-fill: white;
+}
+
+/* ── Loan modal blocks ── */
+.loan-person-row {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-width: 1;
+}
+
+.loan-person-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #E2E8F0;
+}
+
+.loan-person-info {
+    -fx-font-size: 11px;
+    -fx-text-fill: #94A3B8;
+}
+
+.loan-track-bg {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 5;
+}
+
+.loan-muted-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #94A3B8;
+}
+
+.loan-remain-row {
+    -fx-background-color: rgba(255, 255, 255, 0.05);
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+}
+
+.loan-remain-value {
+    -fx-font-size: 13px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #E2E8F0;
+}
+
+.loan-remain-complete {
+    -fx-text-fill: #4ADE80;
 }
 
 .modal-btn-confirm {
@@ -4769,7 +4826,7 @@
     -fx-border-color: rgba(148, 163, 184, 0.12);
     -fx-border-radius: 16;
     -fx-border-width: 1;
-    -fx-padding: 12 14;
+    -fx-padding: 16 16;
 }
 
 .dark .modern-dialog-message-card {
@@ -4779,8 +4836,22 @@
 
 .dark .modern-dialog-description {
     -fx-font-size: 14px;
+    -fx-fill: rgba(248, 250, 252, 0.92);
     -fx-text-fill: rgba(248, 250, 252, 0.92);
     -fx-line-spacing: 1.25;
+}
+
+.dark .modern-dialog-detail-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #94A3B8;
+}
+
+.dark .modern-dialog-detail-value {
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-fill: #F1F5F9;
+    -fx-text-fill: #F1F5F9;
 }
 
 .dark .modern-dialog-title {

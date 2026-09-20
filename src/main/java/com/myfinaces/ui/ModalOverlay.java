@@ -7,6 +7,7 @@ import javafx.animation.ScaleTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
@@ -59,9 +60,10 @@ public final class ModalOverlay {
     private static final int    BLUR_ITERATIONS = 2;
 
     // ── Modal body ───────────────────────────────────────────────────
+    // Background comes from the theme stylesheets (.modal-root in light.css /
+    // dark.css); only structural decoration is kept inline.
     private static final String MODAL_BODY_STYLE =
-        "-fx-background-color: white; "
-        + "-fx-background-radius: 20; "
+        "-fx-background-radius: 20; "
         + "-fx-border-radius: 20; "
         + "-fx-effect: dropshadow(gaussian, rgba(15,23,42,0.18), 32, 0, 0, 8);";
 
@@ -120,11 +122,15 @@ public final class ModalOverlay {
     //  I N S T A N C E   S T A T E
     // ══════════════════════════════════════════════════════════════════
 
+    /** Marker set on buttons created by {@link #buildPrimaryButton}. */
+    private static final String PRIMARY_BUTTON_MARK = "xpendz-modal-primary";
+
     private final Pane backdrop;
     private final StackPane modalContainer;
     private VBox activeModal;
     private Node blurTarget;           // content node to blur when overlay is open
     private boolean closeOnClickOutside = true;
+    private final java.util.Map<String, Node> focusTargets = new java.util.HashMap<>();
 
     // ══════════════════════════════════════════════════════════════════
     //  C O N S T R U C T O R
@@ -236,6 +242,27 @@ public final class ModalOverlay {
         backdropIn.setInterpolator(Interpolator.EASE_OUT);
 
         new ParallelTransition(fadeIn, scaleIn, backdropIn).play();
+
+        // ENTER triggers the primary action while the modal is open.
+        Button primary = findPrimaryButton(target);
+        if (primary != null) {
+            primary.setDefaultButton(true);
+        }
+
+        // Initial focus on the first logical field, if configured.
+        Node focusNode = focusTargets.get(id);
+        if (focusNode != null) {
+            javafx.application.Platform.runLater(focusNode::requestFocus);
+        }
+    }
+
+    /**
+     * Sets the node that receives keyboard focus when the modal opens.
+     * Mirrors the "focus first field" behavior of the rest of the app.
+     */
+    public void setInitialFocus(String modalId, Node field) {
+        if (modalId == null || field == null) return;
+        focusTargets.put(modalId, field);
     }
 
     /**
@@ -398,6 +425,7 @@ public final class ModalOverlay {
 
         btn.setStyle(base);
         btn.setMaxWidth(Double.MAX_VALUE);
+        btn.getProperties().put(PRIMARY_BUTTON_MARK, Boolean.TRUE);
         btn.setOnMouseEntered(ev -> btn.setStyle(hover));
         btn.setOnMouseExited(ev -> btn.setStyle(base));
         return btn;
@@ -437,11 +465,32 @@ public final class ModalOverlay {
     // ══════════════════════════════════════════════════════════════════
 
     private void forceHide() {
+        for (Node modal : modalContainer.getChildren()) {
+            Button primary = findPrimaryButton(modal);
+            if (primary != null) {
+                primary.setDefaultButton(false);
+            }
+        }
         backdrop.setVisible(false);
         modalContainer.setVisible(false);
         modalContainer.setMouseTransparent(true);
         activeModal = null;
         applyBlur(false);
+    }
+
+    private static Button findPrimaryButton(Node node) {
+        if (node == null) return null;
+        if (node instanceof Button b
+            && Boolean.TRUE.equals(b.getProperties().get(PRIMARY_BUTTON_MARK))) {
+            return b;
+        }
+        if (node instanceof Parent p) {
+            for (Node child : p.getChildrenUnmodifiable()) {
+                Button found = findPrimaryButton(child);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private void applyBlur(boolean on) {

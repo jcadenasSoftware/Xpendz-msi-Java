@@ -6,9 +6,11 @@ import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.service.GoalService;
 import com.myfinaces.sync.FirestoreSyncService;
+import com.myfinaces.sync.GoalPublishQueue;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -657,11 +659,17 @@ public final class DashboardBudgetDialog {
                 List<GoalRepository.Goal> goals = goalRepo.listByUser(userUid).stream()
                     .filter(g -> GoalRepository.STATUS_OPEN.equals(g.status()))
                     .toList();
-                if (goals.isEmpty()) {
+                List<GoalRepository.Goal> archivadas = goalService.obtenerMetasArchivadas(userUid);
+                if (goals.isEmpty() && archivadas.isEmpty()) {
                     Label empty = new Label("Aún no tienes metas. Crea tu primera meta.");
                     empty.getStyleClass().add("text-secondary");
                     list.getChildren().add(empty);
                     return;
+                }
+                if (goals.isEmpty()) {
+                    Label empty = new Label("Sin metas activas.");
+                    empty.getStyleClass().add("text-secondary");
+                    list.getChildren().add(empty);
                 }
 
                 for (GoalRepository.Goal g : goals) {
@@ -790,6 +798,7 @@ public final class DashboardBudgetDialog {
                                         sync.syncGoal(session, archivedGoal);
                                     }
                                 }
+                                GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), g.id());
                             } catch (Exception ignored) {
                             }
                             if (outcome == GoalService.GoalDeletionOutcome.ARCHIVED) {
@@ -821,6 +830,74 @@ public final class DashboardBudgetDialog {
                     row.getStyleClass().add("account-item");
                     list.getChildren().add(row);
                 }
+
+                // Sección "Archivadas" (contrato v1.1 §12): metas CLOSED,
+                // solo lectura, con acción Reabrir. Contraída por defecto.
+                if (!archivadas.isEmpty()) {
+                    VBox archRows = new VBox(8);
+                    archRows.setVisible(false);
+                    archRows.setManaged(false);
+
+                    Label archTitle = new Label("Archivadas (" + archivadas.size() + ") ▸");
+                    archTitle.getStyleClass().add("text-secondary");
+                    archTitle.setStyle("-fx-cursor: hand; -fx-font-weight: 700;");
+                    archTitle.setOnMouseClicked(ev -> {
+                        boolean show = !archRows.isVisible();
+                        archRows.setVisible(show);
+                        archRows.setManaged(show);
+                        archTitle.setText("Archivadas (" + archivadas.size() + ") " + (show ? "▾" : "▸"));
+                    });
+                    list.getChildren().add(archTitle);
+
+                    for (GoalRepository.Goal ag : archivadas) {
+                        final long saldoA = safeComputeBalanceCents(accountRepo, userUid, ag.accountId());
+
+                        Label archName = new Label(ag.name());
+                        archName.getStyleClass().add("account-name");
+
+                        Label archAmounts = new Label(
+                            "Guardado " + formatMoney(saldoA, ag.currency())
+                                + "  ·  Objetivo " + formatMoney(ag.targetCents(), ag.currency()));
+                        archAmounts.getStyleClass().add("text-secondary");
+
+                        VBox archInfo = new VBox(2, archName, archAmounts);
+
+                        Region archSpacer = new Region();
+                        HBox.setHgrow(archSpacer, Priority.ALWAYS);
+
+                        Button reabrir = new Button("Reabrir");
+                        reabrir.getStyleClass().add("btn-secondary");
+                        reabrir.setOnAction(ev -> {
+                            try {
+                                GoalRepository.Goal reopened = goalService.reabrirMeta(userUid, ag.id());
+                                try {
+                                    AppConfig cfg = AppConfig.loadDefault();
+                                    FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                    if (reopened != null) {
+                                        sync.syncGoal(session, reopened);
+                                        GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), reopened.id());
+                                    }
+                                } catch (Exception ignored) {
+                                }
+                                refreshBalances.run();
+                                Runnable r = refreshListRef.get();
+                                if (r != null) {
+                                    r.run();
+                                }
+                            } catch (Exception ex) {
+                                error.setText(ex.getMessage() == null ? "No se pudo reabrir la meta" : ex.getMessage());
+                                error.setVisible(true);
+                                error.setManaged(true);
+                            }
+                        });
+
+                        HBox archRow = new HBox(12, archInfo, archSpacer, reabrir);
+                        archRow.setAlignment(Pos.CENTER_LEFT);
+                        archRow.getStyleClass().add("account-item");
+                        archRows.getChildren().add(archRow);
+                    }
+                    list.getChildren().add(archRows);
+                }
             } catch (Exception ex) {
                 error.setText(ex.getMessage() == null ? "Error" : ex.getMessage());
                 error.setVisible(true);
@@ -838,13 +915,16 @@ public final class DashboardBudgetDialog {
             }
             try {
                 DashboardGoalsDialog.NewGoal g = ng.get();
-                AccountRepository.Account savings = accountRepo.create(userUid, "Meta: " + g.name(), "SAVINGS", g.currency());
-                GoalRepository.Goal created = goalRepo.create(userUid, g.name(), g.currency(), g.targetCents(), g.targetDateEpochSec(), savings.id());
+                GoalRepository.Goal created = goalService.crearMeta(userUid, g.name(), g.currency(), g.targetCents(), g.targetDateEpochSec());
                 try {
                     AppConfig cfg = AppConfig.loadDefault();
                     FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
-                    sync.syncAccount(session, savings);
+                    AccountRepository.Account savings = accountRepo.getById(userUid, created.accountId());
+                    if (savings != null) {
+                        sync.syncAccount(session, savings);
+                    }
                     sync.syncGoal(session, created);
+                    GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), created.id());
                 } catch (Exception ignored) {
                 }
                 refreshBalances.run();

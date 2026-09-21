@@ -7,9 +7,11 @@ import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.BudgetRepository;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.service.GoalService;
 import com.myfinaces.sync.FirestoreSyncService;
+import com.myfinaces.sync.GoalPublishQueue;
 import javafx.animation.FadeTransition;
 import javafx.animation.Interpolator;
 import javafx.animation.PauseTransition;
@@ -860,7 +862,7 @@ public final class BudgetView {
                 HBox summaryCard = buildMetasSummaryCard(dk, goalService, userUid);
                 sumContainer.getChildren().add(summaryCard);
                 VBox metasGrid = buildMetasGrid(dk, goalService, userUid, goalOpenRef, selectedMetaRef,
-                    newGoalEditRef, metaEditRef, newGoalDrawerRef);
+                    newGoalEditRef, metaEditRef, newGoalDrawerRef, session, metasRefreshHolder);
                 ScrollPane gridScroll = new ScrollPane(metasGrid);
                 gridScroll.setFitToWidth(true);
                 gridScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -997,7 +999,8 @@ public final class BudgetView {
 
         // ── Drawer nueva meta ──────────────────────────────────────
         VBox newGoalDrawer = buildNewGoalDrawer(DRAWER_WIDTH, stackRoot, newGoalCloseRef,
-            userUid, currency, goalServiceRef, metaEditRef, metasRefreshHolder, darkTheme);
+            userUid, currency, goalServiceRef, metaEditRef, metasRefreshHolder, darkTheme,
+            session, accountRepo);
         newGoalDrawer.setTranslateX(DRAWER_WIDTH);
         newGoalDrawer.prefHeightProperty().bind(stackRoot.heightProperty());
         stackRoot.getChildren().add(newGoalDrawer);
@@ -1478,7 +1481,9 @@ public final class BudgetView {
                                            GoalService[] goalServiceRef,
                                            GoalRepository.Goal[] metaEditRef,
                                            Runnable[] metasRefreshHolder,
-                                           java.util.function.Supplier<Boolean> darkTheme) {
+                                           java.util.function.Supplier<Boolean> darkTheme,
+                                           AuthSession session,
+                                           AccountRepository accountRepo) {
         final boolean dk = darkTheme != null && Boolean.TRUE.equals(darkTheme.get());
 
         String drawerBg      = dk ? "#0F172A"  : "white";
@@ -1641,10 +1646,30 @@ public final class BudgetView {
             btnGuardar.setDisable(true);
             new Thread(() -> {
                 try {
+                    GoalRepository.Goal saved;
                     if (editando == null) {
-                        service.crearMeta(userUid, nombre, currency, finalTargetCents, finalTargetDate);
+                        saved = service.crearMeta(userUid, nombre, currency, finalTargetCents, finalTargetDate);
                     } else {
                         service.actualizarMeta(userUid, editando.id(), nombre, currency, finalTargetCents, finalTargetDate);
+                        saved = service.obtenerMeta(userUid, editando.id());
+                    }
+                    // Push inmediato (contrato v1.1 §13): cuenta + meta.
+                    try {
+                        AppConfig cfg = AppConfig.loadDefault();
+                        FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                        if (saved != null) {
+                            if (editando == null) {
+                                AccountRepository.Account acc = accountRepo.getById(userUid, saved.accountId());
+                                if (acc != null) {
+                                    sync.syncAccount(session, acc);
+                                }
+                            }
+                            sync.syncGoal(session, saved);
+                            GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), saved.id());
+                        }
+                    } catch (Exception ignored) {
+                        // El push fallido queda marcado en el outbox y lo
+                        // reintenta el siguiente pushPending.
                     }
                     javafx.application.Platform.runLater(() -> {
                         if (closeRef[0] != null) closeRef[0].run();
@@ -2019,7 +2044,9 @@ public final class BudgetView {
                                         GoalService.MetaInfo[] selectedMetaRef,
                                         Runnable[] newGoalEditRef,
                                         GoalRepository.Goal[] metaEditRef,
-                                        VBox[] newGoalDrawerRef) {
+                                        VBox[] newGoalDrawerRef,
+                                        AuthSession session,
+                                        Runnable[] metasRefreshHolder) {
         // Paleta de colores
         String cardBg       = dk ? "#0F172A" : "white";
         String cardBorder   = dk ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
@@ -2425,6 +2452,89 @@ public final class BudgetView {
         if (!activas.isEmpty()) mainContainer.getChildren().add(sectionActivas);
         if (!cercanas.isEmpty()) mainContainer.getChildren().add(sectionCercanas);
         if (!completadas.isEmpty()) mainContainer.getChildren().add(sectionCompletadas);
+
+        // ── Sección "Archivadas" (contrato v1.1 §12): metas CLOSED, solo
+        // lectura con acción Reabrir. Contraída por defecto.
+        java.util.List<GoalRepository.Goal> archivadas;
+        try {
+            archivadas = goalService.obtenerMetasArchivadas(userUid);
+        } catch (Exception e) {
+            archivadas = java.util.List.of();
+        }
+
+        if (!archivadas.isEmpty()) {
+            VBox archRows = new VBox(8);
+            archRows.setVisible(false);
+            archRows.setManaged(false);
+
+            final int archCount = archivadas.size();
+            Label archTitle = new Label("Archivadas (" + archCount + ") ▸");
+            archTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: " + descColor
+                + "; -fx-cursor: hand;");
+            archTitle.setOnMouseClicked(ev -> {
+                boolean show = !archRows.isVisible();
+                archRows.setVisible(show);
+                archRows.setManaged(show);
+                archTitle.setText("Archivadas (" + archCount + ") " + (show ? "▾" : "▸"));
+            });
+
+            for (GoalRepository.Goal ag : archivadas) {
+                long saldoA = goalService.calcularSaldo(userUid, ag.accountId());
+                Label archName = new Label(ag.name());
+                archName.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: " + titleColor + ";");
+                Label archAmounts = new Label(
+                    "Guardado " + formatMoney(saldoA, ag.currency())
+                        + "  ·  Objetivo " + formatMoney(ag.targetCents(), ag.currency()));
+                archAmounts.setStyle("-fx-font-size: 11px; -fx-text-fill: " + descColor + ";");
+                VBox archInfo = new VBox(2, archName, archAmounts);
+
+                Region archSpacer = new Region();
+                HBox.setHgrow(archSpacer, Priority.ALWAYS);
+
+                Button btnReabrir = new Button("Reabrir");
+                btnReabrir.getStyleClass().add("btn-secondary");
+                btnReabrir.setOnAction(ev -> {
+                    ev.consume();
+                    btnReabrir.setDisable(true);
+                    new Thread(() -> {
+                        try {
+                            GoalRepository.Goal reopened = goalService.reabrirMeta(userUid, ag.id());
+                            try {
+                                AppConfig cfg = AppConfig.loadDefault();
+                                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                                if (reopened != null) {
+                                    sync.syncGoal(session, reopened);
+                                    GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), reopened.id());
+                                }
+                            } catch (Exception ignored) {
+                            }
+                            javafx.application.Platform.runLater(() -> {
+                                if (metasRefreshHolder[0] != null) metasRefreshHolder[0].run();
+                            });
+                        } catch (Exception ex) {
+                            javafx.application.Platform.runLater(() -> {
+                                btnReabrir.setDisable(false);
+                                ModernDialogs.warning(
+                                    "No se pudo reabrir",
+                                    "La meta '" + ag.name() + "' no pudo reabrirse: " + ex.getMessage(),
+                                    () -> dk);
+                            });
+                        }
+                    }).start();
+                });
+
+                HBox archRow = new HBox(12, archInfo, archSpacer, btnReabrir);
+                archRow.setAlignment(Pos.CENTER_LEFT);
+                archRow.setPadding(new Insets(10, 14, 10, 14));
+                archRow.setStyle("-fx-background-color: " + cardBg + "; -fx-background-radius: 10; "
+                    + "-fx-border-color: " + cardBorder + "; -fx-border-radius: 10; -fx-border-width: 1;");
+                archRows.getChildren().add(archRow);
+            }
+
+            VBox archSection = new VBox(10, archTitle, archRows);
+            archSection.setFillWidth(true);
+            mainContainer.getChildren().add(archSection);
+        }
 
         return mainContainer;
     }
@@ -3053,6 +3163,7 @@ public final class BudgetView {
                                 sync.syncGoal(session, archived);
                             }
                         }
+                        GoalPublishQueue.markDone(SqliteDatabase.defaultDatabase(), meta.goal().id());
                     } catch (Exception ignored) {
                     }
 

@@ -49,9 +49,14 @@ public final class FirestoreSyncService {
             .build();
 
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() == 404) {
+            logGoalTrace("GOAL_PUSH_DELETE", "id=" + goalId + " result=alreadyAbsent");
+            return;
+        }
         if (resp.statusCode() / 100 != 2) {
             throw new RuntimeException("Firestore delete goal failed (" + resp.statusCode() + "): " + resp.body());
         }
+        logGoalTrace("GOAL_PUSH_DELETE", "id=" + goalId + " result=ok");
     }
 
     public void syncAccounts(AuthSession session, AccountRepository accountRepo) throws Exception {
@@ -351,6 +356,10 @@ public final class FirestoreSyncService {
         );
     }
 
+    private static void logGoalTrace(String label, String details) {
+        System.out.println("[GoalTrace] " + label + " " + details);
+    }
+
     /**
      * Pull completo de {@code loans/{loanId}/movements}: devuelve registros
      * equivalentes a {@code loan_movements} para ingestión local y para la
@@ -534,6 +543,7 @@ public final class FirestoreSyncService {
 
             Object fieldsObj = doc.get("fields");
             if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=noFields");
                 continue;
             }
 
@@ -544,23 +554,31 @@ public final class FirestoreSyncService {
             String accountId = readStringField(fields, "accountId");
 
             if (name == null || name.isBlank()) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=missingName");
                 continue;
             }
             if (currency == null || currency.isBlank()) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=missingCurrency");
                 continue;
             }
             if (targetCents == null) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=missingTargetCents");
                 continue;
             }
             if (targetDate == null) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=missingTargetDate");
                 continue;
             }
             if (accountId == null || accountId.isBlank()) {
+                logGoalTrace("GOAL_PULL_REJECTED", "id=" + id + " stage=parse reason=missingAccountId");
                 continue;
             }
 
             String status = readStringField(fields, "status");
             if (status == null || status.isBlank()) {
+                status = GoalRepository.STATUS_OPEN;
+            } else if (!GoalRepository.STATUS_OPEN.equals(status) && !GoalRepository.STATUS_CLOSED.equals(status)) {
+                logGoalTrace("GOAL_PULL_UNKNOWN_STATUS", "id=" + id + " status=" + status + " action=defaultOpen");
                 status = GoalRepository.STATUS_OPEN;
             }
 
@@ -989,6 +1007,8 @@ public final class FirestoreSyncService {
         fields.put("updatedBy", stringField(DeviceId.get()));
 
         patchDoc(session, url, fields, "goal");
+        logGoalTrace("GOAL_PUSH_UPSERT", "id=" + g.id() + " status=" + g.status()
+            + " updatedAt=" + g.updatedAtEpochSec());
     }
 
     private void upsertBudget(AuthSession session, BudgetRepository.Budget b) throws Exception {

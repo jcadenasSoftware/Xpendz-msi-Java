@@ -13,9 +13,9 @@ import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
-import com.myfinaces.service.GoalService;
 import com.myfinaces.sync.CanonicalLoanPublishQueue;
 import com.myfinaces.sync.FirestoreSyncService;
+import com.myfinaces.sync.GoalPublishQueue;
 import javafx.application.Platform;
 import myfinances.application.loan.LoanApplicationService;
 import myfinances.domain.loan.snapshot.LoanSnapshot;
@@ -69,8 +69,6 @@ public final class DashboardSyncCoordinator {
         Runnable onSyncSuccess,
         Consumer<String> onSyncStatus
     ) {
-        GoalService goalService = new GoalService(goalRepo, accountRepo, transferRepo);
-
         Runnable pullCategories = () -> {
             System.out.println("[Sync] pullCategories start");
             try {
@@ -232,6 +230,34 @@ public final class DashboardSyncCoordinator {
                                 }
                                 System.out.println("[Sync] canonical loan publish retry failed loanId="
                                     + e.loanId() + " error=" + ex.getMessage());
+                            }
+                        }
+                    }
+
+                    // Reintenta publicaciones/borrados de metas pendientes en el
+                    // outbox (misma tabla usada por la cola canónica de préstamos).
+                    List<GoalPublishQueue.Entry> pendingGoals = GoalPublishQueue.listPending(outboxDb);
+                    if (!pendingGoals.isEmpty()) {
+                        System.out.println("[Sync] goals outbox pending=" + pendingGoals.size());
+                        for (GoalPublishQueue.Entry e : pendingGoals) {
+                            try {
+                                if (GoalPublishQueue.OP_DELETE.equals(e.operation())) {
+                                    sync.deleteGoal(s, e.goalId());
+                                } else {
+                                    GoalRepository.Goal g = goalRepo.getByIdOrNull(s.uid(), e.goalId());
+                                    if (g != null) {
+                                        sync.syncGoal(s, g);
+                                    }
+                                }
+                                GoalPublishQueue.markDone(outboxDb, e.goalId());
+                                logGoalTrace("GOAL_OUTBOX_DONE", "op=" + e.operation() + " id=" + e.goalId());
+                            } catch (Exception goalEx) {
+                                try {
+                                    GoalPublishQueue.recordFailure(outboxDb, e.id(), goalEx.getMessage());
+                                } catch (Exception ignored) {
+                                }
+                                logGoalTrace("GOAL_OUTBOX_FAILED", "op=" + e.operation()
+                                    + " id=" + e.goalId() + " error=" + goalEx.getMessage());
                             }
                         }
                     }
@@ -747,30 +773,53 @@ public final class DashboardSyncCoordinator {
                     sessionManager.executeWithAuthRetry(() -> sync.pullGoals(sessionManager.current()));
                 System.out.println("[Sync] pulled goals=" + remote.size());
 
+                // El sincronizador no toma decisiones funcionales: solo
+                // transporta estado. El outbox distingue metas cuyo push aún
+                // no se confirmó (inconsistencia temporal → conservar) de
+                // metas sincronizadas que desaparecieron del remoto
+                // (borrado legítimo → espejar el borrado físico).
+                SqliteDatabase outboxDb = SqliteDatabase.defaultDatabase();
+                Set<String> pendingPublish = GoalPublishQueue.pendingIds(outboxDb, GoalPublishQueue.OP_PUBLISH);
+                Set<String> pendingDelete = GoalPublishQueue.pendingIds(outboxDb, GoalPublishQueue.OP_DELETE);
+
                 Set<String> remoteIds = new HashSet<>();
+                int applied = 0;
                 for (GoalRepository.Goal g : remote) {
                     remoteIds.add(g.id());
+                    if (pendingDelete.contains(g.id())) {
+                        logGoalTrace("GOAL_PULL_SKIPPED", "id=" + g.id() + " reason=pendingDelete");
+                        continue;
+                    }
                     if (accountRepo.getById(session.uid(), g.accountId()) == null) {
+                        logGoalTrace("GOAL_PULL_REJECTED", "id=" + g.id()
+                            + " reason=missingAccount accountId=" + g.accountId());
                         continue;
                     }
                     try {
                         goalRepo.upsertFromRemote(session.uid(), g);
-                    } catch (Exception ignored) {
+                        applied++;
+                    } catch (Exception upsertEx) {
+                        logGoalTrace("GOAL_UPSERT_FAILED", "id=" + g.id() + " error=" + upsertEx.getMessage());
                     }
                 }
+                logGoalTrace("GOAL_PULL_RESULT", "remote=" + remote.size() + " applied=" + applied);
 
                 List<GoalRepository.Goal> localAll = goalRepo.listByUser(session.uid());
                 for (GoalRepository.Goal g : localAll) {
                     if (remoteIds.contains(g.id())) {
                         continue;
                     }
+                    if (pendingPublish.contains(g.id())) {
+                        logGoalTrace("GOAL_ABSENT_REMOTE", "id=" + g.id() + " name=" + g.name()
+                            + " reason=pendingPublish action=keep");
+                        continue;
+                    }
                     try {
-                        if (goalService.tieneHistorial(session.uid(), g.accountId())) {
-                            goalRepo.archive(session.uid(), g.id());
-                        } else {
-                            goalRepo.delete(session.uid(), g.id());
-                        }
-                    } catch (Exception ignored) {
+                        goalRepo.delete(session.uid(), g.id());
+                        logGoalTrace("GOAL_REMOTE_DELETED", "id=" + g.id() + " name=" + g.name()
+                            + " action=deleteLocal");
+                    } catch (Exception delEx) {
+                        logGoalTrace("GOAL_REMOTE_DELETE_FAILED", "id=" + g.id() + " error=" + delEx.getMessage());
                     }
                 }
             } catch (Exception ex) {
@@ -944,6 +993,10 @@ public final class DashboardSyncCoordinator {
                 + " occurredAt=" + transaction.occurredAtEpochSec()
                 + (extras == null || extras.isBlank() ? "" : " " + extras)
         );
+    }
+
+    private static void logGoalTrace(String label, String details) {
+        System.out.println("[GoalTrace] " + label + " " + details);
     }
 
     private static String valueOrDash(String value) {

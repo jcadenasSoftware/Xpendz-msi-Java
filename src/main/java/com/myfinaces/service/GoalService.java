@@ -2,7 +2,9 @@ package com.myfinaces.service;
 
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.GoalRepository;
+import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransferRepository;
+import com.myfinaces.sync.GoalPublishQueue;
 
 import java.sql.SQLException;
 import java.time.Instant;
@@ -18,11 +20,53 @@ public final class GoalService {
     private final GoalRepository goalRepo;
     private final AccountRepository accountRepo;
     private final TransferRepository transferRepo;
+    private final SqliteDatabase outboxDb;
 
     public GoalService(GoalRepository goalRepo, AccountRepository accountRepo, TransferRepository transferRepo) {
+        this(goalRepo, accountRepo, transferRepo, defaultOutboxDb());
+    }
+
+    public GoalService(GoalRepository goalRepo, AccountRepository accountRepo, TransferRepository transferRepo,
+                       SqliteDatabase outboxDb) {
         this.goalRepo = Objects.requireNonNull(goalRepo, "goalRepo");
         this.accountRepo = Objects.requireNonNull(accountRepo, "accountRepo");
         this.transferRepo = Objects.requireNonNull(transferRepo, "transferRepo");
+        this.outboxDb = outboxDb;
+    }
+
+    private static SqliteDatabase defaultOutboxDb() {
+        try {
+            return SqliteDatabase.defaultDatabase();
+        } catch (Exception e) {
+            logGoalTrace("OUTBOX_UNAVAILABLE", "error=" + e.getMessage());
+            return null;
+        }
+    }
+
+    private void markPendingPublish(String userUid, String goalId) {
+        if (outboxDb == null) {
+            return;
+        }
+        try {
+            GoalPublishQueue.markPendingPublish(outboxDb, userUid, goalId);
+        } catch (Exception e) {
+            logGoalTrace("OUTBOX_MARK_FAILED", "op=PUBLISH id=" + goalId + " error=" + e.getMessage());
+        }
+    }
+
+    private void markPendingDelete(String userUid, String goalId) {
+        if (outboxDb == null) {
+            return;
+        }
+        try {
+            GoalPublishQueue.markPendingDelete(outboxDb, userUid, goalId);
+        } catch (Exception e) {
+            logGoalTrace("OUTBOX_MARK_FAILED", "op=DELETE id=" + goalId + " error=" + e.getMessage());
+        }
+    }
+
+    private static void logGoalTrace(String label, String details) {
+        System.out.println("[GoalTrace] " + label + " " + details);
     }
 
     // ── Consultas ─────────────────────────────────────────────────
@@ -33,6 +77,15 @@ public final class GoalService {
     public List<GoalRepository.Goal> obtenerMetas(String userUid) throws SQLException {
         return goalRepo.listByUser(userUid).stream()
             .filter(g -> GoalRepository.STATUS_OPEN.equals(g.status()))
+            .toList();
+    }
+
+    /**
+     * Obtiene las metas archivadas (CLOSED) de un usuario.
+     */
+    public List<GoalRepository.Goal> obtenerMetasArchivadas(String userUid) throws SQLException {
+        return goalRepo.listByUser(userUid).stream()
+            .filter(g -> GoalRepository.STATUS_CLOSED.equals(g.status()))
             .toList();
     }
 
@@ -124,7 +177,7 @@ public final class GoalService {
         );
 
         // Crear la meta
-        return goalRepo.create(
+        GoalRepository.Goal created = goalRepo.create(
             userUid,
             name.trim(),
             currency,
@@ -132,10 +185,13 @@ public final class GoalService {
             targetDateEpochSec,
             savings.id()
         );
+        markPendingPublish(userUid, created.id());
+        logGoalTrace("GOAL_CREATED", "id=" + created.id() + " name=" + created.name());
+        return created;
     }
 
     /**
-     * Actualiza una meta existente.
+     * Actualiza una meta existente. Solo metas OPEN son editables.
      */
     public void actualizarMeta(
             String userUid,
@@ -144,10 +200,13 @@ public final class GoalService {
             String currency,
             long targetCents,
             long targetDateEpochSec) throws SQLException {
-        
+
         GoalRepository.Goal goal = goalRepo.getByIdOrNull(userUid, goalId);
         if (goal == null) {
             throw new IllegalArgumentException("Meta no encontrada");
+        }
+        if (!GoalRepository.STATUS_OPEN.equals(goal.status())) {
+            throw new IllegalStateException("goal_not_open");
         }
 
         goalRepo.update(
@@ -160,6 +219,25 @@ public final class GoalService {
             goal.accountId(),
             goal.status()
         );
+        markPendingPublish(userUid, goalId);
+    }
+
+    /**
+     * Reabre una meta archivada (CLOSED → OPEN) conservando cuenta, saldo e historial.
+     */
+    public GoalRepository.Goal reabrirMeta(String userUid, String goalId) throws SQLException {
+        GoalRepository.Goal goal = goalRepo.getByIdOrNull(userUid, goalId);
+        if (goal == null) {
+            throw new IllegalArgumentException("Meta no encontrada");
+        }
+        if (!GoalRepository.STATUS_CLOSED.equals(goal.status())) {
+            throw new IllegalStateException("goal_not_archived");
+        }
+
+        goalRepo.reopen(userUid, goalId);
+        markPendingPublish(userUid, goalId);
+        logGoalTrace("GOAL_REOPENED", "id=" + goalId + " name=" + goal.name());
+        return goalRepo.getByIdOrNull(userUid, goalId);
     }
 
     /**
@@ -187,9 +265,13 @@ public final class GoalService {
                     // La meta ya fue eliminada
                 }
             }
+            markPendingDelete(userUid, goalId);
+            logGoalTrace("GOAL_DELETED", "id=" + goalId + " mode=physical");
             return GoalDeletionOutcome.DELETED;
         } else {
             goalRepo.archive(userUid, goalId);
+            markPendingPublish(userUid, goalId);
+            logGoalTrace("GOAL_ARCHIVED", "id=" + goalId + " name=" + goal.name());
             return GoalDeletionOutcome.ARCHIVED;
         }
     }
@@ -223,6 +305,9 @@ public final class GoalService {
         if (goal == null) {
             throw new IllegalArgumentException("Meta no encontrada");
         }
+        if (!GoalRepository.STATUS_OPEN.equals(goal.status())) {
+            throw new IllegalStateException("goal_not_open");
+        }
 
         if (amountCents <= 0) {
             throw new IllegalArgumentException("El monto debe ser positivo");
@@ -254,6 +339,9 @@ public final class GoalService {
         GoalRepository.Goal goal = goalRepo.getByIdOrNull(userUid, goalId);
         if (goal == null) {
             throw new IllegalArgumentException("Meta no encontrada");
+        }
+        if (!GoalRepository.STATUS_OPEN.equals(goal.status())) {
+            throw new IllegalStateException("goal_not_open");
         }
 
         // Verificar que hay suficiente saldo

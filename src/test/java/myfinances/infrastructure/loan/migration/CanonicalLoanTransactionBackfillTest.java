@@ -10,7 +10,6 @@ import com.myfinaces.db.AppSchema;
 import com.myfinaces.db.CategoryRepository;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionRepository;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -55,39 +54,53 @@ class CanonicalLoanTransactionBackfillTest {
     }
 
     @Test
-    void backfillsMissingCreationTransactionAndIsIdempotent() throws Exception {
+    void orphanCreationEventNeverMaterializesTransaction() throws Exception {
         LoanCommandResult created = service.process(createLoanCommand(null, LoanType.LENT, 250_000L, "Ana Pérez", "COP", "Prestamo histórico"));
         assertEquals(Outcome.APPLIED, created.outcome());
-        long beforeBalance = accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID);
-        assertEquals(0L, beforeBalance);
+        assertEquals(0L, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
 
         CanonicalLoanTransactionBackfill.BackfillReport first = CanonicalLoanTransactionBackfill.run(database);
         assertEquals(1, first.loansScanned());
-        assertEquals(0, first.loansAlreadyLinked());
-        assertEquals(1, first.loansRepaired());
-        assertEquals(1, first.transactionsCreated());
+        assertEquals(1, first.loansAlreadyLinked());
+        assertEquals(0, first.loansRepaired());
+        assertEquals(0, first.transactionsCreated());
+        assertEquals(0, first.orphansCovered());
+        assertEquals(1, first.orphansUnresolved());
         assertTrue(first.errors().isEmpty());
 
-        String deterministicTxId = deterministicTransactionId(created.event().eventId());
-        TransactionRepository.TransactionSyncRow tx = txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTxId);
+        String deterministicTxId = CanonicalLoanEventIds.deterministicTransactionId(created.event().eventId());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTxId));
+        assertEquals(0L, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
+
+        CanonicalLoanTransactionBackfill.BackfillReport second = CanonicalLoanTransactionBackfill.run(database);
+        assertEquals(0, second.transactionsCreated());
+        assertEquals(1, second.orphansUnresolved());
+        assertTrue(second.errors().isEmpty());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTxId));
+    }
+
+    @Test
+    void restoresMissingTransactionByKnownTransactionId() throws Exception {
+        service.process(createLoanCommand("tx-known", LoanType.LENT, 250_000L, "Ana Pérez", "COP", "Prestamo histórico"));
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, "tx-known"));
+
+        CanonicalLoanTransactionBackfill.BackfillReport first = CanonicalLoanTransactionBackfill.run(database);
+        assertEquals(1, first.transactionsCreated());
+        assertEquals(0, first.orphansUnresolved());
+        assertTrue(first.errors().isEmpty());
+
+        TransactionRepository.TransactionSyncRow tx = txRepo.getForSyncByIdOrNull(OWNER_ID, "tx-known");
         assertNotNull(tx);
         assertEquals(ACCOUNT_ID, tx.accountId());
         assertEquals("system-loan-" + OWNER_ID, tx.categoryId());
         assertEquals("LOAN_LENT_OUT", tx.kind());
         assertEquals(250_000L, tx.amountCents());
         assertEquals(OCCURRED_AT, tx.occurredAtEpochSec());
-        assertEquals("Préstamo otorgado a: Ana Pérez", tx.note());
-
-        long afterBalance = accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID);
-        assertEquals(-250_000L, afterBalance);
+        assertEquals(-250_000L, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
 
         CanonicalLoanTransactionBackfill.BackfillReport second = CanonicalLoanTransactionBackfill.run(database);
-        assertEquals(1, second.loansScanned());
-        assertEquals(1, second.loansAlreadyLinked());
-        assertEquals(0, second.loansRepaired());
         assertEquals(0, second.transactionsCreated());
         assertTrue(second.errors().isEmpty());
-        assertNotNull(txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTxId));
     }
 
     @Test
@@ -134,44 +147,59 @@ class CanonicalLoanTransactionBackfillTest {
         assertEquals(0, report.transactionsCreated());
         assertEquals(1, report.errors().size());
         assertTrue(report.errors().get(0).contains("evento sin cuenta asociada"));
-        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTransactionId(created.event().eventId())));
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID,
+            CanonicalLoanEventIds.deterministicTransactionId(created.event().eventId())));
     }
 
     @Test
-    void materializesTopupEventWithoutTransactionId() throws Exception {
+    void orphanTopupEventNeverMaterializesTransaction() throws Exception {
         service.process(createLoanCommand("tx-creation", LoanType.LENT, 250_000L, "Ana Pérez", "COP", null));
         txRepo.createWithId("tx-creation", OWNER_ID, ACCOUNT_ID, ensureLoanCategory(),
             "LOAN_LENT_OUT", 250_000L, OCCURRED_AT, "Préstamo otorgado a: Ana Pérez");
         insertJournalEvent("evt-topup-1", "TOPUP", 100_000L, OCCURRED_AT + 10, null, null);
 
         CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
-        assertEquals(1, report.transactionsCreated());
-        TransactionRepository.TransactionSyncRow tx =
-            txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTransactionId("evt-topup-1"));
-        assertNotNull(tx);
-        assertEquals("LOAN_LENT_TOPUP", tx.kind());
-        assertEquals(100_000L, tx.amountCents());
-        assertEquals(ACCOUNT_ID, tx.accountId());
+        assertEquals(0, report.transactionsCreated());
+        assertEquals(1, report.orphansUnresolved());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID,
+            CanonicalLoanEventIds.deterministicTransactionId("evt-topup-1")));
+        assertEquals(-250_000L, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
     }
 
     @Test
-    void materializesPaymentEventWithoutTransactionId() throws Exception {
+    void orphanPaymentEventNeverMaterializesTransaction() throws Exception {
         service.process(createLoanCommand("tx-creation", LoanType.LENT, 250_000L, "Ana Pérez", "COP", null));
         txRepo.createWithId("tx-creation", OWNER_ID, ACCOUNT_ID, ensureLoanCategory(),
             "LOAN_LENT_OUT", 250_000L, OCCURRED_AT, "Préstamo otorgado a: Ana Pérez");
         insertJournalEvent("evt-pay-1", "PAYMENT", 50_000L, OCCURRED_AT + 10, null, null);
 
         CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
-        assertEquals(1, report.transactionsCreated());
-        TransactionRepository.TransactionSyncRow tx =
-            txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTransactionId("evt-pay-1"));
-        assertNotNull(tx);
-        assertEquals("LOAN_REPAYMENT_PRINCIPAL_IN", tx.kind());
-        assertEquals(50_000L, tx.amountCents());
+        assertEquals(0, report.transactionsCreated());
+        assertEquals(1, report.orphansUnresolved());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID,
+            CanonicalLoanEventIds.deterministicTransactionId("evt-pay-1")));
     }
 
     @Test
-    void materializesRealAdjustmentWithoutTransactionId() throws Exception {
+    void orphanCoveredByExistingUnreferencedTransaction() throws Exception {
+        service.process(createLoanCommand("tx-creation", LoanType.LENT, 250_000L, "Ana Pérez", "COP", null));
+        txRepo.createWithId("tx-creation", OWNER_ID, ACCOUNT_ID, ensureLoanCategory(),
+            "LOAN_LENT_OUT", 250_000L, OCCURRED_AT, "Préstamo otorgado a: Ana Pérez");
+        insertJournalEvent("evt-topup-1", "TOPUP", 100_000L, OCCURRED_AT + 10, null, null);
+        txRepo.createWithId("tx-real-topup", OWNER_ID, ACCOUNT_ID, "system-loan-" + OWNER_ID,
+            "LOAN_LENT_TOPUP", 100_000L, OCCURRED_AT + 10, "Aumento de préstamo otorgado a: Ana Pérez");
+
+        CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
+        assertEquals(0, report.transactionsCreated());
+        assertEquals(1, report.orphansCovered());
+        assertEquals(0, report.orphansUnresolved());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID,
+            CanonicalLoanEventIds.deterministicTransactionId("evt-topup-1")));
+        assertEquals(-350_000L, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
+    }
+
+    @Test
+    void orphanAdjustmentEventNeverMaterializesTransaction() throws Exception {
         service.process(createLoanCommand("tx-creation", LoanType.LENT, 250_000L, "Ana Pérez", "COP", null));
         txRepo.createWithId("tx-creation", OWNER_ID, ACCOUNT_ID, ensureLoanCategory(),
             "LOAN_LENT_OUT", 250_000L, OCCURRED_AT, "Préstamo otorgado a: Ana Pérez");
@@ -179,11 +207,10 @@ class CanonicalLoanTransactionBackfillTest {
             "Corrección de préstamo otorgado a: Ana Pérez");
 
         CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
-        assertEquals(1, report.transactionsCreated());
-        TransactionRepository.TransactionSyncRow tx =
-            txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTransactionId("evt-adj-real"));
-        assertNotNull(tx);
-        assertEquals("LOAN_LENT_CORRECTION_OUT", tx.kind());
+        assertEquals(0, report.transactionsCreated());
+        assertEquals(1, report.orphansUnresolved());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID,
+            CanonicalLoanEventIds.deterministicTransactionId("evt-adj-real")));
     }
 
     @Test
@@ -200,9 +227,10 @@ class CanonicalLoanTransactionBackfillTest {
 
         CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
         assertEquals(0, report.transactionsCreated());
-        assertEquals(1, report.loansAlreadyLinked());
+        assertEquals(1, report.orphansCovered());
+        assertEquals(0, report.orphansUnresolved());
         assertTrue(report.errors().isEmpty());
-        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, deterministicTransactionId(syntheticId)));
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, CanonicalLoanEventIds.deterministicTransactionId(syntheticId)));
         assertEquals(beforeBalance, accountRepo.computeBalanceCents(OWNER_ID, ACCOUNT_ID));
 
         CanonicalLoanTransactionBackfill.BackfillReport second = CanonicalLoanTransactionBackfill.run(database);
@@ -301,10 +329,6 @@ class CanonicalLoanTransactionBackfillTest {
             transactionId,
             notes
         );
-    }
-
-    private static String deterministicTransactionId(String eventId) {
-        return UUID.nameUUIDFromBytes(("canonical-loan-tx:" + eventId).getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private void seedSupportRows() throws Exception {

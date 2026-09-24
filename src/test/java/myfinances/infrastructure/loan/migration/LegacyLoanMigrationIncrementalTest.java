@@ -53,6 +53,7 @@ class LegacyLoanMigrationIncrementalTest {
     @Test
     void principalChangeTriggersReplayAndConverges() throws Exception {
         seedLoan(100_000L, "OPEN", REMOTE_DEVICE);
+        seedTransaction("tx-create-1", "LOAN_LENT_OUT", 100_000L, 1_000L);
         LegacyLoanMigration.migrate(database, service);
 
         LoanSummaryProjection summary = queryRepository.getSummaryProjection(OWNER_ID, LOAN_ID);

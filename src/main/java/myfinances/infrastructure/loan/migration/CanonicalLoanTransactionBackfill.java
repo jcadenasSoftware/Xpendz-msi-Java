@@ -3,7 +3,6 @@ package myfinances.infrastructure.loan.migration;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionKind;
 import com.myfinaces.db.TransactionRepository;
-import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,22 +11,28 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import myfinances.infrastructure.loan.jdbc.LoanPersistenceException;
 
 /**
  * Backfill idempotente de transacciones financieras para préstamos canónicos.
  * <p>
  * Recorre los eventos financieros del journal canónico ({@code loan_journal_v1})
- * y genera la {@code Transaction} equivalente a la que hoy crea {@code LoansView}
+ * y restaura la {@code Transaction} equivalente a la que hoy crea {@code LoansView}
  * para los eventos que quedaron sin movimiento financiero (préstamos creados
  * antes de la integración financiera de Sprint 6A).
  * <p>
+ * Barrera de seguridad financiera: un evento sin {@code transaction_id} NUNCA
+ * fabrica una transacción. Los eventos huérfanos provienen de replays, merges
+ * remotos y migraciones legacy, y su flujo de dinero suele estar ya cubierto
+ * por una transacción existente — o no representa dinero (ajustes sintéticos).
+ * Ante ambigüedad el evento se diagnostica ({@code ORPHAN_COVERED} /
+ * {@code ORPHAN_UNRESOLVED}) y se conserva sin materializar nada; el enlace
+ * explícito es responsabilidad de {@link LegacyLoanTransactionLinkReconciler}.
+ * <p>
  * No modifica el journal: {@code transaction_id} forma parte del fingerprint
- * canónico, por lo que reescribirlo invalidaría la cadena. Cuando el evento ya
- * referencia un {@code transaction_id}, la transacción se recrea con ese mismo
- * id; cuando no, se usa un UUID determinístico derivado del {@code event_id},
- * lo que hace la migración idempotente entre ejecuciones.
+ * canónico. Cuando el evento ya referencia un {@code transaction_id} cuya
+ * transacción no existe localmente, la restaura con ese mismo id
+ * (restauración por identidad conocida, no fabricación).
  */
 public final class CanonicalLoanTransactionBackfill {
 
@@ -38,6 +43,8 @@ public final class CanonicalLoanTransactionBackfill {
         int loansAlreadyLinked,
         int loansRepaired,
         int transactionsCreated,
+        int orphansCovered,
+        int orphansUnresolved,
         List<String> errors
     ) {}
 
@@ -48,6 +55,8 @@ public final class CanonicalLoanTransactionBackfill {
         int alreadyLinked = 0;
         int repaired = 0;
         int created = 0;
+        int orphansCovered = 0;
+        int orphansUnresolved = 0;
         List<String> errors = new ArrayList<>();
 
         for (Map.Entry<String, List<JournalEvent>> entry : eventsByLoan.entrySet()) {
@@ -58,9 +67,20 @@ public final class CanonicalLoanTransactionBackfill {
             for (JournalEvent event : entry.getValue()) {
                 try {
                     Resolution resolution = resolveEvent(database, txRepo, event);
-                    if (resolution == Resolution.CREATED) {
-                        loanRepaired = true;
-                        created++;
+                    switch (resolution) {
+                        case CREATED -> {
+                            loanRepaired = true;
+                            created++;
+                        }
+                        case ORPHAN_COVERED -> orphansCovered++;
+                        case ORPHAN_UNRESOLVED -> {
+                            orphansUnresolved++;
+                            System.out.println("[CanonicalLoanTransactionBackfill] ORPHAN_UNRESOLVED "
+                                + loanId + "/" + event.eventId + " (" + event.eventType
+                                + " amount=" + event.amountCents + " occurredAt=" + event.occurredAt
+                                + "): sin transaction_id ni candidato inequívoco; no se materializa");
+                        }
+                        default -> {}
                     }
                 } catch (Exception ex) {
                     loanFailed = true;
@@ -76,11 +96,14 @@ public final class CanonicalLoanTransactionBackfill {
         }
 
         BackfillReport report = new BackfillReport(
-            eventsByLoan.size(), alreadyLinked, repaired, created, List.copyOf(errors));
+            eventsByLoan.size(), alreadyLinked, repaired, created,
+            orphansCovered, orphansUnresolved, List.copyOf(errors));
         System.out.println("[CanonicalLoanTransactionBackfill] loansScanned=" + report.loansScanned()
             + " alreadyLinked=" + report.loansAlreadyLinked()
             + " repaired=" + report.loansRepaired()
             + " transactionsCreated=" + report.transactionsCreated()
+            + " orphansCovered=" + report.orphansCovered()
+            + " orphansUnresolved=" + report.orphansUnresolved()
             + " errors=" + report.errors().size());
         for (String error : report.errors()) {
             System.out.println("[CanonicalLoanTransactionBackfill]   error " + error);
@@ -88,7 +111,7 @@ public final class CanonicalLoanTransactionBackfill {
         return report;
     }
 
-    private enum Resolution { CREATED, ALREADY_OK }
+    private enum Resolution { CREATED, ALREADY_OK, ORPHAN_COVERED, ORPHAN_UNRESOLVED }
 
     private static Resolution resolveEvent(
         SqliteDatabase database,
@@ -113,21 +136,18 @@ public final class CanonicalLoanTransactionBackfill {
 
         String transactionId = event.transactionId;
         if (transactionId == null || transactionId.isBlank()) {
-            // Un replay regenera los event_id del journal, por lo que el id
-            // determinístico cambiaría aunque la transacción financiera ya
-            // exista. Si hay una transacción equivalente sin referenciar en el
-            // journal, el evento se considera ya cubierto y no se crea otra.
-            if (findUnreferencedCandidate(database, event, kind, accountId) != null) {
-                return Resolution.ALREADY_OK;
-            }
+            // Barrera de seguridad financiera: un evento sin transaction_id
+            // nunca fabrica una transacción. Los huérfanos provienen de
+            // replays/merges/migraciones y su dinero suele estar ya cubierto,
+            // o el evento es sintético y no representa flujo de caja. Ante
+            // ambigüedad se diagnostica y no se materializa nada.
             // Un ADJUSTMENT sintético ("synth:adjust:*") solo reconcilia el
             // principal con el estado remoto: no representa flujo de dinero.
-            // Si el replay no enlazó transacción y no hay candidato local
-            // equivalente, no existe movimiento financiero que materializar.
-            if (isSyntheticAdjustment(event)) {
-                return Resolution.ALREADY_OK;
+            if (isSyntheticAdjustment(event)
+                || findUnreferencedCandidate(database, event, kind, accountId) != null) {
+                return Resolution.ORPHAN_COVERED;
             }
-            transactionId = deterministicTransactionId(event.eventId);
+            return Resolution.ORPHAN_UNRESOLVED;
         }
 
         if (txRepo.getForSyncByIdOrNull(event.ownerId, transactionId) != null) {
@@ -190,12 +210,6 @@ public final class CanonicalLoanTransactionBackfill {
         String syntheticId = CanonicalLoanEventIds.deterministic(
             event.loanId, "ADJUSTMENT", "synth:adjust:" + event.loanId, event.occurredAt);
         return syntheticId.equals(event.eventId);
-    }
-
-    private static String deterministicTransactionId(String eventId) {
-        return UUID.nameUUIDFromBytes(
-            ("canonical-loan-tx:" + eventId).getBytes(StandardCharsets.UTF_8)
-        ).toString();
     }
 
     private static String kindFor(JournalEvent event, boolean isLent) {

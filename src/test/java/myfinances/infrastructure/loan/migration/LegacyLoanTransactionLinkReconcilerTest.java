@@ -197,6 +197,82 @@ class LegacyLoanTransactionLinkReconcilerTest {
         assertEquals("tx-legacy-expense", journalTransactionIdForEvent("evt-cre-legacy"));
     }
 
+    /**
+     * Ventana de correlación: el evento quedó con {@code occurred_at}
+     * normalizado a fin de día (~21 h de desfase) pero existe una única
+     * transacción con mismo kind/cuenta/monto y la nota terminada en la
+     * contraparte. El enlace es inequívoco → se escribe.
+     */
+    @Test
+    void windowedMatchLinksUniqueCandidate() throws Exception {
+        seedCanonicalLoan();
+        insertJournalEvent("evt-cre-windowed", "CREATION", 50_000L, OCCURRED_AT + 3_600, null);
+        seedTransactionWithNote("tx-real-windowed", "LOAN_LENT_OUT", 50_000L,
+            OCCURRED_AT + 3_600 + 74_000, "LOAN_LENT_OUT: Counterparty");
+
+        LegacyLoanTransactionLinkReconciler.LinkReport report =
+            LegacyLoanTransactionLinkReconciler.reconcile(database);
+
+        assertEquals(1, report.eventsLinked());
+        assertEquals("tx-real-windowed", journalTransactionIdForEvent("evt-cre-windowed"));
+    }
+
+    /** Dos candidatos equivalentes dentro de la ventana: ambiguo → no se enlaza. */
+    @Test
+    void windowedAmbiguousCandidatesStayUnlinked() throws Exception {
+        seedCanonicalLoan();
+        insertJournalEvent("evt-cre-windowed-amb", "CREATION", 50_000L, OCCURRED_AT + 3_600, null);
+        seedTransactionWithNote("tx-wa", "LOAN_LENT_OUT", 50_000L,
+            OCCURRED_AT + 3_600 + 70_000, "LOAN_LENT_OUT: Counterparty");
+        seedTransactionWithNote("tx-wb", "LOAN_LENT_OUT", 50_000L,
+            OCCURRED_AT + 3_600 + 71_000, "LOAN_LENT_OUT: Counterparty");
+
+        LegacyLoanTransactionLinkReconciler.LinkReport report =
+            LegacyLoanTransactionLinkReconciler.reconcile(database);
+
+        assertEquals(0, report.eventsLinked());
+        assertEquals(1, report.ambiguous());
+        assertNull(journalTransactionIdForEvent("evt-cre-windowed-amb"));
+    }
+
+    /**
+     * El replay emitió dos veces el mismo hecho (por movimiento y por
+     * transacción): el hermano ya reclama la tx. El huérfano queda clasificado
+     * como cubierto, sin enlace y sin candidato propio.
+     */
+    @Test
+    void orphanEventWithLinkedSiblingIsCovered() throws Exception {
+        seedCanonicalLoan();
+        insertJournalEvent("evt-topup-twin", "TOPUP", 50_000L, OCCURRED_AT + 40, "tx-twin");
+        insertJournalEvent("evt-topup-orphan", "TOPUP", 50_000L, OCCURRED_AT + 40, null);
+        seedTransaction("tx-twin", "LOAN_LENT_TOPUP", 50_000L, OCCURRED_AT + 40);
+
+        LegacyLoanTransactionLinkReconciler.LinkReport report =
+            LegacyLoanTransactionLinkReconciler.reconcile(database);
+
+        assertEquals(0, report.eventsLinked());
+        assertEquals(1, report.coveredBySibling());
+        assertNull(journalTransactionIdForEvent("evt-topup-orphan"));
+    }
+
+    /**
+     * Ajuste sintético escrito por un build anterior (event_id no
+     * determinístico): se reconoce por {@code payload_reason} y jamás se enlaza.
+     */
+    @Test
+    void adjustmentWithSyntheticReasonIsNeverLinked() throws Exception {
+        seedCanonicalLoan();
+        insertJournalEventWithReason("evt-adj-legacy", "ADJUSTMENT", -12_000L, OCCURRED_AT + 50, null,
+            "Ajuste incremental remoto");
+        seedTransaction("tx-adj-looks-similar", "LOAN_LENT_CORRECTION_IN", 12_000L, OCCURRED_AT + 50);
+
+        LegacyLoanTransactionLinkReconciler.LinkReport report =
+            LegacyLoanTransactionLinkReconciler.reconcile(database);
+
+        assertEquals(0, report.eventsScanned());
+        assertNull(journalTransactionIdForEvent("evt-adj-legacy"));
+    }
+
     /** La firma legacy-format exige categoría de sistema y nota exacta: sin ellas no enlaza. */
     @Test
     void legacyFormatRequiresSystemCategoryAndExactNote() throws Exception {
@@ -253,11 +329,16 @@ class LegacyLoanTransactionLinkReconcilerTest {
 
     private void insertJournalEvent(String eventId, String eventType, Long amountCents,
                                     long occurredAt, String transactionId) throws Exception {
+        insertJournalEventWithReason(eventId, eventType, amountCents, occurredAt, transactionId, null);
+    }
+
+    private void insertJournalEventWithReason(String eventId, String eventType, Long amountCents,
+                                    long occurredAt, String transactionId, String payloadReason) throws Exception {
         try (Connection connection = database.openConnection(); PreparedStatement ps = connection.prepareStatement(
             "INSERT INTO loan_journal_v1 (event_id, operation_id, loan_id, owner_id, event_type, event_schema_version, " +
             "amount_cents, account_id, transaction_id, note, occurred_at, recorded_at, actor_id, origin_id, " +
-            "metadata_counterparty_present, metadata_account_present, metadata_notes_present) " +
-            "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, NULL, ?, ?, ?, ?, 0, 0, 0)")) {
+            "payload_reason, metadata_counterparty_present, metadata_account_present, metadata_notes_present) " +
+            "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 0, 0, 0)")) {
             ps.setString(1, eventId);
             ps.setString(2, eventId);
             ps.setString(3, LOAN_ID);
@@ -274,6 +355,7 @@ class LegacyLoanTransactionLinkReconcilerTest {
             ps.setLong(10, occurredAt);
             ps.setString(11, OWNER_ID);
             ps.setString(12, OWNER_ID);
+            ps.setString(13, payloadReason);
             ps.executeUpdate();
         }
     }
@@ -351,18 +433,24 @@ class LegacyLoanTransactionLinkReconcilerTest {
     }
 
     private void seedTransaction(String id, String kind, long amountCents, long occurredAt) throws Exception {
+        seedTransactionWithNote(id, kind, amountCents, occurredAt, null);
+    }
+
+    private void seedTransactionWithNote(String id, String kind, long amountCents, long occurredAt,
+                                         String note) throws Exception {
         try (Connection connection = database.openConnection(); PreparedStatement ps = connection.prepareStatement(
             "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, " +
             "note, created_at_epoch_sec, updated_at_epoch_sec, pending_sync) " +
-            "VALUES (?, ?, ?, 'cat-1', ?, ?, ?, NULL, ?, ?, 0)")) {
+            "VALUES (?, ?, ?, 'cat-1', ?, ?, ?, ?, ?, ?, 0)")) {
             ps.setString(1, id);
             ps.setString(2, OWNER_ID);
             ps.setString(3, ACCOUNT_ID);
             ps.setString(4, kind);
             ps.setLong(5, amountCents);
             ps.setLong(6, occurredAt);
-            ps.setLong(7, occurredAt);
+            ps.setString(7, note);
             ps.setLong(8, occurredAt);
+            ps.setLong(9, occurredAt);
             ps.executeUpdate();
         }
     }

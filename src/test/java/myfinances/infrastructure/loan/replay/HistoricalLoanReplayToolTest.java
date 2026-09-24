@@ -325,6 +325,46 @@ class HistoricalLoanReplayToolTest {
         assertEquals(2, countRows("transactions"));
     }
 
+    /**
+     * La misma operación llega por dos transportes: movimiento con
+     * {@code linked_transaction_id=NULL} (el merge remoto perdió el vínculo) y
+     * la transacción ya referenciada por el journal previo. El replay debe
+     * emitir UN solo evento enlazado, no un evento huérfano por movimiento más
+     * un evento {@code tx:} duplicado por la transacción.
+     */
+    @Test
+    void replayMergesUnlinkedMovementAndLooseTransactionIntoSingleEvent() throws Exception {
+        seedLoan(150_000L, "OPEN", 1_000L, 1_000L, 2_000L);
+        seedTransaction("tx-create", "LOAN_LENT_OUT", 100_000L, ACCOUNT_ID, 1_000L);
+        seedTransaction("tx-topup", "LOAN_LENT_TOPUP", 50_000L, ACCOUNT_ID, 1_500L);
+        seedMovement("mov-1", "CREATION", 100_000L, ACCOUNT_ID, "tx-create", 1_000L, null, 1_000L);
+        // El transporte perdió el vínculo (llegó con linked_transaction_id NULL).
+        seedMovement("mov-topup", "TOPUP", 50_000L, ACCOUNT_ID, null, 1_500L, null, 1_500L);
+
+        // Estado canónico previo: el journal ya enlazaba la transacción real.
+        myfinances.domain.loan.aggregate.LoanCommandResult created = service.process(
+            new myfinances.domain.loan.commands.CreateLoanCommand(
+                new LoanCommandEnvelope(LoanCommandType.CREATE_LOAN, UUID_s(), LOAN_ID, OWNER_ID, null, 1_000L, OWNER_ID, OWNER_ID),
+                LoanType.LENT, 100_000L, "Counterparty", "COP", ACCOUNT_ID, "tx-create", null));
+        assertEquals(Outcome.APPLIED, created.outcome());
+        myfinances.domain.loan.aggregate.LoanCommandResult topped = service.process(
+            new myfinances.domain.loan.commands.AddPrincipalCommand(
+                new LoanCommandEnvelope(LoanCommandType.ADD_PRINCIPAL, UUID_s(), LOAN_ID, OWNER_ID,
+                    created.currentSnapshot().journalFingerprint(), 1_500L, OWNER_ID, OWNER_ID),
+                50_000L, ACCOUNT_ID, "tx-topup", null));
+        assertEquals(Outcome.APPLIED, topped.outcome());
+
+        HistoricalLoanReplayTool.ReplayResult result = tool.replay(OWNER_ID, LOAN_ID);
+
+        assertTrue(result.success(), result.errors().toString());
+        assertEquals(2, countRows("loan_journal_v1"));
+        assertEquals("tx-topup", journalTransactionId("TOPUP"));
+
+        CanonicalLoanTransactionBackfill.BackfillReport report = CanonicalLoanTransactionBackfill.run(database);
+        assertEquals(0, report.transactionsCreated());
+        assertEquals(2, countRows("transactions"));
+    }
+
     @Test
     void doesNotReuseWhenPrincipalTransactionCandidatesAreAmbiguous() throws Exception {
         seedLoan(120_000L, "OPEN", 1_000L, 1_000L, 2_000L);

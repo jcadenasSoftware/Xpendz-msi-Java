@@ -45,6 +45,9 @@ public final class CanonicalLoanDuplicateReconciler {
         int duplicatesFound,
         int duplicatesDeleted,
         int conserved,
+        int orphanEventsScanned,
+        int orphanPhantomsFound,
+        int orphanPhantomsDeleted,
         List<String> errors
     ) {}
 
@@ -127,12 +130,54 @@ public final class CanonicalLoanDuplicateReconciler {
             }
         }
 
-        DedupReport report = new DedupReport(events.size(), found, deleted, conserved, List.copyOf(errors));
-        if (found > 0 || !errors.isEmpty()) {
+        // Segunda pasada: materializaciones de eventos HUÉRFANOS producidas por
+        // el backfill antes de la barrera orphan→nunca-crear. La copia
+        // determinística es fantasma solo cuando otra transacción real ya
+        // representa el mismo flujo (firma exacta o ventana de correlación con
+        // contraparte); si no hay equivalente, la materialización puede ser la
+        // única evidencia del dinero y se conserva.
+        int orphanScanned = 0;
+        int orphanFound = 0;
+        int orphanDeleted = 0;
+        for (LinkedEvent event : readOrphanEvents(database, session.uid())) {
+            orphanScanned++;
+            String canonicalTxId = CanonicalLoanEventIds.deterministicTransactionId(event.eventId());
+            try {
+                TransactionRepository.TransactionSyncRow canonical =
+                    txRepo.getForSyncByIdOrNull(event.ownerId(), canonicalTxId);
+                if (canonical == null) {
+                    continue;
+                }
+                orphanFound++;
+                if (!isProvenOrphanPhantom(database, txRepo, event, canonical)) {
+                    conserved++;
+                    continue;
+                }
+                txRepo.deleteFailedLoanTransaction(event.ownerId(), canonicalTxId);
+                orphanDeleted++;
+                try {
+                    if (deleteRemote) {
+                        sync.deleteTransaction(session, canonicalTxId);
+                    }
+                } catch (Exception e) {
+                    System.out.println("[CanonicalDupReconciler] remote delete failed "
+                        + canonicalTxId + ": " + e.getMessage());
+                }
+            } catch (Exception ex) {
+                errors.add(event.loanId() + "/" + event.eventId() + ": " + ex.getMessage());
+            }
+        }
+
+        DedupReport report = new DedupReport(events.size(), found, deleted + orphanDeleted, conserved,
+            orphanScanned, orphanFound, orphanDeleted, List.copyOf(errors));
+        if (found > 0 || orphanFound > 0 || !errors.isEmpty()) {
             System.out.println("[CanonicalDupReconciler] linkedEvents=" + report.linkedEventsScanned()
                 + " duplicatesFound=" + report.duplicatesFound()
                 + " deleted=" + report.duplicatesDeleted()
                 + " conserved=" + report.conserved()
+                + " orphanEvents=" + report.orphanEventsScanned()
+                + " orphanPhantoms=" + report.orphanPhantomsFound()
+                + " orphanDeleted=" + report.orphanPhantomsDeleted()
                 + " errors=" + report.errors().size());
         }
         for (String error : report.errors()) {
@@ -244,6 +289,135 @@ public final class CanonicalLoanDuplicateReconciler {
                 : TransactionKind.LOAN_REPAYMENT_PRINCIPAL_OUT.name();
             default -> null;
         };
+    }
+
+    /**
+     * Demuestra que la materialización de un evento huérfano es fantasma: la tx
+     * candidata reproduce exactamente la firma del evento (kind, cuenta, monto
+     * absoluto y ocurrido), no está referenciada en ningún lado, y existe otra
+     * transacción real — referenciada o no — que ya representa el mismo flujo
+     * (misma firma exacta, o dentro de la ventana de correlación con la nota
+     * terminada en la contraparte del préstamo).
+     */
+    private static boolean isProvenOrphanPhantom(
+        SqliteDatabase database,
+        TransactionRepository txRepo,
+        LinkedEvent event,
+        TransactionRepository.TransactionSyncRow canonical
+    ) throws SQLException {
+        String expectedAccountId = event.accountId() != null && !event.accountId().isBlank()
+            ? event.accountId()
+            : event.defaultAccountId();
+        boolean isLent = "LENT".equalsIgnoreCase(event.loanType());
+        String expectedKind = kindFor(event, isLent);
+        if (expectedKind == null || expectedAccountId == null || event.amountCents() == null) {
+            return false;
+        }
+        long expectedAmount = Math.abs(event.amountCents());
+        if (!expectedKind.equals(canonical.kind())
+            || !Objects.equals(expectedAccountId, canonical.accountId())
+            || canonical.amountCents() != expectedAmount
+            || canonical.occurredAtEpochSec() != event.occurredAt()) {
+            return false;
+        }
+        if (isReferencedElsewhere(database, event.ownerId(), canonical.id())) {
+            return false;
+        }
+        return hasEquivalentRealTransaction(database, event, expectedKind, expectedAccountId,
+            expectedAmount, canonical.id());
+    }
+
+    private static boolean hasEquivalentRealTransaction(
+        SqliteDatabase database,
+        LinkedEvent event,
+        String kind,
+        String accountId,
+        long amountCents,
+        String excludedTxId
+    ) throws SQLException {
+        String counterparty = event.counterpartyName();
+        boolean hasCounterparty = counterparty != null && !counterparty.isBlank();
+        String sql =
+            "SELECT 1 FROM transactions t " +
+            "WHERE t.user_uid = ? AND t.id <> ? AND t.kind = ? AND t.account_id = ? AND t.amount_cents = ? " +
+            "AND (t.occurred_at_epoch_sec = ? " +
+            (hasCounterparty
+                ? "OR (ABS(t.occurred_at_epoch_sec - ?) <= "
+                    + LegacyLoanTransactionLinkReconciler.CORRELATION_WINDOW_SECONDS + " "
+                    + "AND UPPER(TRIM(COALESCE(t.note, ''))) LIKE '%: ' || UPPER(TRIM(?))) "
+                : "") +
+            ") LIMIT 1";
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, event.ownerId());
+            statement.setString(2, excludedTxId);
+            statement.setString(3, kind);
+            statement.setString(4, accountId);
+            statement.setLong(5, amountCents);
+            statement.setLong(6, event.occurredAt());
+            if (hasCounterparty) {
+                statement.setLong(7, event.occurredAt());
+                statement.setString(8, counterparty);
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
+        }
+    }
+
+    private static List<LinkedEvent> readOrphanEvents(SqliteDatabase database, String ownerId) {
+        String sql =
+            "SELECT j.event_id, j.loan_id, j.owner_id, j.event_type, j.amount_cents, " +
+            "       j.account_id, j.occurred_at, " +
+            "       s.loan_type, s.default_account_id, s.counterparty_name, j.payload_reason " +
+            "FROM loan_journal_v1 j " +
+            "JOIN loan_snapshots_v1 s ON s.owner_id = j.owner_id AND s.loan_id = j.loan_id " +
+            "WHERE j.owner_id = ? AND j.transaction_id IS NULL " +
+            "AND j.event_type IN ('CREATION', 'TOPUP', 'PAYMENT', 'ADJUSTMENT') " +
+            "AND NOT EXISTS (SELECT 1 FROM loan_journal_v1 r " +
+            "WHERE r.owner_id = j.owner_id AND r.event_type = 'REVERSAL' " +
+            "AND r.payload_target_event_id = j.event_id) " +
+            "ORDER BY j.loan_id, j.occurred_at, j.event_id";
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, ownerId);
+            List<LinkedEvent> out = new ArrayList<>();
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    String eventId = result.getString("event_id");
+                    String eventType = result.getString("event_type");
+                    String loanId = result.getString("loan_id");
+                    long occurredAt = result.getLong("occurred_at");
+                    String payloadReason = result.getString("payload_reason");
+                    // Ajustes sintéticos: no representan flujo de dinero; su
+                    // materialización eventual la maneja PhantomLoanTransactionReconciler.
+                    if ("ADJUSTMENT".equals(eventType)
+                        && (CanonicalLoanEventIds.deterministic(
+                                loanId, "ADJUSTMENT", "synth:adjust:" + loanId, occurredAt).equals(eventId)
+                            || "Ajuste incremental remoto".equals(payloadReason)
+                            || "Cierre incremental remoto".equals(payloadReason))) {
+                        continue;
+                    }
+                    Object amount = result.getObject("amount_cents");
+                    out.add(new LinkedEvent(
+                        eventId,
+                        loanId,
+                        result.getString("owner_id"),
+                        eventType,
+                        amount == null ? null : ((Number) amount).longValue(),
+                        result.getString("account_id"),
+                        null,
+                        occurredAt,
+                        result.getString("loan_type"),
+                        result.getString("default_account_id"),
+                        result.getString("counterparty_name")
+                    ));
+                }
+            }
+            return out;
+        } catch (SQLException ex) {
+            throw new LoanPersistenceException(ex);
+        }
     }
 
     private static boolean isReferencedElsewhere(SqliteDatabase database, String ownerId, String txId) throws SQLException {

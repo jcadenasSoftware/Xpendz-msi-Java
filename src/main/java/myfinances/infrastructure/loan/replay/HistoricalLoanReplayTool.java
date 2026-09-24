@@ -245,6 +245,14 @@ public final class HistoricalLoanReplayTool {
                 timeline.add(preserved);
                 continue;
             }
+            // La misma operación puede llegar por dos transportes: un movimiento
+            // con linked_transaction_id NULL y la transacción suelta. Emitir un
+            // evento por cada uno duplica el hecho financiero en el journal;
+            // cuando la firma coincide (tipo, monto, ocurrido y cuenta) la
+            // transacción reclama el evento ya emitido en lugar de crear otro.
+            if (attachTransactionToEmittedEvent(timeline, tx)) {
+                continue;
+            }
             eventFromTransaction(tx, loan.loanType()).ifPresent(timeline::add);
         }
 
@@ -547,6 +555,37 @@ public final class HistoricalLoanReplayTool {
             case "CLOSE" -> Optional.of(LegacyEvent.close(movement));
             default -> Optional.empty();
         };
+    }
+
+    /**
+     * Reclama la transacción para un evento ya emitido con la misma firma
+     * financiera exacta (tipo equivalente, monto absoluto, {@code occurred_at}
+     * y cuenta). Devuelve {@code true} cuando la fusión se aplicó; con
+     * cualquier divergencia la transacción sigue su camino normal de emisión.
+     */
+    private static boolean attachTransactionToEmittedEvent(List<LegacyEvent> timeline, LegacyTransactionRow tx) {
+        LegacyEventType emittedType = switch (tx.kind().toUpperCase(Locale.ROOT)) {
+            case "LOAN_LENT_TOPUP", "LOAN_BORROWED_TOPUP" -> LegacyEventType.TOPUP;
+            case "LOAN_REPAYMENT_PRINCIPAL_IN", "LOAN_REPAYMENT_PRINCIPAL_OUT" -> LegacyEventType.PAYMENT;
+            default -> tx.kind().toUpperCase(Locale.ROOT).contains("CORRECTION")
+                ? LegacyEventType.ADJUSTMENT
+                : null;
+        };
+        if (emittedType == null) {
+            return false;
+        }
+        for (int i = 0; i < timeline.size(); i++) {
+            LegacyEvent event = timeline.get(i);
+            if (event.type() == emittedType
+                && event.transactionId() == null
+                && Math.abs(event.amountCents()) == tx.amountCents()
+                && event.occurredAt() == tx.occurredAtEpochSec()
+                && (event.accountId() == null || event.accountId().equals(tx.accountId()))) {
+                timeline.set(i, event.withTransactionId(tx.id()));
+                return true;
+            }
+        }
+        return false;
     }
 
     private Optional<LegacyEvent> eventFromTransaction(LegacyTransactionRow tx, LoanType loanType) {

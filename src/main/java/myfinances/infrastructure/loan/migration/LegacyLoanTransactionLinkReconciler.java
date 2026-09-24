@@ -36,11 +36,20 @@ import myfinances.infrastructure.loan.jdbc.LoanPersistenceException;
  */
 public final class LegacyLoanTransactionLinkReconciler {
 
+    /**
+     * Ventana máxima de correlación temporal: los journals reconstruidos por
+     * replay/migración pueden normalizar {@code occurred_at} a fin de día
+     * canónico mientras la transacción original conserva el instante real
+     * (divergencia observada: ~21 h). La unicidad sigue siendo obligatoria.
+     */
+    static final long CORRELATION_WINDOW_SECONDS = 36L * 3_600L;
+
     private LegacyLoanTransactionLinkReconciler() {}
 
     public record LinkReport(
         int eventsScanned,
         int eventsLinked,
+        int coveredBySibling,
         int ambiguous,
         int unmatched,
         List<String> errors
@@ -63,11 +72,18 @@ public final class LegacyLoanTransactionLinkReconciler {
         List<UnlinkedEvent> events = readUnlinkedEvents(database);
         List<String> errors = new ArrayList<>();
         int linked = 0;
+        int coveredBySibling = 0;
         int ambiguous = 0;
         int unmatched = 0;
 
         for (UnlinkedEvent event : events) {
             try {
+                if (hasLinkedSibling(database, event)) {
+                    // Emisión duplicada del mismo hecho financiero (movimiento +
+                    // transacción): el evento hermano ya reclama la transacción.
+                    coveredBySibling++;
+                    continue;
+                }
                 List<String> candidates = findCandidates(database, event);
                 if (candidates.size() == 1) {
                     linkTransaction(database, event.ownerId(), event.eventId(), candidates.getFirst());
@@ -82,10 +98,12 @@ public final class LegacyLoanTransactionLinkReconciler {
             }
         }
 
-        LinkReport report = new LinkReport(events.size(), linked, ambiguous, unmatched, List.copyOf(errors));
-        if (linked > 0 || ambiguous > 0 || !errors.isEmpty()) {
+        LinkReport report = new LinkReport(
+            events.size(), linked, coveredBySibling, ambiguous, unmatched, List.copyOf(errors));
+        if (linked > 0 || coveredBySibling > 0 || ambiguous > 0 || !errors.isEmpty()) {
             System.out.println("[LegacyLoanTxLink] scanned=" + report.eventsScanned()
                 + " linked=" + report.eventsLinked()
+                + " coveredBySibling=" + report.coveredBySibling()
                 + " ambiguous=" + report.ambiguous()
                 + " unmatched=" + report.unmatched()
                 + " errors=" + report.errors().size());
@@ -211,7 +229,98 @@ public final class LegacyLoanTransactionLinkReconciler {
                 }
             }
             if (candidates.isEmpty()) {
+                candidates = findWindowedCandidates(database, event, kind, accountId, selfMaterialization);
+            }
+            if (candidates.isEmpty()) {
                 candidates = findLegacyFormatCandidates(database, event, kind, accountId);
+            }
+            return candidates;
+        }
+    }
+
+    /**
+     * Existe otro evento del mismo journal con la misma firma financiera
+     * ({@code loan_id} + {@code event_type} + {@code occurred_at} + monto) ya
+     * enlazado a una transacción: el replay/migración emitió dos veces el mismo
+     * hecho (por movimiento y por transacción). El huérfano es evidencia
+     * redundante — el dinero ya está reclamado — y nunca debe enlazarse.
+     */
+    private static boolean hasLinkedSibling(SqliteDatabase database, UnlinkedEvent event) throws SQLException {
+        if (event.eventId() == null || event.loanId() == null) {
+            return false;
+        }
+        String sql =
+            "SELECT 1 FROM loan_journal_v1 s " +
+            "WHERE s.owner_id = ? AND s.loan_id = ? AND s.event_type = ? AND s.occurred_at = ? " +
+            "AND COALESCE(s.amount_cents, 0) = COALESCE(?, 0) " +
+            "AND s.transaction_id IS NOT NULL AND s.event_id <> ? " +
+            "LIMIT 1";
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, event.ownerId());
+            statement.setString(2, event.loanId());
+            statement.setString(3, event.eventType());
+            statement.setLong(4, event.occurredAt());
+            if (event.amountCents() == null) {
+                statement.setNull(5, java.sql.Types.INTEGER);
+            } else {
+                statement.setLong(5, event.amountCents());
+            }
+            statement.setString(6, event.eventId());
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next();
+            }
+        }
+    }
+
+    /**
+     * Segundo pase del criterio de equivalencia: mismo {@code kind}, cuenta y
+     * monto exacto, {@code occurred_at} dentro de {@link #CORRELATION_WINDOW_SECONDS}
+     * y nota cuyo sufijo es la contraparte del préstamo
+     * ({@code "...: <counterparty>"}, comparación normalizada). Cubre eventos
+     * cuyo {@code occurred_at} fue normalizado a fin de día por un replay
+     * mientras la transacción conserva el instante real. Sigue excluyendo
+     * transacciones ya reclamadas y exige unicidad.
+     */
+    private static List<String> findWindowedCandidates(
+        SqliteDatabase database,
+        UnlinkedEvent event,
+        String kind,
+        String accountId,
+        String selfMaterialization
+    ) throws SQLException {
+        if (event.counterpartyName() == null || event.counterpartyName().isBlank()) {
+            return List.of();
+        }
+        boolean hasMovements = tableExists(database, "loan_movements");
+        String sql =
+            "SELECT t.id FROM transactions t " +
+            "WHERE t.user_uid = ? AND t.kind = ? AND t.account_id = ? AND t.amount_cents = ? " +
+            "AND ABS(t.occurred_at_epoch_sec - ?) <= " + CORRELATION_WINDOW_SECONDS + " " +
+            "AND UPPER(TRIM(COALESCE(t.note, ''))) LIKE '%: ' || UPPER(TRIM(?)) " +
+            "AND NOT EXISTS (SELECT 1 FROM loan_journal_v1 j WHERE j.owner_id = t.user_uid AND j.transaction_id = t.id) " +
+            "AND NOT EXISTS (SELECT 1 FROM loan_payments p WHERE p.user_uid = t.user_uid AND p.linked_transaction_id = t.id) " +
+            (hasMovements
+                ? "AND NOT EXISTS (SELECT 1 FROM loan_movements m WHERE m.user_uid = t.user_uid AND m.linked_transaction_id = t.id) "
+                : "") +
+            "ORDER BY ABS(t.occurred_at_epoch_sec - ?), t.created_at_epoch_sec, t.id";
+        try (Connection connection = database.openConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, event.ownerId());
+            statement.setString(2, kind);
+            statement.setString(3, accountId);
+            statement.setLong(4, Math.abs(event.amountCents()));
+            statement.setLong(5, event.occurredAt());
+            statement.setString(6, event.counterpartyName());
+            statement.setLong(7, event.occurredAt());
+            List<String> candidates = new ArrayList<>();
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    String id = result.getString("id");
+                    if (!id.equals(selfMaterialization)) {
+                        candidates.add(id);
+                    }
+                }
             }
             return candidates;
         }
@@ -282,7 +391,8 @@ public final class LegacyLoanTransactionLinkReconciler {
     private static List<UnlinkedEvent> readUnlinkedEvents(SqliteDatabase database) {
         String sql =
             "SELECT j.event_id, j.loan_id, j.owner_id, j.event_type, j.amount_cents, " +
-            "       j.account_id, j.occurred_at, s.loan_type, s.default_account_id, s.counterparty_name " +
+            "       j.account_id, j.occurred_at, s.loan_type, s.default_account_id, s.counterparty_name, " +
+            "       j.payload_reason " +
             "FROM loan_journal_v1 j " +
             "JOIN loan_snapshots_v1 s ON s.owner_id = j.owner_id AND s.loan_id = j.loan_id " +
             "WHERE j.transaction_id IS NULL " +
@@ -307,6 +417,15 @@ public final class LegacyLoanTransactionLinkReconciler {
                 if ("ADJUSTMENT".equals(eventType)
                     && CanonicalLoanEventIds.deterministic(
                         loanId, "ADJUSTMENT", "synth:adjust:" + loanId, occurredAt).equals(eventId)) {
+                    continue;
+                }
+                // Ajustes sintéticos identificables por su razón de origen aunque
+                // el event_id no sea el determinístico esperado (journals
+                // escritos por builds anteriores).
+                String payloadReason = result.getString("payload_reason");
+                if ("ADJUSTMENT".equals(eventType)
+                    && ("Ajuste incremental remoto".equals(payloadReason)
+                        || "Cierre incremental remoto".equals(payloadReason))) {
                     continue;
                 }
                 Object amount = result.getObject("amount_cents");

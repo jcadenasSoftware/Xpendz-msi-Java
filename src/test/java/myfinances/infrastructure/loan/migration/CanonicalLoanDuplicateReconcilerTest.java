@@ -92,6 +92,47 @@ class CanonicalLoanDuplicateReconcilerTest {
         assertNotNull(txRepo.getForSyncByIdOrNull(OWNER_ID, canonicalTxId));
     }
 
+    /**
+     * Materialización de evento huérfano (el backfill antiguo la creaba): si otra
+     * transacción real ya representa el mismo flujo con firma exacta, la copia
+     * determinística es un fantasma y se elimina.
+     */
+    @Test
+    void deletesOrphanMaterializationWhenRealEquivalentExists() throws Exception {
+        seedLinkedLoan();
+        insertJournalEvent("evt-topup-orphan", "TOPUP", 50_000L, OCCURRED_AT + 10, null);
+        String canonicalTxId = CanonicalLoanEventIds.deterministicTransactionId("evt-topup-orphan");
+        insertTransaction(canonicalTxId, "LOAN_LENT_TOPUP", 50_000L, OCCURRED_AT + 10);
+        insertTransaction("tx-real-topup", "LOAN_LENT_TOPUP", 50_000L, OCCURRED_AT + 10);
+
+        CanonicalLoanDuplicateReconciler.DedupReport report =
+            CanonicalLoanDuplicateReconciler.reconcile(database, sync, session);
+        assertEquals(1, report.orphanPhantomsFound());
+        assertEquals(1, report.orphanPhantomsDeleted());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, canonicalTxId));
+        assertNotNull(txRepo.getForSyncByIdOrNull(OWNER_ID, "tx-real-topup"));
+    }
+
+    /**
+     * Equivalente real dentro de la ventana de correlación (occurred_at real vs
+     * fin de día normalizado) con la nota terminada en la contraparte.
+     */
+    @Test
+    void deletesOrphanMaterializationWithWindowedEquivalent() throws Exception {
+        seedLinkedLoan();
+        insertJournalEvent("evt-topup-orphan", "TOPUP", 50_000L, OCCURRED_AT + 10, null);
+        String canonicalTxId = CanonicalLoanEventIds.deterministicTransactionId("evt-topup-orphan");
+        insertTransaction(canonicalTxId, "LOAN_LENT_TOPUP", 50_000L, OCCURRED_AT + 10);
+        insertTransactionWithNote("tx-real-windowed", "LOAN_LENT_TOPUP", 50_000L,
+            OCCURRED_AT + 10 + 74_000L, "LOAN_LENT_TOPUP: Counterparty");
+
+        CanonicalLoanDuplicateReconciler.DedupReport report =
+            CanonicalLoanDuplicateReconciler.reconcile(database, sync, session);
+        assertEquals(1, report.orphanPhantomsDeleted());
+        assertNull(txRepo.getForSyncByIdOrNull(OWNER_ID, canonicalTxId));
+        assertNotNull(txRepo.getForSyncByIdOrNull(OWNER_ID, "tx-real-windowed"));
+    }
+
     /** Journal enlazado a la propia materialización determinística: nada que hacer. */
     @Test
     void selfLinkedCanonicalIsNotTouched() throws Exception {
@@ -277,18 +318,24 @@ class CanonicalLoanDuplicateReconcilerTest {
     }
 
     private void insertTransaction(String id, String kind, long amountCents, long occurredAt) throws Exception {
+        insertTransactionWithNote(id, kind, amountCents, occurredAt, null);
+    }
+
+    private void insertTransactionWithNote(String id, String kind, long amountCents, long occurredAt,
+                                           String note) throws Exception {
         try (Connection connection = database.openConnection(); PreparedStatement ps = connection.prepareStatement(
             "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, " +
             "note, created_at_epoch_sec, updated_at_epoch_sec, pending_sync) " +
-            "VALUES (?, ?, ?, 'cat-1', ?, ?, ?, NULL, ?, ?, 0)")) {
+            "VALUES (?, ?, ?, 'cat-1', ?, ?, ?, ?, ?, ?, 0)")) {
             ps.setString(1, id);
             ps.setString(2, OWNER_ID);
             ps.setString(3, ACCOUNT_ID);
             ps.setString(4, kind);
             ps.setLong(5, amountCents);
             ps.setLong(6, occurredAt);
-            ps.setLong(7, occurredAt);
+            ps.setString(7, note);
             ps.setLong(8, occurredAt);
+            ps.setLong(9, occurredAt);
             ps.executeUpdate();
         }
     }

@@ -90,7 +90,7 @@ Ambos paquetes incluyen el runtime necesario para ejecutar la aplicación, por l
 ### Instalación en Windows
 
 1. Descargar el instalador MSI desde la sección **Releases**.
-2. Ejecutar `Xpendz-1.0.02.msi`.
+2. Ejecutar `Xpendz-1.0.03.msi`.
 3. Seguir las instrucciones del instalador.
 4. Utilizar el acceso directo creado en el escritorio o en el menú Inicio.
 
@@ -100,7 +100,7 @@ Ambos paquetes incluyen el runtime necesario para ejecutar la aplicación, por l
 2. Instalar con:
 
    ```bash
-   sudo apt install ./Xpendz-1.0.02.deb
+   sudo apt install ./Xpendz-1.0.03.deb
    ```
 
 3. Iniciar Xpendz desde el menú de aplicaciones, o con `/opt/xpendz/bin/Xpendz`.

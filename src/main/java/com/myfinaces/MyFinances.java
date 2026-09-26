@@ -9,6 +9,9 @@ import com.myfinaces.auth.AuthSessionManager;
 import com.myfinaces.auth.FirebaseAuthService;
 import com.myfinaces.config.AppConfig;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.scene.Parent;
 import com.myfinaces.db.AppSchema;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
@@ -136,23 +139,55 @@ public class MyFinances extends Application {
             stage.setOnCloseRequest(ev -> ev.consume());
         }
         AuthSessionManager sessionManager = new AuthSessionManager(sessionRepo, authService::refresh, session);
-        scene.setRoot(DashboardView.create(session, sessionManager, () -> {
+        Parent dashboardRoot = DashboardView.create(session, sessionManager, () -> {
             try {
                 sessionRepo.clear();
             } catch (Exception ignored) {
                 // Si falla limpiar sesión, igual dejamos salir.
             }
             showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
-        }, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository));
+        }, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
         if (scene.getWindow() instanceof Stage stage) {
-            Platform.runLater(() -> {
-                try {
-                    stage.setFullScreen(false);
-                    stage.setResizable(true);
-                    stage.setMaximized(true);
-                } catch (Exception ignored) {
+            stage.setResizable(true);
+            ChangeListener<Parent> maximizeOnRoot = new ChangeListener<>() {
+                @Override
+                public void changed(ObservableValue<? extends Parent> observable, Parent oldRoot, Parent newRoot) {
+                    if (newRoot != dashboardRoot) {
+                        return;
+                    }
+                    scene.rootProperty().removeListener(this);
+                    maximizeWhenShown(stage);
                 }
-            });
+            };
+            scene.rootProperty().addListener(maximizeOnRoot);
+        }
+        scene.setRoot(dashboardRoot);
+    }
+
+    private static void maximizeWhenShown(Stage stage) {
+        if (stage.isShowing()) {
+            Platform.runLater(() -> maximizeDashboard(stage));
+            return;
+        }
+        ChangeListener<Boolean> shownListener = new ChangeListener<>() {
+            @Override
+            public void changed(ObservableValue<? extends Boolean> observable, Boolean oldValue, Boolean newValue) {
+                if (!Boolean.TRUE.equals(newValue)) {
+                    return;
+                }
+                stage.showingProperty().removeListener(this);
+                Platform.runLater(() -> maximizeDashboard(stage));
+            }
+        };
+        stage.showingProperty().addListener(shownListener);
+    }
+
+    private static void maximizeDashboard(Stage stage) {
+        try {
+            stage.setFullScreen(false);
+            stage.setResizable(true);
+            stage.setMaximized(true);
+        } catch (Exception ignored) {
         }
     }
 

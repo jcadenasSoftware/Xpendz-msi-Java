@@ -8,6 +8,7 @@ import com.myfinaces.auth.AuthSession;
 import com.myfinaces.auth.AuthSessionManager;
 import com.myfinaces.auth.FirebaseAuthService;
 import com.myfinaces.config.AppConfig;
+import javafx.application.Platform;
 import com.myfinaces.db.AppSchema;
 import com.myfinaces.db.AccountRepository;
 import com.myfinaces.db.CategoryRepository;
@@ -132,9 +133,6 @@ public class MyFinances extends Application {
 
     private static void showDashboard(Scene scene, FirebaseAuthService authService, String googleClientId, String googleClientSecret, SessionRepository sessionRepo, UserRepository userRepo, AccountRepository accountRepo, CategoryRepository categoryRepo, GoalRepository goalRepo, TransactionRepository txRepo, TransferRepository transferRepo, LoanRepository loanRepo, JdbcLoanAdminStateRepository loanAdminStateRepo, LoanPaymentRepository loanPaymentRepo, LoanMovementRepository loanMovementRepo, BudgetRepository budgetRepo, BooleanProperty darkTheme, AuthSession session, LoanApplicationService loanApplicationService, LoanCommandFactory loanCommandFactory, LoanProjectionQueryRepository loanProjectionQueryRepository) {
         if (scene.getWindow() instanceof Stage stage) {
-            stage.setFullScreen(false);
-            stage.setResizable(true);
-            stage.setMaximized(true);
             stage.setOnCloseRequest(ev -> ev.consume());
         }
         AuthSessionManager sessionManager = new AuthSessionManager(sessionRepo, authService::refresh, session);
@@ -146,6 +144,16 @@ public class MyFinances extends Application {
             }
             showLogin(scene, authService, googleClientId, googleClientSecret, sessionRepo, userRepo, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository);
         }, accountRepo, categoryRepo, goalRepo, txRepo, transferRepo, loanRepo, loanAdminStateRepo, loanPaymentRepo, loanMovementRepo, budgetRepo, darkTheme, loanApplicationService, loanCommandFactory, loanProjectionQueryRepository));
+        if (scene.getWindow() instanceof Stage stage) {
+            Platform.runLater(() -> {
+                try {
+                    stage.setFullScreen(false);
+                    stage.setResizable(true);
+                    stage.setMaximized(true);
+                } catch (Exception ignored) {
+                }
+            });
+        }
     }
 
     private static void applyTheme(Scene scene, boolean dark) {

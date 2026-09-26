@@ -10,7 +10,9 @@ import com.myfinaces.db.LoanRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.service.pdf.ReportPdfService;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.event.EventHandler;
+import javafx.geometry.Bounds;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -1379,22 +1381,7 @@ public final class SummaryView {
                 }
 
                 int targetMonth = monthToScroll;
-                Platform.runLater(() -> {
-                    try {
-                        double contentWidth = monthsScroll.getContent().getBoundsInParent().getWidth();
-                        double viewportWidth = monthsScroll.getViewportBounds().getWidth();
-                        if (contentWidth <= viewportWidth) {
-                            return;
-                        }
-                        double columnWidth = contentWidth / 13.0;
-                        double targetPosition = (targetMonth - 1) * columnWidth;
-                        double scrollableWidth = contentWidth - viewportWidth;
-                        double hvalue = targetPosition / scrollableWidth;
-                        hvalue = Math.max(0.0, Math.min(1.0, hvalue));
-                        monthsScroll.setHvalue(hvalue);
-                    } catch (Exception ignored) {
-                    }
-                });
+                scrollMonthsToMonth(monthsScroll, targetMonth);
 
                 return;
             }
@@ -1687,22 +1674,7 @@ public final class SummaryView {
             }
 
             int targetMonth = monthToScroll;
-            Platform.runLater(() -> {
-                try {
-                    double contentWidth = monthsScroll.getContent().getBoundsInParent().getWidth();
-                    double viewportWidth = monthsScroll.getViewportBounds().getWidth();
-                    if (contentWidth <= viewportWidth) {
-                        return;
-                    }
-                    double columnWidth = contentWidth / 13.0;
-                    double targetPosition = (targetMonth - 1) * columnWidth;
-                    double scrollableWidth = contentWidth - viewportWidth;
-                    double hvalue = targetPosition / scrollableWidth;
-                    hvalue = Math.max(0.0, Math.min(1.0, hvalue));
-                    monthsScroll.setHvalue(hvalue);
-                } catch (Exception ignored) {
-                }
-            });
+            scrollMonthsToMonth(monthsScroll, targetMonth);
         };
         refreshSummaryRef.set(refreshSummary);
 
@@ -1899,6 +1871,93 @@ public final class SummaryView {
         }
 
         return goalsCard;
+    }
+
+    private static void scrollMonthsToMonth(ScrollPane monthsScroll, int targetMonth) {
+        if (monthsScroll == null || targetMonth < 1) {
+            return;
+        }
+
+        final boolean[] applied = {false};
+        final AtomicReference<ChangeListener<Bounds>> viewportListenerRef = new AtomicReference<>();
+        final AtomicReference<ChangeListener<Bounds>> contentListenerRef = new AtomicReference<>();
+        final AtomicReference<Runnable> removeListenersRef = new AtomicReference<>();
+
+        Runnable attempt = () -> {
+            if (applied[0]) {
+                return;
+            }
+            try {
+                Node content = monthsScroll.getContent();
+                if (content == null) {
+                    return;
+                }
+
+                double viewportWidth = monthsScroll.getViewportBounds().getWidth();
+                double contentWidth = content.getLayoutBounds().getWidth();
+                if (viewportWidth <= 0 || contentWidth <= 0) {
+                    return;
+                }
+
+                if (contentWidth <= viewportWidth) {
+                    monthsScroll.setHvalue(0.0);
+                    applied[0] = true;
+                    Runnable remove = removeListenersRef.get();
+                    if (remove != null) {
+                        remove.run();
+                    }
+                    return;
+                }
+
+                double columnWidth = contentWidth / 13.0;
+                double targetPosition = Math.max(0, targetMonth - 1) * columnWidth;
+                double scrollableWidth = contentWidth - viewportWidth;
+                double hvalue = scrollableWidth <= 0 ? 0.0 : targetPosition / scrollableWidth;
+                monthsScroll.setHvalue(Math.max(0.0, Math.min(1.0, hvalue)));
+                applied[0] = true;
+                Runnable remove = removeListenersRef.get();
+                if (remove != null) {
+                    remove.run();
+                }
+            } catch (Exception ignored) {
+            }
+        };
+
+        removeListenersRef.set(() -> {
+            try {
+                ChangeListener<Bounds> viewportListener = viewportListenerRef.get();
+                if (viewportListener != null) {
+                    monthsScroll.viewportBoundsProperty().removeListener(viewportListener);
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                Node content = monthsScroll.getContent();
+                ChangeListener<Bounds> contentListener = contentListenerRef.get();
+                if (content != null && contentListener != null) {
+                    content.layoutBoundsProperty().removeListener(contentListener);
+                }
+            } catch (Exception ignored) {
+            }
+        });
+
+        viewportListenerRef.set((obs, oldV, newV) -> attempt.run());
+        contentListenerRef.set((obs, oldV, newV) -> attempt.run());
+
+        monthsScroll.viewportBoundsProperty().addListener(viewportListenerRef.get());
+        Node content = monthsScroll.getContent();
+        if (content != null) {
+            content.layoutBoundsProperty().addListener(contentListenerRef.get());
+        }
+
+        Platform.runLater(() -> {
+            try {
+                monthsScroll.applyCss();
+                monthsScroll.layout();
+            } catch (Exception ignored) {
+            }
+            attempt.run();
+        });
     }
 
     private static void applySummaryRowHover(GridPane fixedTable, GridPane monthsTable) {

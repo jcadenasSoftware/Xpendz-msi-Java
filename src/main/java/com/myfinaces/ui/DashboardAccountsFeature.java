@@ -34,8 +34,10 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import javafx.geometry.Rectangle2D;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import java.time.Instant;
@@ -547,14 +549,27 @@ public final class DashboardAccountsFeature {
         // ── Root layout ───────────────────────────────────────────────
         HBox root = new HBox(20, leftCol, rightCol);
         root.setPadding(new Insets(20));
+        root.setMinWidth(0);
 
         Region footerSpacer = new Region();
         HBox.setHgrow(footerSpacer, Priority.ALWAYS);
         HBox footer = new HBox(12, bDelete, footerSpacer, bSave, bCancel);
         footer.setAlignment(Pos.CENTER_RIGHT);
         footer.setPadding(new Insets(14, 20, 14, 20));
+        footer.setMaxWidth(Double.MAX_VALUE);
 
-        VBox shell = new VBox(root, footer);
+        ScrollPane contentScroll = new ScrollPane(root);
+        contentScroll.setFitToWidth(true);
+        contentScroll.setPannable(true);
+        contentScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        contentScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        contentScroll.setMinWidth(0);
+        contentScroll.setMinHeight(0);
+        contentScroll.getStyleClass().add("edit-account-scroll");
+
+        BorderPane shell = new BorderPane();
+        shell.setCenter(contentScroll);
+        shell.setBottom(footer);
         shell.getStyleClass().add("app-root");
 
         Scene scene = new Scene(shell);
@@ -563,6 +578,22 @@ public final class DashboardAccountsFeature {
             scene.getStylesheets().add(themeUrl.toExternalForm());
         }
         modal.setScene(scene);
+        modal.setOnShown(e -> Platform.runLater(() -> {
+            try {
+                modal.sizeToScene();
+                Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+                double maxWidth = bounds.getWidth() * 0.95;
+                double maxHeight = bounds.getHeight() * 0.95;
+                if (modal.getWidth() > maxWidth) {
+                    modal.setWidth(maxWidth);
+                }
+                if (modal.getHeight() > maxHeight) {
+                    modal.setHeight(maxHeight);
+                }
+                modal.centerOnScreen();
+            } catch (Exception ignored) {
+            }
+        }));
 
         final java.util.concurrent.atomic.AtomicReference<EditAccountResult> resultRef = new java.util.concurrent.atomic.AtomicReference<>(null);
 

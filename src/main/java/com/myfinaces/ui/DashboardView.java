@@ -8,6 +8,8 @@ import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.ObligationRepository;
+import com.myfinaces.db.ObligationSettlementRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.db.BudgetRepository;
@@ -102,6 +104,8 @@ public final class DashboardView {
         JdbcLoanAdminStateRepository loanAdminStateRepository,
         LoanPaymentRepository loanPaymentRepo,
         LoanMovementRepository loanMovementRepo,
+        ObligationRepository obligationRepo,
+        ObligationSettlementRepository obligationSettlementRepo,
         BudgetRepository budgetRepo,
         BooleanProperty darkTheme,
         LoanApplicationService loanApplicationService,
@@ -323,6 +327,8 @@ public final class DashboardView {
             loanMovementRepo,
             txRepo,
             transferRepo,
+            obligationRepo,
+            obligationSettlementRepo,
             budgetRepo,
             loanApplicationService,
             refreshBalances,
@@ -435,6 +441,12 @@ public final class DashboardView {
             contentHost.getChildren().setAll(loansPane);
         });
 
+        Button obligations = new Button("Obligaciones");
+        obligations.getStyleClass().add("btn-primary");
+        obligations.getStyleClass().add("nav-button");
+        obligations.setMaxWidth(Double.MAX_VALUE);
+        setButtonIcon(obligations, new FontIcon("fas-file-invoice-dollar"));
+
         Button budget = new Button("Presupuesto y Metas");
         budget.getStyleClass().add("btn-primary");
         budget.getStyleClass().add("nav-button");
@@ -476,7 +488,7 @@ public final class DashboardView {
 
         // Helper method to set active button
         java.util.function.Consumer<Button> setActiveButton = (activeBtn) -> {
-            Button[] navButtons = {home, transactions, transfers, summary, loans, budget, categories};
+            Button[] navButtons = {home, transactions, transfers, summary, loans, obligations, budget, categories};
             for (Button btn : navButtons) {
                 btn.getStyleClass().remove("active");
             }
@@ -512,6 +524,21 @@ public final class DashboardView {
             setActiveButton.accept(loans);
             Node loansPane = LoansView.buildLoansView(session, loanRepo, loanPaymentRepo, loanMovementRepo, accountRepo, categoryRepo, txRepo, darkTheme::get, refreshBalances, loanApplicationService, loanCommandFactory, loanAdminStateRepository, loanProjectionQueryRepository);
             contentHost.getChildren().setAll(loansPane);
+        });
+
+        obligations.setOnAction(e -> {
+            setActiveButton.accept(obligations);
+            Node obligationsPane = ObligationsView.buildObligationsView(
+                session,
+                obligationRepo,
+                obligationSettlementRepo,
+                txRepo,
+                accountRepo,
+                categoryRepo,
+                darkTheme::get,
+                refreshBalances
+            );
+            contentHost.getChildren().setAll(obligationsPane);
         });
 
         budget.setOnAction(e -> {
@@ -687,6 +714,7 @@ public final class DashboardView {
             transfers,
             summary,
             loans,
+            obligations,
             budget,
             addAccount,
             categories,

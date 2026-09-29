@@ -689,6 +689,20 @@ public final class DashboardTransactionsDialog {
                 txText.setMaxWidth(Double.MAX_VALUE);
                 HBox.setHgrow(txText, Priority.ALWAYS);
 
+                boolean obligationLinked = t.linkedToObligation();
+                if (obligationLinked) {
+                    FontIcon oblIcon = new FontIcon("fas-file-invoice-dollar");
+                    oblIcon.setIconSize(9);
+                    oblIcon.setIconColor(javafx.scene.paint.Color.web("#D97706"));
+                    Label oblBadge = new Label("Obligación");
+                    oblBadge.setGraphic(oblIcon);
+                    oblBadge.setGraphicTextGap(4);
+                    oblBadge.setStyle("-fx-font-size: 9px; -fx-font-weight: 800; -fx-text-fill: #D97706; "
+                        + "-fx-background-color: #D9770622; -fx-background-radius: 10; -fx-padding: 2 8 2 8;");
+                    oblBadge.setMaxWidth(Region.USE_PREF_SIZE);
+                    txText.getChildren().add(oblBadge);
+                }
+
                 FontIcon icon = new FontIcon("fas-tag");
                 icon.getStyleClass().add("tx-item-icon");
                 StackPane iconBubble = new StackPane(icon);
@@ -719,8 +733,15 @@ public final class DashboardTransactionsDialog {
                 rightBox.setAlignment(Pos.CENTER_RIGHT);
 
                 boolean loanProtected = LoanTransactionPolicy.isLoanKind(t.kind());
+                boolean txProtected = loanProtected || obligationLinked;
 
                 Runnable doEdit = () -> {
+                    if (obligationLinked) {
+                        ModernDialogs.warning("Transacción bloqueada",
+                            "Esta transacción pertenece a una obligación. Modifícala desde el módulo Obligaciones.",
+                            () -> darkTheme);
+                        return;
+                    }
                     if (loanProtected) {
                         ModernDialogs.warning("Transacción bloqueada", LoanTransactionPolicy.protectedMessage(), () -> darkTheme);
                         return;
@@ -764,6 +785,12 @@ public final class DashboardTransactionsDialog {
                 };
 
                 Runnable doDelete = () -> {
+                    if (obligationLinked) {
+                        ModernDialogs.warning("Transacción bloqueada",
+                            "Esta transacción pertenece a una obligación. Elimínala desde el módulo Obligaciones.",
+                            () -> darkTheme);
+                        return;
+                    }
                     if (loanProtected) {
                         ModernDialogs.warning("Transacción bloqueada", LoanTransactionPolicy.protectedMessage(), () -> darkTheme);
                         return;
@@ -788,7 +815,7 @@ public final class DashboardTransactionsDialog {
                 edit.setOnAction(ev -> doEdit.run());
                 MenuItem del = new MenuItem("Eliminar");
                 del.setOnAction(ev -> doDelete.run());
-                ContextMenu menu = loanProtected ? new ContextMenu() : new ContextMenu(edit, del);
+                ContextMenu menu = txProtected ? new ContextMenu() : new ContextMenu(edit, del);
 
                 Button more = new Button();
                 more.getStyleClass().add("tx-item-more");
@@ -797,7 +824,7 @@ public final class DashboardTransactionsDialog {
                 more.setGraphic(dots);
                 more.setOpacity(0);
                 more.setOnAction(ev -> {
-                    if (!loanProtected) {
+                    if (!txProtected) {
                         menu.show(more, javafx.geometry.Side.BOTTOM, 0, 0);
                     }
                 });
@@ -805,9 +832,9 @@ public final class DashboardTransactionsDialog {
                 HBox row = new HBox(12, iconBubble, txText, rightBox, more);
                 row.setAlignment(Pos.CENTER_LEFT);
                 row.getStyleClass().add("tx-item");
-                more.setVisible(!loanProtected);
-                more.setManaged(!loanProtected);
-                row.setOnMouseEntered(ev -> more.setOpacity(loanProtected ? 0 : 1));
+                more.setVisible(!txProtected);
+                more.setManaged(!txProtected);
+                row.setOnMouseEntered(ev -> more.setOpacity(txProtected ? 0 : 1));
                 row.setOnMouseExited(ev -> more.setOpacity(0));
                 row.setOnMouseClicked(ev -> {
                     if (ev.getClickCount() >= 2) {
@@ -815,7 +842,7 @@ public final class DashboardTransactionsDialog {
                     }
                 });
                 row.setOnContextMenuRequested(ev -> {
-                    if (!loanProtected) {
+                    if (!txProtected) {
                         menu.show(row, ev.getScreenX(), ev.getScreenY());
                     }
                 });

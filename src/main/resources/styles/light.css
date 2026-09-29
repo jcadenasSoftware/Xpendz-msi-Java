@@ -2925,12 +2925,43 @@
 .date-picker-popup {
     -fx-background-color: white;
     -fx-border-color: rgba(15, 23, 42, 0.10);
+    -fx-border-width: 1;
     -fx-border-radius: 10;
     -fx-background-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 24, 0.12, 0, 6);
 }
 
 .date-picker-popup .month-year-pane {
     -fx-background-color: rgba(15, 23, 42, 0.04);
+    -fx-padding: 6 8;
+}
+
+.date-picker-popup .calendar-grid {
+    -fx-background-color: white;
+    -fx-padding: 4 8 8 8;
+}
+
+.date-picker-popup .spinner .button .left-arrow,
+.date-picker-popup .spinner .button .right-arrow {
+    -fx-background-color: #64748B;
+}
+
+.date-picker-popup .spinner .button:hover .left-arrow,
+.date-picker-popup .spinner .button:hover .right-arrow {
+    -fx-background-color: #0F172A;
+}
+
+.date-picker-popup .week-number-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: rgba(15, 23, 42, 0.35);
+    -fx-font-size: 11px;
+}
+
+.date-picker-popup .day-cell.previous-month,
+.date-picker-popup .day-cell.next-month {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(15, 23, 42, 0.30);
 }
 
 .date-picker-popup .month-year-pane .label {
@@ -2956,6 +2987,7 @@
     -fx-background-color: transparent;
     -fx-text-fill: rgba(15, 23, 42, 0.88);
     -fx-background-radius: 10;
+    -fx-border-color: transparent;
 }
 
 .date-picker-popup .day-cell:hover {
@@ -3313,6 +3345,63 @@
 
 .account-combo .list-cell {
     -fx-padding: 10;
+}
+
+.account-combo:focused {
+    -fx-border-color: #3B82F6;
+}
+
+/* ComboBox popup (light) — panel consistente con tarjetas Xpendz */
+.combo-box-popup {
+    -fx-background-color: rgba(15, 23, 42, 0.12), white;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 10, 9;
+    -fx-effect: dropshadow(gaussian, rgba(15, 23, 42, 0.16), 18, 0.12, 0, 4);
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: white;
+    -fx-padding: 4;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-text-fill: #0F172A;
+}
+
+.combo-box-popup .list-view .list-cell:filled:hover {
+    -fx-background-color: rgba(37, 99, 235, 0.08);
+}
+
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: rgba(37, 99, 235, 0.14);
+    -fx-text-fill: #1D4ED8;
+}
+
+.combo-box-popup .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 6;
+}
+
+.combo-box-popup .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(15, 23, 42, 0.18);
+    -fx-background-radius: 3;
+}
+
+.combo-box-popup .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: rgba(15, 23, 42, 0.30);
+}
+
+.combo-box-popup .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.combo-box-popup .scroll-bar:vertical .increment-button,
+.combo-box-popup .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
 }
 
 /* ── Modal inputs (Préstamos, shared modal language) ── */

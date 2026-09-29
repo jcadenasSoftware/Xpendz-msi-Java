@@ -98,6 +98,24 @@ class SchemaConvergenceAuditTest {
         String trId = trs.create(UID, acc.id(), acc2.id(), 2_000L, 1_700_000_000L, "retiro");
         assertNotNull(trs.getForSyncByIdOrNull(UID, trId));
 
+        // obligación + settlement + transaction enlazada estrictamente
+        ObligationRepository obligations = new ObligationRepository(db);
+        String obligationCategoryId = categories.create(UID, "Clientes", null, "BOTH", "fas-users").id();
+        String obligationId = obligations.create(UID, ObligationRepository.TYPE_RECEIVABLE, "Factura", "Pedro", "COP", 250_000L, 1_700_000_000L, 1_700_086_400L, obligationCategoryId, "FAC-001", "nota obligación");
+        assertNotNull(obligations.getByIdOrNull(UID, obligationId));
+
+        String obligationTxId = txs.create(UID, acc.id(), cat.id(), "INCOME", 100_000L, 1_700_000_050L, "abono obligación");
+        ObligationSettlementRepository settlements = new ObligationSettlementRepository(db);
+        String settlementId;
+        try (java.sql.Connection c = db.openConnection()) {
+            settlementId = settlements.createDirect(c, UID, obligationId, acc.id(), 100_000L, 1_700_000_050L, obligationTxId, "abono 1", null).id();
+        }
+        assertNotNull(settlements.getByIdOrNull(UID, settlementId));
+        assertEquals(100_000L, settlements.sumSettledCentsByObligation(UID, obligationId));
+        assertEquals(settlementId, settlements.getByLinkedTransactionId(UID, obligationTxId).id());
+        assertFalse(obligations.listPendingForSync(UID).isEmpty());
+        assertFalse(settlements.listPendingForSync(UID).isEmpty());
+
         // préstamo + pago + movimiento (tabla loan_movements ausente antes del fix)
         LoanRepository loans = new LoanRepository(db);
         String loanId = loans.create(UID, "LENT", "Juan", acc.id(), 100_000L, "COP", 1_700_000_000L, "nota");
@@ -130,6 +148,8 @@ class SchemaConvergenceAuditTest {
         // pending_sync flags para el push inicial
         assertFalse(txs.listPendingForSync(UID).isEmpty());
         assertFalse(trs.listPendingForSync(UID).isEmpty());
+        assertFalse(obligations.listPendingForSync(UID).isEmpty());
+        assertFalse(settlements.listPendingForSync(UID).isEmpty());
         assertFalse(loans.listPendingForSync(UID).isEmpty());
         assertFalse(payments.listPendingForSync(UID).isEmpty());
 

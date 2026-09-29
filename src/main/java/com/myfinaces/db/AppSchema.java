@@ -316,6 +316,63 @@ public final class AppSchema {
             }
 
             st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS obligations (" +
+                "  id TEXT PRIMARY KEY," +
+                "  user_uid TEXT NOT NULL," +
+                "  type TEXT NOT NULL," +
+                "  title TEXT NOT NULL," +
+                "  counterparty_name TEXT NOT NULL," +
+                "  notes TEXT NULL," +
+                "  reference TEXT NULL," +
+                "  obligation_category_id TEXT NULL," +
+                "  currency TEXT NOT NULL," +
+                "  original_amount_cents INTEGER NOT NULL," +
+                "  issued_at_epoch_sec INTEGER NOT NULL," +
+                "  due_at_epoch_sec INTEGER NULL," +
+                "  cancelled_at_epoch_sec INTEGER NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(obligation_category_id) REFERENCES categories(id) ON DELETE RESTRICT" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_user ON obligations(user_uid)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_type ON obligations(type)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_category ON obligations(obligation_category_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_issued ON obligations(issued_at_epoch_sec)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_due ON obligations(due_at_epoch_sec)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligations_pending_sync ON obligations(user_uid, pending_sync)");
+
+            st.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS obligation_settlements (" +
+                "  id TEXT PRIMARY KEY," +
+                "  obligation_id TEXT NOT NULL," +
+                "  user_uid TEXT NOT NULL," +
+                "  account_id TEXT NOT NULL," +
+                "  amount_cents INTEGER NOT NULL," +
+                "  occurred_at_epoch_sec INTEGER NOT NULL," +
+                "  linked_transaction_id TEXT NOT NULL," +
+                "  note TEXT NULL," +
+                "  created_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_at_epoch_sec INTEGER NOT NULL," +
+                "  updated_by TEXT NULL," +
+                "  pending_sync INTEGER NOT NULL DEFAULT 0," +
+                "  FOREIGN KEY(user_uid) REFERENCES users(uid) ON DELETE CASCADE," +
+                "  FOREIGN KEY(obligation_id) REFERENCES obligations(id) ON DELETE CASCADE," +
+                "  FOREIGN KEY(account_id) REFERENCES accounts(id) ON DELETE RESTRICT," +
+                "  FOREIGN KEY(linked_transaction_id) REFERENCES transactions(id) ON DELETE RESTRICT" +
+                ")"
+            );
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligation_settlements_user ON obligation_settlements(user_uid)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligation_settlements_obligation ON obligation_settlements(obligation_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligation_settlements_account ON obligation_settlements(account_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligation_settlements_occurred ON obligation_settlements(occurred_at_epoch_sec)");
+            st.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS ux_obligation_settlements_linked_transaction ON obligation_settlements(linked_transaction_id)");
+            st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_obligation_settlements_pending_sync ON obligation_settlements(user_uid, pending_sync)");
+
+            st.executeUpdate(
                 "CREATE TABLE IF NOT EXISTS outbox (" +
                 "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "  user_uid TEXT NOT NULL," +

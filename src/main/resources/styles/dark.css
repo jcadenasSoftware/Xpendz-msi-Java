@@ -2051,6 +2051,8 @@
 .date-picker-popup .week-number-cell {
     -fx-text-fill: #475569;
     -fx-font-size: 11px;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
 .date-picker-popup .date-cell {
@@ -2058,6 +2060,32 @@
     -fx-text-fill: #CBD5E1;
     -fx-font-size: 13px;
     -fx-alignment: center;
+    -fx-border-color: transparent;
+}
+
+.date-picker-popup .day-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #CBD5E1;
+}
+
+.date-picker-popup .day-cell:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.20);
+    -fx-background-radius: 6;
+    -fx-text-fill: #E2E8F0;
+}
+
+.date-picker-popup .day-cell.today {
+    -fx-background-color: rgba(59, 130, 246, 0.15);
+    -fx-background-radius: 6;
+    -fx-text-fill: #60A5FA;
+}
+
+.date-picker-popup .day-cell.selected,
+.date-picker-popup .day-cell:selected {
+    -fx-background-color: #2563EB;
+    -fx-background-radius: 6;
+    -fx-text-fill: #FFFFFF;
 }
 
 .date-picker-popup .date-cell:hover {
@@ -2081,8 +2109,12 @@
 }
 
 .date-picker-popup .date-cell.next-month,
-.date-picker-popup .date-cell.previous-month {
+.date-picker-popup .date-cell.previous-month,
+.date-picker-popup .day-cell.next-month,
+.date-picker-popup .day-cell.previous-month {
     -fx-text-fill: #334155;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
 }
 
 .new-tx-dialog .new-tx-content {
@@ -3750,16 +3782,29 @@
     -fx-background-color: #334155 !important;
 }
 
-.combo-box-popup .scroll-bar {
-    -fx-background-color: #1E293B;
+.combo-box-popup .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 6;
 }
 
-.combo-box-popup .scroll-bar .thumb {
-    -fx-background-color: #475569;
+.combo-box-popup .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.15);
+    -fx-background-radius: 3;
 }
 
-.combo-box-popup .scroll-bar .thumb:hover {
-    -fx-background-color: #64748B;
+.combo-box-popup .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.28);
+}
+
+.combo-box-popup .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.combo-box-popup .scroll-bar:vertical .increment-button,
+.combo-box-popup .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-min-height: 0;
+    -fx-max-height: 0;
 }
 
 .combo-box-custom.date-chip,
@@ -3857,6 +3902,10 @@
 
 .account-combo .list-cell {
     -fx-text-fill: #E5E7EB;
+}
+
+.account-combo:focused {
+    -fx-border-color: #3B82F6;
 }
 
 .account-option-name {

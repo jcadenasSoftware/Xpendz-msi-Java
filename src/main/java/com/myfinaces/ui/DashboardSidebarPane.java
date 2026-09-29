@@ -52,6 +52,7 @@ public final class DashboardSidebarPane {
         Button transfers,
         Button summary,
         Button loans,
+        Button obligations,
         Button budget,
         Button addAccount,
         Button categories,
@@ -163,7 +164,7 @@ public final class DashboardSidebarPane {
         Button[] movementButtons = {transactions, transfers};
         VBox navMovements = sectionBlock("MOVIMIENTOS", "sidebar-nav-card", movementButtons);
 
-        VBox navMgmt = sectionBlock("ORGANIZACIÓN", "sidebar-nav-card", categories, budget, loans);
+        VBox navMgmt = sectionBlock("ORGANIZACIÓN", "sidebar-nav-card", categories, budget, loans, obligations);
 
         VBox navSystem = sectionBlock("SISTEMA", "sidebar-system-card", syncNow, logout, exit);
 

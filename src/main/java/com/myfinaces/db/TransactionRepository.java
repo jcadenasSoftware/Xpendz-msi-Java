@@ -45,7 +45,8 @@ public final class TransactionRepository {
         String kind,
         long amountCents,
         long occurredAtEpochSec,
-        String note
+        String note,
+        boolean linkedToObligation
     ) {
     }
 
@@ -182,6 +183,37 @@ public final class TransactionRepository {
         long occurredAtEpochSec,
         String note
     ) throws SQLException {
+        try (Connection c = db.openConnection()) {
+            createDirectWithId(c, id, userUid, accountId, categoryId, kind, amountCents, occurredAtEpochSec, note);
+        }
+        return id;
+    }
+
+    public TransactionSyncRow createDirect(
+        Connection c,
+        String userUid,
+        String accountId,
+        String categoryId,
+        String kind,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) throws SQLException {
+        return createDirectWithId(c, UUID.randomUUID().toString(), userUid, accountId, categoryId, kind, amountCents, occurredAtEpochSec, note);
+    }
+
+    public TransactionSyncRow createDirectWithId(
+        Connection c,
+        String id,
+        String userUid,
+        String accountId,
+        String categoryId,
+        String kind,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) throws SQLException {
+        Objects.requireNonNull(c, "connection");
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(userUid, "userUid");
         Objects.requireNonNull(accountId, "accountId");
@@ -193,8 +225,7 @@ public final class TransactionRepository {
         }
 
         long now = Instant.now().getEpochSecond();
-
-        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+        try (PreparedStatement ps = c.prepareStatement(
             "INSERT INTO transactions (id, user_uid, account_id, category_id, kind, amount_cents, occurred_at_epoch_sec, note, created_at_epoch_sec, updated_at_epoch_sec, pending_sync) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)"
         )) {
@@ -210,8 +241,7 @@ public final class TransactionRepository {
             ps.setLong(10, now);
             ps.executeUpdate();
         }
-
-        return id;
+        return new TransactionSyncRow(id, userUid, accountId, categoryId, kind, amountCents, occurredAtEpochSec, note, now, now);
     }
 
     public TransactionSyncRow getForSyncByIdOrNull(String userUid, String transactionId) throws SQLException {
@@ -342,7 +372,8 @@ public final class TransactionRepository {
         String sql =
             "SELECT t.id, t.user_uid, t.account_id, a.name AS account_name, " +
             "       t.category_id, c.name AS category_name, " +
-            "       t.kind, t.amount_cents, t.occurred_at_epoch_sec, t.note " +
+            "       t.kind, t.amount_cents, t.occurred_at_epoch_sec, t.note, " +
+            "       EXISTS(SELECT 1 FROM obligation_settlements os WHERE os.user_uid = t.user_uid AND os.linked_transaction_id = t.id) AS linked_to_obligation " +
             "FROM transactions t " +
             "INNER JOIN accounts a ON a.id = t.account_id " +
             "INNER JOIN categories c ON c.id = t.category_id " +
@@ -366,7 +397,8 @@ public final class TransactionRepository {
                         rs.getString("kind"),
                         rs.getLong("amount_cents"),
                         rs.getLong("occurred_at_epoch_sec"),
-                        rs.getString("note")
+                        rs.getString("note"),
+                        rs.getInt("linked_to_obligation") != 0
                     ));
                 }
             }
@@ -435,7 +467,8 @@ public final class TransactionRepository {
         StringBuilder sql = new StringBuilder(
             "SELECT t.id, t.user_uid, t.account_id, a.name AS account_name, " +
             "       t.category_id, COALESCE(c.name, t.category_id) AS category_name, " +
-            "       t.kind, t.amount_cents, t.occurred_at_epoch_sec, t.note " +
+            "       t.kind, t.amount_cents, t.occurred_at_epoch_sec, t.note, " +
+            "       EXISTS(SELECT 1 FROM obligation_settlements os WHERE os.user_uid = t.user_uid AND os.linked_transaction_id = t.id) AS linked_to_obligation " +
             "FROM transactions t " +
             "INNER JOIN accounts a ON a.id = t.account_id " +
             "LEFT JOIN categories c ON c.id = t.category_id " +
@@ -500,7 +533,8 @@ public final class TransactionRepository {
                         rs.getString("kind"),
                         rs.getLong("amount_cents"),
                         rs.getLong("occurred_at_epoch_sec"),
-                        rs.getString("note")
+                        rs.getString("note"),
+                        rs.getInt("linked_to_obligation") != 0
                     ));
                 }
             }
@@ -540,6 +574,9 @@ public final class TransactionRepository {
                     if (rs.next()) {
                         if (isLoanRepaymentKind(rs.getString("kind"))) {
                             throw new IllegalArgumentException("Los pagos de préstamos deben modificarse desde Préstamos");
+                        }
+                        if (isLinkedToObligationSettlement(c, userUid, transactionId)) {
+                            throw new IllegalArgumentException("Esta transacción pertenece a una obligación. Modifícala desde el módulo Cuentas por Cobrar/Pagar.");
                         }
                         existingUpdatedAt = rs.getLong("updated_at_epoch_sec");
                     }
@@ -636,8 +673,13 @@ public final class TransactionRepository {
             ps.setString(1, userUid);
             ps.setString(2, transactionId);
             try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && isLoanRepaymentKind(rs.getString("kind"))) {
-                    throw new IllegalArgumentException("Los pagos de préstamos deben eliminarse desde Préstamos");
+                if (rs.next()) {
+                    if (isLoanRepaymentKind(rs.getString("kind"))) {
+                        throw new IllegalArgumentException("Los pagos de préstamos deben eliminarse desde Préstamos");
+                    }
+                    if (isLinkedToObligationSettlement(c, userUid, transactionId)) {
+                        throw new IllegalArgumentException("Esta transacción pertenece a una obligación. Elimínala desde el módulo Cuentas por Cobrar/Pagar.");
+                    }
                 }
             }
         }
@@ -650,14 +692,86 @@ public final class TransactionRepository {
         deleteDirect(userUid, transactionId);
     }
 
-    private void deleteDirect(String userUid, String transactionId) throws SQLException {
-        try (Connection c = db.openConnection(); PreparedStatement ps = c.prepareStatement(
+    public void deleteDirect(Connection c, String userUid, String transactionId) throws SQLException {
+        Objects.requireNonNull(c, "connection");
+        try (PreparedStatement ps = c.prepareStatement(
             "DELETE FROM transactions WHERE user_uid = ? AND id = ?"
         )) {
             ps.setString(1, userUid);
             ps.setString(2, transactionId);
             ps.executeUpdate();
         }
+    }
+
+    private void deleteDirect(String userUid, String transactionId) throws SQLException {
+        try (Connection c = db.openConnection()) {
+            deleteDirect(c, userUid, transactionId);
+        }
+    }
+
+    public TransactionSyncRow updateDirect(
+        Connection c,
+        TransactionSyncRow existing,
+        String accountId,
+        String categoryId,
+        String kind,
+        long amountCents,
+        long occurredAtEpochSec,
+        String note
+    ) throws SQLException {
+        Objects.requireNonNull(c, "connection");
+        Objects.requireNonNull(existing, "existing");
+        Objects.requireNonNull(accountId, "accountId");
+        Objects.requireNonNull(categoryId, "categoryId");
+        Objects.requireNonNull(kind, "kind");
+        if (amountCents < 0L) {
+            throw new IllegalArgumentException("amountCents");
+        }
+
+        long updatedAt = nextUpdatedAt(existing.updatedAtEpochSec());
+        try (PreparedStatement ps = c.prepareStatement(
+            "UPDATE transactions SET account_id = ?, category_id = ?, kind = ?, amount_cents = ?, occurred_at_epoch_sec = ?, note = ?, updated_at_epoch_sec = ?, pending_sync = 1 WHERE user_uid = ? AND id = ?"
+        )) {
+            ps.setString(1, accountId);
+            ps.setString(2, categoryId);
+            ps.setString(3, kind);
+            ps.setLong(4, amountCents);
+            ps.setLong(5, occurredAtEpochSec);
+            ps.setString(6, note);
+            ps.setLong(7, updatedAt);
+            ps.setString(8, existing.userUid());
+            ps.setString(9, existing.id());
+            ps.executeUpdate();
+        }
+        return new TransactionSyncRow(
+            existing.id(),
+            existing.userUid(),
+            accountId,
+            categoryId,
+            kind,
+            amountCents,
+            occurredAtEpochSec,
+            note,
+            existing.createdAtEpochSec(),
+            updatedAt
+        );
+    }
+
+    private boolean isLinkedToObligationSettlement(Connection c, String userUid, String transactionId) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+            "SELECT 1 FROM obligation_settlements WHERE user_uid = ? AND linked_transaction_id = ? LIMIT 1"
+        )) {
+            ps.setString(1, userUid);
+            ps.setString(2, transactionId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private static long nextUpdatedAt(long previousUpdatedAt) {
+        long now = Instant.now().getEpochSecond();
+        return now > previousUpdatedAt ? now : previousUpdatedAt + 1L;
     }
 
     private static boolean isLoanRepaymentKind(String kind) {

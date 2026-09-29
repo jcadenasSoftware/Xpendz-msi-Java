@@ -9,6 +9,8 @@ import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.ObligationRepository;
+import com.myfinaces.db.ObligationSettlementRepository;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 
@@ -23,8 +25,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class FirestoreSyncService {
 
@@ -756,6 +760,285 @@ public final class FirestoreSyncService {
 
     public void syncTransfer(AuthSession session, TransferRepository.TransferSyncRow tr) throws Exception {
         upsertTransfer(session, tr);
+    }
+
+    // ------------------------------------------------------------------
+    // Obligations / obligation settlements
+    // ------------------------------------------------------------------
+
+    /**
+     * Resultado de un pull: {@code items} solo contiene documentos parseables,
+     * mientras {@code documentIds} incluye TODOS los ids devueltos por el
+     * servidor (incluso los no parseables). La poda debe operar sobre
+     * {@code documentIds} para que un registro remoto malformado nunca se
+     * interprete como "eliminado".
+     */
+    public record PullResult<T>(List<T> items, Set<String> documentIds) {
+    }
+
+    public PullResult<ObligationRepository.Obligation> pullObligations(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/obligations";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<ObligationRepository.Obligation> items = new ArrayList<>();
+        Set<String> documentIds = new LinkedHashSet<>();
+        for (String body : pages) {
+            collectObligations(session.uid(), body, items, documentIds);
+        }
+        return new PullResult<>(items, documentIds);
+    }
+
+    public PullResult<ObligationSettlementRepository.ObligationSettlement> pullObligationSettlements(AuthSession session) throws Exception {
+        String baseUrl = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/obligationSettlements";
+        List<String> pages = pullAllPages(session, baseUrl, 1000);
+
+        List<ObligationSettlementRepository.ObligationSettlement> items = new ArrayList<>();
+        Set<String> documentIds = new LinkedHashSet<>();
+        for (String body : pages) {
+            collectObligationSettlements(session.uid(), body, items, documentIds);
+        }
+        return new PullResult<>(items, documentIds);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectObligations(
+        String userUid,
+        String body,
+        List<ObligationRepository.Obligation> out,
+        Set<String> documentIds
+    ) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return;
+        }
+        long now = Instant.now().getEpochSecond();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+            documentIds.add(id);
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+            ObligationRepository.Obligation parsed = parseObligation(userUid, id, fields, now);
+            if (parsed != null) {
+                out.add(parsed);
+            } else {
+                System.out.println("[ObligationSync] obligation doc unparseable id=" + id);
+            }
+        }
+    }
+
+    private static ObligationRepository.Obligation parseObligation(
+        String userUid,
+        String docId,
+        Map<?, ?> fields,
+        long now
+    ) {
+        String title = readStringField(fields, "title");
+        String counterpartyName = readStringField(fields, "counterpartyName");
+        String currency = readStringField(fields, "currency");
+        Long originalAmountCents = readLongField(fields, "originalAmountCents");
+        Long issuedAt = readLongField(fields, "issuedAtEpochSec");
+        if (title == null || title.isBlank() || counterpartyName == null || counterpartyName.isBlank()
+            || currency == null || currency.isBlank() || originalAmountCents == null || issuedAt == null) {
+            return null;
+        }
+        String type;
+        try {
+            type = ObligationRepository.normalizeType(readStringField(fields, "type"));
+        } catch (Exception e) {
+            return null;
+        }
+        Long createdAt = readLongField(fields, "createdAtEpochSec");
+        Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+        long cAt = createdAt == null ? issuedAt : createdAt;
+        long uAt = updatedAt == null ? cAt : updatedAt;
+        return new ObligationRepository.Obligation(
+            docId,
+            userUid,
+            type,
+            title,
+            counterpartyName,
+            readStringField(fields, "notes"),
+            readStringField(fields, "reference"),
+            readStringField(fields, "obligationCategoryId"),
+            currency,
+            originalAmountCents,
+            issuedAt,
+            readLongField(fields, "dueAtEpochSec"),
+            readLongField(fields, "cancelledAtEpochSec"),
+            cAt,
+            uAt,
+            readStringField(fields, "updatedBy")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void collectObligationSettlements(
+        String userUid,
+        String body,
+        List<ObligationSettlementRepository.ObligationSettlement> out,
+        Set<String> documentIds
+    ) throws Exception {
+        Map<String, Object> root = MAPPER.readValue(body, Map.class);
+        Object docsObj = root.get("documents");
+        if (!(docsObj instanceof List<?> docs)) {
+            return;
+        }
+        long now = Instant.now().getEpochSecond();
+        for (Object d : docs) {
+            if (!(d instanceof Map<?, ?> doc)) {
+                continue;
+            }
+            Object nameObj = doc.get("name");
+            if (!(nameObj instanceof String fullName) || fullName.isBlank()) {
+                continue;
+            }
+            String id = fullName.substring(fullName.lastIndexOf('/') + 1);
+            documentIds.add(id);
+            Object fieldsObj = doc.get("fields");
+            if (!(fieldsObj instanceof Map<?, ?> fields)) {
+                continue;
+            }
+            ObligationSettlementRepository.ObligationSettlement parsed =
+                parseObligationSettlement(userUid, id, fields, now);
+            if (parsed != null) {
+                out.add(parsed);
+            } else {
+                System.out.println("[ObligationSync] settlement doc unparseable id=" + id);
+            }
+        }
+    }
+
+    private static ObligationSettlementRepository.ObligationSettlement parseObligationSettlement(
+        String userUid,
+        String docId,
+        Map<?, ?> fields,
+        long now
+    ) {
+        String obligationId = readStringField(fields, "obligationId");
+        String accountId = readStringField(fields, "accountId");
+        String linkedTransactionId = readStringField(fields, "linkedTransactionId");
+        Long amountCents = readLongField(fields, "amountCents");
+        Long occurredAt = readLongField(fields, "occurredAtEpochSec");
+        if (obligationId == null || obligationId.isBlank()
+            || accountId == null || accountId.isBlank()
+            || linkedTransactionId == null || linkedTransactionId.isBlank()
+            || amountCents == null || occurredAt == null) {
+            return null;
+        }
+        Long createdAt = readLongField(fields, "createdAtEpochSec");
+        Long updatedAt = readLongField(fields, "updatedAtEpochSec");
+        long cAt = createdAt == null ? occurredAt : createdAt;
+        long uAt = updatedAt == null ? cAt : updatedAt;
+        return new ObligationSettlementRepository.ObligationSettlement(
+            docId,
+            obligationId,
+            userUid,
+            accountId,
+            amountCents,
+            occurredAt,
+            linkedTransactionId,
+            readStringField(fields, "note"),
+            cAt,
+            uAt,
+            readStringField(fields, "updatedBy")
+        );
+    }
+
+    public void syncObligation(AuthSession session, ObligationRepository.Obligation o) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/obligations/" + urlEncode(o.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(o.id()));
+        fields.put("userUid", stringField(o.userUid()));
+        fields.put("type", stringField(o.type()));
+        fields.put("title", stringField(o.title()));
+        fields.put("counterpartyName", stringField(o.counterpartyName()));
+        fields.put("notes", nullableStringField(o.notes()));
+        fields.put("reference", nullableStringField(o.reference()));
+        fields.put("obligationCategoryId", nullableStringField(o.obligationCategoryId()));
+        fields.put("currency", stringField(o.currency()));
+        fields.put("originalAmountCents", intField(o.originalAmountCents()));
+        fields.put("issuedAtEpochSec", intField(o.issuedAtEpochSec()));
+        fields.put("dueAtEpochSec", nullableLongField(o.dueAtEpochSec()));
+        fields.put("cancelledAtEpochSec", nullableLongField(o.cancelledAtEpochSec()));
+        fields.put("createdAtEpochSec", intField(o.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(o.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(o.updatedBy() == null ? DeviceId.get() : o.updatedBy()));
+
+        patchDoc(session, url, fields, "obligation");
+    }
+
+    public void syncObligationSettlement(AuthSession session, ObligationSettlementRepository.ObligationSettlement s) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/obligationSettlements/" + urlEncode(s.id());
+
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("id", stringField(s.id()));
+        fields.put("obligationId", stringField(s.obligationId()));
+        fields.put("userUid", stringField(s.userUid()));
+        fields.put("accountId", stringField(s.accountId()));
+        fields.put("amountCents", intField(s.amountCents()));
+        fields.put("occurredAtEpochSec", intField(s.occurredAtEpochSec()));
+        fields.put("linkedTransactionId", stringField(s.linkedTransactionId()));
+        fields.put("note", nullableStringField(s.note()));
+        fields.put("createdAtEpochSec", intField(s.createdAtEpochSec()));
+        fields.put("updatedAtEpochSec", intField(s.updatedAtEpochSec()));
+        fields.put("updatedBy", stringField(s.updatedBy() == null ? DeviceId.get() : s.updatedBy()));
+
+        patchDoc(session, url, fields, "obligationSettlement");
+    }
+
+    public void deleteObligation(AuthSession session, String obligationId) throws Exception {
+        deleteDoc(session, "obligations", obligationId, "obligation");
+    }
+
+    public void deleteObligationSettlement(AuthSession session, String settlementId) throws Exception {
+        deleteDoc(session, "obligationSettlements", settlementId, "obligationSettlement");
+    }
+
+    /** DELETE tolerante a 404: el documento ya ausente es un estado válido. */
+    private void deleteDoc(AuthSession session, String collection, String docId, String kind) throws Exception {
+        String url = "https://firestore.googleapis.com/v1/projects/" + urlEncode(projectId)
+            + "/databases/(default)/documents/users/" + urlEncode(session.uid())
+            + "/" + collection + "/" + urlEncode(docId);
+
+        HttpRequest req = HttpRequest.newBuilder(URI.create(url))
+            .header("Authorization", "Bearer " + session.idToken())
+            .DELETE()
+            .build();
+
+        HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() == 404) {
+            return;
+        }
+        if (resp.statusCode() / 100 != 2) {
+            throw new RuntimeException("Firestore delete " + kind + " failed (" + resp.statusCode() + "): " + resp.body());
+        }
+    }
+
+    private static Map<String, Object> nullableStringField(String v) {
+        return (v == null || v.isBlank()) ? nullField() : stringField(v);
+    }
+
+    private static Map<String, Object> nullableLongField(Long v) {
+        return v == null ? nullField() : intField(v);
     }
 
     public void syncLoanPayment(AuthSession session, LoanPaymentRepository.LoanPayment payment) throws Exception {

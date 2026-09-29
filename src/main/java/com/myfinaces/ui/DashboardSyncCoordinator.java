@@ -10,12 +10,16 @@ import com.myfinaces.db.GoalRepository;
 import com.myfinaces.db.LoanMovementRepository;
 import com.myfinaces.db.LoanPaymentRepository;
 import com.myfinaces.db.LoanRepository;
+import com.myfinaces.db.ObligationRepository;
+import com.myfinaces.db.ObligationSettlementRepository;
 import com.myfinaces.db.SqliteDatabase;
 import com.myfinaces.db.TransactionRepository;
 import com.myfinaces.db.TransferRepository;
 import com.myfinaces.sync.CanonicalLoanPublishQueue;
 import com.myfinaces.sync.FirestoreSyncService;
 import com.myfinaces.sync.GoalPublishQueue;
+import com.myfinaces.sync.ObligationPublishQueue;
+import com.myfinaces.sync.ObligationSyncApplier;
 import javafx.application.Platform;
 import myfinances.application.loan.LoanApplicationService;
 import myfinances.domain.loan.snapshot.LoanSnapshot;
@@ -59,6 +63,8 @@ public final class DashboardSyncCoordinator {
         LoanMovementRepository loanMovementRepo,
         TransactionRepository txRepo,
         TransferRepository transferRepo,
+        ObligationRepository obligationRepo,
+        ObligationSettlementRepository obligationSettlementRepo,
         BudgetRepository budgetRepo,
         LoanApplicationService loanApplicationService,
         Runnable refreshBalances,
@@ -165,6 +171,26 @@ public final class DashboardSyncCoordinator {
                     sync.syncTransactions(s, txRepo);
                     sync.syncTransfers(s, transferRepo);
 
+                    List<ObligationRepository.Obligation> pendingObligations = obligationRepo.listPendingForSync(s.uid());
+                    System.out.println("[Sync] obligations pending=" + pendingObligations.size());
+                    for (ObligationRepository.Obligation o : pendingObligations) {
+                        sync.syncObligation(s, o);
+                        try {
+                            obligationRepo.markSynced(s.uid(), o.id());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    List<ObligationSettlementRepository.ObligationSettlement> pendingSettlements = obligationSettlementRepo.listPendingForSync(s.uid());
+                    System.out.println("[Sync] obligationSettlements pending=" + pendingSettlements.size());
+                    for (ObligationSettlementRepository.ObligationSettlement st : pendingSettlements) {
+                        sync.syncObligationSettlement(s, st);
+                        try {
+                            obligationSettlementRepo.markSynced(s.uid(), st.id());
+                        } catch (Exception ignored) {
+                        }
+                    }
+
                     List<LoanRepository.Loan> pendingLoans = loanRepo.listPendingForSync(s.uid());
                     System.out.println("[Sync] loans pending=" + pendingLoans.size());
                     for (LoanRepository.Loan l : pendingLoans) {
@@ -258,6 +284,37 @@ public final class DashboardSyncCoordinator {
                                 }
                                 logGoalTrace("GOAL_OUTBOX_FAILED", "op=" + e.operation()
                                     + " id=" + e.goalId() + " error=" + goalEx.getMessage());
+                            }
+                        }
+                    }
+
+                    // Borrados coordinados settlement+transacción pendientes en
+                    // el outbox (misma tabla usada por metas y préstamos).
+                    List<ObligationPublishQueue.Entry> pendingSettlementDeletes = ObligationPublishQueue.listPending(outboxDb);
+                    if (!pendingSettlementDeletes.isEmpty()) {
+                        System.out.println("[Sync] obligationSettlements outbox pending=" + pendingSettlementDeletes.size());
+                        for (ObligationPublishQueue.Entry e : pendingSettlementDeletes) {
+                            try {
+                                sync.deleteObligationSettlement(s, e.settlementId());
+                                if (e.transactionId() != null && !e.transactionId().isBlank()) {
+                                    try {
+                                        sync.deleteTransaction(s, e.transactionId());
+                                    } catch (Exception txEx) {
+                                        // La transacción enlazada ya ausente en
+                                        // remoto es un estado válido.
+                                        if (txEx.getMessage() == null || !txEx.getMessage().contains("(404)")) {
+                                            throw txEx;
+                                        }
+                                    }
+                                }
+                                ObligationPublishQueue.markDone(outboxDb, e.id());
+                            } catch (Exception oblEx) {
+                                try {
+                                    ObligationPublishQueue.recordFailure(outboxDb, e.id(), oblEx.getMessage());
+                                } catch (Exception ignored) {
+                                }
+                                System.out.println("[Sync] obligation settlement delete retry failed id="
+                                    + e.settlementId() + " error=" + oblEx.getMessage());
                             }
                         }
                     }
@@ -706,6 +763,13 @@ public final class DashboardSyncCoordinator {
                     if (remoteIds.contains(id)) {
                         continue;
                     }
+                    // Una transacción enlazada a un settlement solo se elimina
+                    // junto con su settlement en pullObligationSettlements;
+                    // nunca por la poda genérica de transactions.
+                    if (obligationSettlementRepo.getByLinkedTransactionId(session.uid(), id) != null) {
+                        System.out.println("[Sync] skipping prune of obligation-linked transaction id=" + id);
+                        continue;
+                    }
                     try {
                         // La poda usa el borrado interno: el snapshot remoto es
                         // autoritativo y la guarda de delete() solo protege la UI.
@@ -865,6 +929,64 @@ public final class DashboardSyncCoordinator {
             }
         };
 
+        Runnable pullObligations = () -> {
+            System.out.println("[Sync] pullObligations start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                FirestoreSyncService.PullResult<ObligationRepository.Obligation> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullObligations(sessionManager.current()));
+                ObligationSyncApplier applier = new ObligationSyncApplier(
+                    obligationRepo, obligationSettlementRepo, txRepo, SqliteDatabase.defaultDatabase());
+                ObligationSyncApplier.ApplyResult result =
+                    applier.applyRemoteObligations(session.uid(), remote.items(), remote.documentIds());
+                System.out.println("[Sync] obligations applied=" + result.applied()
+                    + " deferred=" + result.deferred()
+                    + " rejected=" + result.rejected()
+                    + " pruned=" + result.pruned()
+                    + " preserved=" + result.preserved());
+            } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullObligations failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullObligations end");
+            }
+        };
+
+        Runnable pullObligationSettlements = () -> {
+            System.out.println("[Sync] pullObligationSettlements start");
+            try {
+                AppConfig cfg = AppConfig.loadDefault();
+                FirestoreSyncService sync = new FirestoreSyncService(cfg.firebaseProjectId());
+                FirestoreSyncService.PullResult<ObligationSettlementRepository.ObligationSettlement> remote =
+                    sessionManager.executeWithAuthRetry(() -> sync.pullObligationSettlements(sessionManager.current()));
+                ObligationSyncApplier applier = new ObligationSyncApplier(
+                    obligationRepo, obligationSettlementRepo, txRepo, SqliteDatabase.defaultDatabase());
+                ObligationSyncApplier.ApplyResult result =
+                    applier.applyRemoteSettlements(session.uid(), remote.items(), remote.documentIds());
+                System.out.println("[Sync] obligationSettlements applied=" + result.applied()
+                    + " deferred=" + result.deferred()
+                    + " rejected=" + result.rejected()
+                    + " pruned=" + result.pruned()
+                    + " preserved=" + result.preserved());
+            } catch (Exception ex) {
+                rethrowIfAuthFailure(ex);
+                String msg = ex.getMessage();
+                System.out.println("[Sync] pullObligationSettlements failed: " + msg);
+                if (msg != null && (msg.contains("Firestore pull failed (429)") || msg.contains("Quota exceeded") || msg.contains("RESOURCE_EXHAUSTED"))) {
+                    syncBlockedUntilMs.set(System.currentTimeMillis() + 900_000L);
+                    throw new RuntimeException(ex);
+                }
+            } finally {
+                System.out.println("[Sync] pullObligationSettlements end");
+            }
+        };
+
         Runnable ingestCanonicalLoans = () -> {
             System.out.println("[Sync] ingestCanonicalLoans start");
             try {
@@ -915,6 +1037,8 @@ public final class DashboardSyncCoordinator {
                         pullLoanMovements.run();
                         pullTransactions.run();
                         pullTransfers.run();
+                        pullObligations.run();
+                        pullObligationSettlements.run();
                         pullBudgets.run();
                         ingestCanonicalLoans.run();
                     } catch (AuthSessionManager.SyncAuthenticationException authEx) {
